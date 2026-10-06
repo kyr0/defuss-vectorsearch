@@ -14,3 +14,4 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-06T17:54:26Z s=93cfeaa7 FINDING package.json:author learn=none: one-off metadata fix
 2026-10-06T17:54:26Z s=93cfeaa7 FINDING src/openai-compatible.test.ts:6 learn=verifier: gate tests.no-mocks rule enforces it; now uses a node:http local server
 2026-10-06T18:04:10Z s=93cfeaa7 DONE fp=fcb27ee84532 cov=65.0% paths=.github/workflows/verify.yml,AGENTS.md,Makefile,README.md(+7)
+2026-10-06T18:04:49Z s=93cfeaa7 DONE fp=9c48f001f1fc cov=65.0% paths=AGENTS.md,CHANGELOG.md
