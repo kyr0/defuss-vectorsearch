@@ -14,7 +14,7 @@
     "browser",
     "node"
   ],
-  "author": "OpenAI",
+  "author": "Aron Homberg",
   "sideEffects": false,
   "files": [
     "dist"
