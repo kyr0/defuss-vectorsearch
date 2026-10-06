@@ -86,7 +86,7 @@
   },
   "scripts": {
     "clean": "rm -rf ./dist ./.vitest ./.coverage",
-    "prebuild": "npm run clean",
+    "prebuild": "bun run clean",
     "build": "pkgroll",
     "test:node": "vitest run --config vitest.config.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
@@ -95,10 +95,10 @@
     "test:needle:live": "vitest run --config vitest.needle.live.config.ts",
     "test:live:node": "vitest run --config vitest.live.config.ts",
     "test:live:browser": "vitest run --config vitest.live.browser.config.ts",
-    "test:live": "npm run test:live:node && npm run test:live:browser",
-    "pretest": "npm run build",
-    "test": "npm run test:node && npm run test:browser",
-    "prepublishOnly": "npm run test",
+    "test:live": "bun run test:live:node && bun run test:live:browser",
+    "pretest": "bun run build",
+    "test": "bun run test:node && bun run test:browser",
+    "prepublishOnly": "bun run test",
     "typecheck": "tsc --noEmit",
     "models:download": "node scripts/download-model.ts",
     "demo": "vite --host 127.0.0.1",
@@ -107,7 +107,7 @@
     "test:demo": "node scripts/test-demo.ts",
     "demo:build": "vite build",
     "test:package": "node scripts/test-package.ts",
-    "verify": "npm run build && npm run typecheck && npm run models:download && npm test --ignore-scripts && npm run test:winzling && npm run test:winzling:browser && npm run test:demo && npm run demo:build && npm run test:package"
+    "verify": "make verify"
   },
   "engines": {
     "node": ">=22.18.0"
@@ -122,7 +122,9 @@
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@vitest/browser-playwright": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.11",
     "onnxruntime-node": "1.21.0",
+    "oxlint": "^1.87.0",
     "pkgroll": "^2.25.2",
     "playwright": "1.55.0",
     "typescript": "^5.9.3",
@@ -136,5 +138,6 @@
     "onnxruntime-node": {
       "optional": true
     }
-  }
+  },
+  "packageManager": "bun@1.4.2"
 }

@@ -118,7 +118,7 @@ export const fetchOpenAICompatibleEmbeddings = async (
       : {}),
     ...(options.dimensions !== undefined ? { dimensions: options.dimensions } : {}),
     ...(options.user !== undefined ? { user: options.user } : {}),
-    ...(options.extraBody ?? {}),
+    ...options.extraBody,
   };
 
   const response = await fetchImpl(endpointUrl, {

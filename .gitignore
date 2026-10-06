@@ -13,3 +13,16 @@ demo-dist/
 verification/
 src/__screenshots__/
 .vitest-attachments/
+.env
+var/*
+tmp/*
+output/*
+input/*
+.DS_Store
+coverage/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage

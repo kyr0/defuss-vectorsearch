@@ -1,16 +1,16 @@
 name: verify
 on: [push, pull_request]
 jobs:
-  test:
+  verify:
     runs-on: ubuntu-latest
     env:
       ONNXRUNTIME_NODE_INSTALL_CUDA: skip
     steps:
       - uses: actions/checkout@v4
+      # Bun installs and runs scripts; Node executes the TypeScript and native ONNX Runtime.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run verify
+      - uses: oven-sh/setup-bun@v2
+      - run: make setup PLAYWRIGHT_FLAGS=--with-deps
+      - run: make verify

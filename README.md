@@ -8,17 +8,18 @@ been created on GitHub and this version has not been published to npm.
 
 ## Start from this download
 
-Node **22.18+** (native TypeScript type stripping); tested with Node 24.19.0 on Linux x64.
+Bun installs dependencies and runs scripts. Node **22.18+** executes the TypeScript
+(native type stripping) and the native ONNX Runtime; tested with Node 24.19.0 on Linux x64.
 
 ```sh
-# Skip optional CUDA downloads; native CPU binaries are already in the npm package.
-ONNXRUNTIME_NODE_INSTALL_CUDA=skip npm ci
-npm run build
-npm run models:download
+make setup                      # bun install, Playwright Chromium, build, model assets
 node examples/node.ts           # CPU via ONNX Runtime Web/WASM
 node examples/node.ts --cpu     # native Node CPU
-npm run demo                    # open the printed localhost URL
+bun run demo                    # open the printed localhost URL
 ```
+
+`make setup` skips the optional CUDA download; the native CPU binaries ship in the
+`onnxruntime-node` package, so Bun's blocked postinstall for it is harmless.
 
 The ZIP includes the exact model graph and tokenizer under
 `public/models/winzling/`. `models:download` validates their SHA-256 hashes;
@@ -27,9 +28,9 @@ ORT WASM/JavaScript assets into `public/ort/` for the local browser demo.
 The model and runtime assets are ignored by Git and excluded from the npm tarball.
 After dependency installation and asset preparation, the examples need no network.
 
-On Windows PowerShell, set `$env:ONNXRUNTIME_NODE_INSTALL_CUDA='skip'` before
-`npm ci`. Browser testing additionally needs `npx playwright install chromium`
-(or `npx playwright install --with-deps chromium` on a minimal Linux host).
+Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUDA='skip'`,
+then run `bun install`, `bunx playwright install chromium`, `bun run build` and
+`bun run models:download`. A minimal Linux host needs `make setup PLAYWRIGHT_FLAGS=--with-deps`.
 
 ## Supported models
 
@@ -162,14 +163,14 @@ or choose a smaller explicit `maxLength`; automatic chunking is outside this pac
 ## Verify
 
 ```sh
-npx playwright install chromium
-npm run verify
+make verify   # lint → test → coverage → e2e; CI runs the same after `make setup`
 ```
 
-This runs strict TypeScript checks, builds ESM/CJS/declarations, checks assets,
-runs the original regression suites and real Winzling CPU/browser inference,
-tests the Worker demo, builds the demo, and exercises the built package exports.
-Individual commands are listed in `package.json`.
+`lint` runs oxlint. `test` runs the Node and Chromium regression suites and real
+Winzling CPU/browser inference. `coverage` prints the Node suite's line coverage.
+`e2e` builds ESM/CJS/declarations, typechecks the examples and scripts against them,
+exercises the built package exports, tests the Worker demo (report in `output/`),
+and builds the demo. Individual commands are listed in `Makefile` and `package.json`.
 
 The checked-in oracle contains **24 multilingual and adversarial cases** made
 with Rust tokenizers and Python native ONNX Runtime. Tests require exact token-ID
@@ -199,7 +200,7 @@ Set the package repository URL when the new repository exists.
 
 ## Standalone changes beyond the provider
 
-- npm lockfile and self-contained build/test configuration; no Bun requirement.
+- Bun lockfile and self-contained build/test configuration behind `make` verbs.
 - Strict typing repairs in the extracted package (without disabling strictness).
 - `defuss-multicore` updated from 0.0.2 to **0.1.0**: the older published ESM entry
   imported Node's `createRequire` on browsers; the new release passes both

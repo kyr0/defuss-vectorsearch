@@ -57,7 +57,7 @@ const splitTensor = (tensor: TensorLike): Float32Array[] => {
   const batch = dims[0]!;
   const width = dims[1]!;
   const data = tensor.data instanceof Float32Array ? tensor.data : Float32Array.from(tensor.data);
-  const embeddings: Float32Array[] = new Array(batch);
+  const embeddings: Float32Array[] = [];
 
   for (let row = 0; row < batch; row++) {
     const start = row * width;

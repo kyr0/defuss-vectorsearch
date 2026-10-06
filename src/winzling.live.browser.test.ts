@@ -1,6 +1,6 @@
 import { afterAll, expect, it } from "vitest";
 import { createWinzlingEmbedder } from "./onnx.js";
-import { createEmbeddingClient, WINZLING_MODEL_ID } from "./client.js";
+import { createEmbeddingClient } from "./client.js";
 
 const base = new URL("/models/winzling", location.href).href;
 const embedder = createWinzlingEmbedder({ modelBaseUrl: base, device: "wasm", wasmPaths: "/ort/", batchSize: 4 });

@@ -23,9 +23,9 @@ try {
     results: await page.locator('#results').textContent(),
     errors, webgpu,
   };
-  await mkdir('verification', { recursive: true });
-  await writeFile('verification/browser-worker.json', JSON.stringify(result, null, 2) + '\n');
-  await page.screenshot({ path: 'verification/browser-worker.png', fullPage: true });
+  await mkdir('output', { recursive: true });
+  await writeFile('output/browser-worker.json', JSON.stringify(result, null, 2) + '\n');
+  await page.screenshot({ path: 'output/browser-worker.png', fullPage: true });
   console.log(result);
   assert.equal(errors.length, 0);
   assert.match(result.status ?? '', /wasm.*384 dimensions/);
