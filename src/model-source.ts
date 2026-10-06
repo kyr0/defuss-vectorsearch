@@ -82,10 +82,12 @@ export const resolveModelSource = (
       );
     }
 
-    const syntheticId = options.cacheKey ?? `defuss-embeddings/${hashString(url.toString())}`;
+    // VERIFIED: hash the slash-trimmed base; callers re-resolve `input`, so both spellings must share cache keys.
+    const input = url.toString().replace(/\/$/, "");
+    const syntheticId = options.cacheKey ?? `defuss-embeddings/${hashString(input)}`;
     return {
       kind: "url",
-      input: url.toString().replace(/\/$/, ""),
+      input,
       modelId: syntheticId,
       revision,
       remoteHost: options.remoteHost ?? `${url.origin}/`,

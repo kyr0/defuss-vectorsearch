@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createWinzlingEmbedder, poolWinzling, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./onnx.js";
-import { buildRemoteModelFileUrl, DEFAULT_MODEL_ID, getRequiredModelFiles, resolveModelSource } from "./model-source.js";
+import { buildNodeCacheKey, buildRemoteModelFileUrl, DEFAULT_MODEL_ID, getRequiredModelFiles, resolveModelSource } from "./model-source.js";
 import { createEmbeddingClient } from "./client.js";
 import { createEmbeddingServer } from "./server.js";
 
@@ -58,5 +58,11 @@ describe("Winzling contract", () => {
     } finally {
       await rm(cacheDir, { recursive: true, force: true });
     }
+  });
+  it("gives a mirror URL the same cache keys with or without a trailing slash", () => {
+    // core.ts resolves the user URL; onnx.ts re-resolves source.input (slash trimmed).
+    const [slash, bare] = ["https://example.com/models/winzling/", "https://example.com/models/winzling"]
+      .map(url => buildNodeCacheKey(resolveModelSource(url, { revision: WINZLING_REVISION }), "tokenizer.json"));
+    expect(slash).toBe(bare);
   });
 });
