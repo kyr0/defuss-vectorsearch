@@ -1,45 +1,53 @@
-import { describe, expect, it, vi } from "vitest";
+import { createServer, type IncomingHttpHeaders } from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { DefussEmbeddingClient } from "./client.js";
+
+// A real local HTTP endpoint exercises the actual fetch, header and JSON path end to end.
+interface ObservedRequest { url: string; headers: IncomingHttpHeaders; body: { model: string; input: string[] | string } }
+const requests: ObservedRequest[] = [];
+const server = createServer((request, response) => {
+  let raw = "";
+  request.on("data", chunk => { raw += chunk; });
+  request.on("end", () => {
+    const body = JSON.parse(raw) as ObservedRequest["body"];
+    requests.push({ url: request.url ?? "", headers: request.headers, body });
+    const inputs = Array.isArray(body.input) ? body.input : [body.input];
+    // Out-of-order indices check that the client reorders by `index`.
+    const data = inputs.length === 2
+      ? [{ index: 1, embedding: [0, 3, 4] }, { index: 0, embedding: [3, 0, 4] }]
+      : [{ index: 0, embedding: [1, 0, 0] }];
+    response.writeHead(200, { "Content-Type": "application/json" }).end(JSON.stringify({ data }));
+  });
+});
+let origin = "";
+
+beforeAll(async () => {
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+});
+afterAll(() => new Promise<void>(resolve => server.close(() => resolve())));
 
 describe("OpenAI-compatible embedding endpoints", () => {
   it("embeds batches through an OpenAI-compatible endpoint", async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      return new Response(
-        JSON.stringify({
-          data: [
-            { index: 1, embedding: [0, 3, 4] },
-            { index: 0, embedding: [3, 0, 4] },
-          ],
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    });
-
+    requests.length = 0;
     const client = new DefussEmbeddingClient({
       model: "text-embedding-3-small",
       openAICompatible: {
-        baseUrl: "https://embeddings.example.com/v1",
+        baseUrl: `${origin}/v1`,
         apiKey: "secret-token",
         headers: { "X-Test": "1" },
-        fetch: fetchSpy,
       },
     });
 
     const embeddings = await client.embed(["alpha", "beta"]);
 
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-    const [requestUrl, requestInit] = fetchSpy.mock.calls[0]!;
-    expect(String(requestUrl)).toBe("https://embeddings.example.com/v1/embeddings");
-
-    const headers = new Headers((requestInit as RequestInit).headers);
-    expect(headers.get("authorization")).toBe("Bearer secret-token");
-    expect(headers.get("x-test")).toBe("1");
-
-    const body = JSON.parse(String((requestInit as RequestInit).body));
-    expect(body).toMatchObject({
+    expect(requests).toHaveLength(1);
+    const [request] = requests;
+    expect(request!.url).toBe("/v1/embeddings");
+    expect(request!.headers.authorization).toBe("Bearer secret-token");
+    expect(request!.headers["x-test"]).toBe("1");
+    expect(request!.body).toMatchObject({
       model: "text-embedding-3-small",
       input: ["alpha", "beta"],
     });
@@ -54,42 +62,24 @@ describe("OpenAI-compatible embedding endpoints", () => {
   });
 
   it("allows raw query mode for non-Harrier endpoints", async () => {
-    let observedInput = "";
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-      const body = JSON.parse(String((init as RequestInit).body));
-      observedInput = String(body.input);
-
-      return new Response(
-        JSON.stringify({ data: [{ index: 0, embedding: [1, 0, 0] }] }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-    });
-
+    requests.length = 0;
     const client = new DefussEmbeddingClient({
       model: "text-embedding-3-small",
-      openAICompatible: {
-        endpoint: "https://embeddings.example.com/custom/embeddings",
-        fetch: fetchSpy,
-      },
+      openAICompatible: { endpoint: `${origin}/custom/embeddings` },
     });
 
     await client.embedQuery("How do I create a Python virtual environment?", {
       instruction: "",
     });
 
-    expect(observedInput).toBe("How do I create a Python virtual environment?");
+    expect(requests[0]!.url).toBe("/custom/embeddings");
+    expect(String(requests[0]!.body.input)).toBe("How do I create a Python virtual environment?");
   });
 
   it("disables local model cache operations for OpenAI-compatible endpoints", async () => {
     const client = new DefussEmbeddingClient({
       model: "text-embedding-3-small",
-      openAICompatible: {
-        endpoint: "https://embeddings.example.com/custom/embeddings",
-        fetch: vi.fn(),
-      },
+      openAICompatible: { endpoint: `${origin}/custom/embeddings` },
     });
 
     await expect(client.prefetchModel()).rejects.toThrow(
