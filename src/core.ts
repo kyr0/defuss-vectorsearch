@@ -293,6 +293,8 @@ export class BaseEmbeddingRuntime implements Embedder {
       const source = this.getLocalModelSource("getExtractor");
       if (this.isWinzling()) {
         if (this.dtype !== "q4") throw new Error("Winzling requires dtype: q4 (the model_uint4.onnx artifact)");
+        // VERIFIED: modelProfile outlives loadModel(); without this a different repo ID would silently run Winzling.
+        if (source.kind === "repo" && source.input !== WINZLING_MODEL_ID) throw new Error(`modelProfile "winzling" accepts only ${WINZLING_MODEL_ID} or an HTTP(S) mirror, not ${source.input}`);
         if (source.kind === "repo" && source.revision !== WINZLING_REVISION) throw new Error("Winzling support is pinned to the audited WINZLING_REVISION");
         const { createWinzlingExtractor } = await import("./onnx.js");
         return createWinzlingExtractor({

@@ -1,7 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createWinzlingEmbedder, poolWinzling, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./onnx.js";
-import { buildRemoteModelFileUrl, getRequiredModelFiles, resolveModelSource } from "./model-source.js";
+import { buildRemoteModelFileUrl, DEFAULT_MODEL_ID, getRequiredModelFiles, resolveModelSource } from "./model-source.js";
 import { createEmbeddingClient } from "./client.js";
+import { createEmbeddingServer } from "./server.js";
 
 describe("Winzling contract", () => {
   it("selects the pinned, single-file ONNX graph and no presumed external data", () => {
@@ -43,5 +47,16 @@ describe("Winzling contract", () => {
     await expect(embedder.embedQuery("hello", { preset: "sts_query" })).rejects.toThrow(/unprefixed/);
     await embedder.dispose(); await embedder.dispose();
     await expect(embedder.embed("hello")).rejects.toThrow(/disposed/);
+  });
+  it("never runs Winzling under another repo ID when modelProfile is winzling", async () => {
+    const cacheDir = await mkdtemp(path.join(os.tmpdir(), "winzling-profile-"));
+    try {
+      const options = { modelProfile: "winzling" as const, allowRemoteModels: false, cacheDir };
+      const switched = createEmbeddingServer(options);
+      await expect(switched.loadModel(DEFAULT_MODEL_ID)).rejects.toThrow(/accepts only/);
+      await expect(createEmbeddingServer({ ...options, model: "someone/fork" }).embedOne("x")).rejects.toThrow(/accepts only/);
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   });
 });
