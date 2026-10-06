@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Winzling · local embeddings</title>
+<style>
+  :root{font:16px/1.5 system-ui,sans-serif;color:#e5eaf2;background:#101722;color-scheme:dark}
+  body{max-width:850px;margin:5vh auto;padding:24px}h1{font-size:2.2rem;letter-spacing:-.05em;margin-bottom:0}
+  p{color:#b5c2d5}label{display:block;margin-top:24px}textarea,input,button,select{font:inherit;border:1px solid #3b4b64;border-radius:8px;padding:10px;background:#182435;color:inherit;box-sizing:border-box}
+  textarea,input{width:100%}textarea{min-height:165px}button{cursor:pointer;background:#bce8d0;color:#132c20;font-weight:600;border:0;margin:20px 12px 0 0}
+  button:disabled{opacity:.5;cursor:wait}pre{white-space:pre-wrap;background:#182435;padding:16px;border-radius:8px;min-height:70px}small{color:#9eabc1}
+</style>
+<h1>Winzling, locally.</h1>
+<p>384-dimensional multilingual embeddings. Inference runs in a dedicated browser Worker.</p>
+<label for="documents">Documents · one per line</label>
+<textarea id="documents">The cat sleeps on the sofa.
+Die Katze schläft auf dem Sofa.
+Кошка спит на диване.
+Build a web application.</textarea>
+<label for="query">Query</label><input id="query" value="A sleeping cat on a couch.">
+<label for="device">Backend</label>
+<select id="device"><option value="wasm">CPU · WASM</option><option value="webgpu">WebGPU · experimental, with CPU operator fallback</option></select>
+<div><button id="run">Embed and compare</button></div>
+<p id="status" role="status">Ready. First run loads the model and runtime.</p>
+<pre id="results" aria-live="polite">No inference yet.</pre>
+<small>Model and tokenizer: ~38 MiB uncompressed. Files are served locally by this demo. Cosine scores are similarities, not probabilities.</small>
+<script type="module" src="/examples/browser.ts"></script>
+</html>

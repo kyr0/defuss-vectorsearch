@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.cache/
+.coverage/
+.vitest/
+.runtimecheck/
+public/models/
+public/ort/
+playwright-report/
+test-results/
+*.tgz
+demo-dist/
+verification/
+src/__screenshots__/
+.vitest-attachments/
