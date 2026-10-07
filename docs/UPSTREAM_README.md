@@ -1,4 +1,4 @@
-# defuss-embeddings
+# defuss-vectorsearch
 
 Isomorphic text embeddings for **Node.js** and **Chrome/Web** using:
 
@@ -20,21 +20,21 @@ Isomorphic text embeddings for **Node.js** and **Chrome/Web** using:
 
 This mirrors the split style used by `defuss-rpc`:
 
-- `defuss-embeddings/client.js`
-- `defuss-embeddings/server.js`
-- `defuss-embeddings/vector-search.js`
-- `defuss-embeddings/turboquant.js`
+- `defuss-vectorsearch/client.js`
+- `defuss-vectorsearch/server.js`
+- `defuss-vectorsearch/vector-search.js`
+- `defuss-vectorsearch/turboquant.js`
 
 ## Install
 
 ```bash
-bun add defuss-embeddings
+bun add defuss-vectorsearch
 ```
 
 The package does not download model files during install. The first `loadModel(...)`, `embed(...)`, `embedQuery(...)`, or `embedDocuments(...)` call fetches the required files on demand and warms a persistent cache before the model pipeline is created.
 
 - Browsers store model files in `defuss-db` on top of IndexedDB and mirror them into the Cache API for Transformers.js lookups.
-- Node.js stores model files in the filesystem cache directory from `cacheDir`, or by default in the OS temp directory under `defuss-embeddings/`.
+- Node.js stores model files in the filesystem cache directory from `cacheDir`, or by default in the OS temp directory under `defuss-vectorsearch/`.
 - If you want to warm the cache before the first real request, call `prefetchModel(...)` at application startup.
 - After the first successful download, repeated runs reuse the same cache and should avoid downloading the model files again.
 
@@ -48,8 +48,8 @@ For runtime loading, prefer `loadModel(urlOrRepoId)`.
 ## Browser usage
 
 ```ts
-import { createEmbeddingClient } from "defuss-embeddings/client.js";
-import { buildTurboQuantIndex, searchTurboQuantIndexRerank } from "defuss-embeddings/turboquant.js";
+import { createEmbeddingClient } from "defuss-vectorsearch/client.js";
+import { buildTurboQuantIndex, searchTurboQuantIndexRerank } from "defuss-vectorsearch/turboquant.js";
 
 const embedder = createEmbeddingClient({
   model: "tss-deposium/harrier-oss-v1-270m-onnx-int8",
@@ -81,18 +81,18 @@ console.log(rerankedTopK);
 ## Server usage
 
 ```ts
-import { createEmbeddingServer } from "defuss-embeddings/server.js";
+import { createEmbeddingServer } from "defuss-vectorsearch/server.js";
 import {
   attachRecords,
   searchTopK,
   searchTopKMulticore,
-} from "defuss-embeddings/vector-search.js";
-import { buildTurboQuantIndex, searchTurboQuantIndexRerank } from "defuss-embeddings/turboquant.js";
+} from "defuss-vectorsearch/vector-search.js";
+import { buildTurboQuantIndex, searchTurboQuantIndexRerank } from "defuss-vectorsearch/turboquant.js";
 
 const embedder = createEmbeddingServer({
   model: "tss-deposium/harrier-oss-v1-270m-onnx-int8",
   dtype: "fp32",
-  cacheDir: ".cache/defuss-embeddings",
+  cacheDir: ".cache/defuss-vectorsearch",
 });
 
 await embedder.loadModel("tss-deposium/harrier-oss-v1-270m-onnx-int8");
@@ -125,7 +125,7 @@ console.log(attachRecords(rerankedTopK, docs));
 ## OpenAI-Compatible endpoint usage
 
 ```ts
-import { createEmbeddingServer } from "defuss-embeddings/server.js";
+import { createEmbeddingServer } from "defuss-vectorsearch/server.js";
 
 const embedder = createEmbeddingServer({
   model: "text-embedding-3-small",

@@ -14,7 +14,7 @@ describe("model-source", () => {
     const source = resolveModelSource("https://cdn.example.com/models/harrier");
 
     expect(source.kind).toBe("url");
-    expect(source.modelId.startsWith("defuss-embeddings/")).toBe(true);
+    expect(source.modelId.startsWith("defuss-vectorsearch/")).toBe(true);
     expect(source.remoteHost).toBe("https://cdn.example.com/");
     expect(source.remotePathTemplate).toBe("models/harrier/");
   });

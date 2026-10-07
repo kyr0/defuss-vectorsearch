@@ -19,7 +19,7 @@ const isNodeRuntime = (): boolean => {
 const buildFetchHeaders = (remoteUrl: string): Headers => {
   const headers = new Headers();
   if (isNodeRuntime()) {
-    headers.set("User-Agent", "defuss-embeddings");
+    headers.set("User-Agent", "defuss-vectorsearch");
   }
 
   if (/^https?:\/\/(huggingface\.co|hf\.co)\//i.test(remoteUrl) && isNodeRuntime()) {

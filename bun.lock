@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "defuss-embeddings",
+      "name": "defuss-vectorsearch",
       "dependencies": {
         "@huggingface/tokenizers": "0.2.0",
         "@huggingface/transformers": "^3.8.1",

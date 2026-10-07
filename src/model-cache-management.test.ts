@@ -1,34 +1,40 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { clearModelCache, inspectModelCache } from "./model-cache-management.js";
 import { prefetchModel } from "./model-prefetch.js";
 
-const MODEL_URL = "https://cdn.example.com/models/harrier";
+// A real local HTTP server stands in for the model host and counts the downloads.
+let requests = 0;
+const server = createServer((_request, response) => {
+  requests++;
+  response.writeHead(200, { "Content-Type": "application/octet-stream" }).end(Buffer.from([1, 2, 3, 4]));
+});
+let MODEL_URL = "";
+
+beforeAll(async () => {
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  MODEL_URL = `http://127.0.0.1:${(server.address() as AddressInfo).port}/models/harrier`;
+});
+afterAll(() => new Promise<void>((resolve) => server.close(() => resolve())));
 
 describe("model cache management in Node.js", () => {
   let cacheDir = "";
-  let originalFetch: typeof fetch;
 
   beforeEach(async () => {
-    cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "defuss-embeddings-cache-mgmt-"));
-    originalFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn(async () => {
-      return new Response(Uint8Array.from([1, 2, 3, 4]), {
-        status: 200,
-        headers: { "Content-Type": "application/octet-stream" },
-      });
-    }) as typeof fetch;
+    cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), "defuss-vectorsearch-cache-mgmt-"));
   });
 
   afterEach(async () => {
-    globalThis.fetch = originalFetch;
     await fs.rm(cacheDir, { recursive: true, force: true });
   });
 
   it("inspects and clears filesystem cached model files", async () => {
     await prefetchModel(MODEL_URL, { dtype: "q4", cacheDir });
+    expect(requests).toBe(5);
 
     const inspection = await inspectModelCache(MODEL_URL, { dtype: "q4", cacheDir });
     expect(inspection.files.every((file) => file.locations.includes("filesystem"))).toBe(true);

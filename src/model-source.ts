@@ -84,7 +84,7 @@ export const resolveModelSource = (
 
     // VERIFIED: hash the slash-trimmed base; callers re-resolve `input`, so both spellings must share cache keys.
     const input = url.toString().replace(/\/$/, "");
-    const syntheticId = options.cacheKey ?? `defuss-embeddings/${hashString(input)}`;
+    const syntheticId = options.cacheKey ?? `defuss-vectorsearch/${hashString(input)}`;
     return {
       kind: "url",
       input,

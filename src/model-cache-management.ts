@@ -1,3 +1,9 @@
+import {
+  deleteBrowserCacheApiFile,
+  deleteBrowserPersistentCachedFile,
+  inspectBrowserCacheApiFile,
+  inspectBrowserPersistentCachedFile,
+} from "./model-cache.browser.js";
 import { resolveModelCacheDir } from "./model-cache.js";
 import {
   buildNodeCacheKey,
@@ -38,10 +44,6 @@ export const inspectModelCache = async (
           locations.push("filesystem");
         }
       } else {
-        const {
-          inspectBrowserCacheApiFile,
-          inspectBrowserPersistentCachedFile,
-        } = await import("./model-cache.browser.js");
 
         if (await inspectBrowserCacheApiFile(remoteUrl)) {
           locations.push("browser-cache");
@@ -91,12 +93,6 @@ export const clearModelCache = async (
           removedFrom.push("filesystem");
         }
       } else {
-        const {
-          inspectBrowserCacheApiFile,
-          inspectBrowserPersistentCachedFile,
-          deleteBrowserCacheApiFile,
-          deleteBrowserPersistentCachedFile,
-        } = await import("./model-cache.browser.js");
 
         if (await inspectBrowserCacheApiFile(remoteUrl)) {
           locations.push("browser-cache");

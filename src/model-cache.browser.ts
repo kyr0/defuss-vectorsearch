@@ -1,7 +1,10 @@
 import { DefussTable, defineTable, type DefussRecord } from "defuss-db";
+// VERIFIED: a lazy import("defuss-db/client.js") deadlocks consumers that await embeddings at module top level,
+// because Vite's lazy chunk imports back from the still-evaluating entry chunk (scripts/test-browser-bundle.ts).
+import { DexieProvider } from "defuss-db/client.js";
 import { DEFAULT_TRANSFORMERS_CACHE_NAME } from "./model-source.js";
 
-export const BROWSER_MODEL_CACHE_DB_NAME = "defuss-embeddings-cache";
+export const BROWSER_MODEL_CACHE_DB_NAME = "defuss-vectorsearch-cache";
 export const BROWSER_MODEL_CACHE_TABLE_NAME = "model_files";
 
 interface BrowserModelCacheRecord extends DefussRecord {
@@ -45,7 +48,6 @@ const getProvider = async () => {
   }
 
   providerPromise = (async () => {
-    const { DexieProvider } = await import("defuss-db/client.js");
     const provider = new DexieProvider(BROWSER_MODEL_CACHE_DB_NAME) as any;
     await provider.connect();
     const table = new DefussTable(provider, browserModelCacheTable);
@@ -252,4 +254,38 @@ export const deleteBrowserPersistentCachedFile = async (cacheKey: string): Promi
   await provider.delete({ cacheKey });
 
   return true;
+};
+
+/** Cache API first (fast), IndexedDB second (durable); an IndexedDB hit re-populates the Cache API. */
+export const loadBrowserCachedModelFile = async (
+  cacheKey: string,
+  remoteUrl: string,
+): Promise<{ bytes: Uint8Array; contentType: string | null; location: "browser-cache" | "browser-db" } | null> => {
+  const cacheApiHit = await readBrowserCacheApiFile(remoteUrl);
+  if (cacheApiHit) {
+    return { ...cacheApiHit, location: "browser-cache" };
+  }
+
+  const persistentHit = await readBrowserPersistentCachedFile(cacheKey);
+  if (!persistentHit) {
+    return null;
+  }
+
+  await writeBrowserCacheApiFile(remoteUrl, persistentHit.bytes, persistentHit.contentType);
+  return { ...persistentHit, location: "browser-db" };
+};
+
+export const storeBrowserCachedModelFile = async (options: {
+  cacheKey: string;
+  remoteUrl: string;
+  fileName: string;
+  modelId: string;
+  revision: string;
+  bytes: Uint8Array;
+  contentType: string | null;
+}): Promise<void> => {
+  await Promise.all([
+    writeBrowserCacheApiFile(options.remoteUrl, options.bytes, options.contentType),
+    writeBrowserPersistentCachedFile(options),
+  ]);
 };

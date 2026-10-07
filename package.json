@@ -1,9 +1,9 @@
 {
-  "name": "defuss-embeddings",
-  "version": "0.2.0",
+  "name": "defuss-vectorsearch",
+  "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Isomorphic Harrier and Winzling ONNX embeddings with exact and TurboQuant-style vector search.",
+  "description": "Isomorphic Harrier and Winzling ONNX vector embeddings with exact and TurboQuant-style vector search.",
   "keywords": [
     "defuss",
     "embeddings",
@@ -14,7 +14,7 @@
     "browser",
     "node"
   ],
-  "author": "Aron Homberg",
+  "author": "Aron Homberg <info@aron-homberg.de>",
   "sideEffects": false,
   "files": [
     "dist"
@@ -81,6 +81,12 @@
       "import": {
         "types": "./dist/onnx.d.mts",
         "default": "./dist/onnx.mjs"
+      }
+    },
+    "./browser.js": {
+      "import": {
+        "types": "./dist/browser.d.mts",
+        "default": "./dist/browser.mjs"
       }
     }
   },

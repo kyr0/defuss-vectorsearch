@@ -6,7 +6,7 @@ import {
   searchTopK,
   topKFromScores,
   toFloat32,
-} from "./vector-search.js";
+} from "./vector-math.js";
 import type {
   BuildTurboQuantIndexOptions,
   SearchHit,

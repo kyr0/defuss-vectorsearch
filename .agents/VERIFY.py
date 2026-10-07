@@ -40,4 +40,10 @@ RULES = [{
     "pattern": r"unittest\.mock|from\s+unittest\s+import\s+mock|MagicMock\(|mock\.patch|mocker\.|"
                r"jest\.(?:mock|fn|spyOn)\(|vi\.(?:mock|fn|spyOn)\(|sinon\.|gomock\.|mock\.Mock\b|Mockito\.|@Mock\s|mockk\(",
     "claim": "tests exercise real subsystems, not mock frameworks",
+}, {
+    "id": "gitignore.bench-sources-tracked",
+    "kind": "command",
+    # An unanchored `bench/` ignore line once hid scripts/bench/ from git; only the root bench/ data dir is ignored.
+    "command": "! git check-ignore -q scripts/bench/run.ts && git check-ignore -q bench/dataset.json",
+    "claim": "benchmark sources are tracked while downloaded benchmark data stays ignored",
 }]

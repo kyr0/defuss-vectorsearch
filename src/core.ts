@@ -4,6 +4,8 @@ import { normalizeVector } from "./vector-search.js";
 import { prefetchModel } from "./model-prefetch.js";
 import { DEFAULT_MODEL_ID, resolveModelSource } from "./model-source.js";
 import { fetchOpenAICompatibleEmbeddings } from "./openai-compatible.js";
+// VERIFIED: static, not lazy (scripts/test-browser-bundle.ts); see model-cache.ts for the top-level-await deadlock.
+import { createWinzlingExtractor } from "./onnx.js";
 import { formatInstructionQuery } from "./prompts.js";
 import type {
   EmbedOptions,
@@ -296,7 +298,6 @@ export class BaseEmbeddingRuntime implements Embedder {
         // VERIFIED: modelProfile outlives loadModel(); without this a different repo ID would silently run Winzling.
         if (source.kind === "repo" && source.input !== WINZLING_MODEL_ID) throw new Error(`modelProfile "winzling" accepts only ${WINZLING_MODEL_ID} or an HTTP(S) mirror, not ${source.input}`);
         if (source.kind === "repo" && source.revision !== WINZLING_REVISION) throw new Error("Winzling support is pinned to the audited WINZLING_REVISION");
-        const { createWinzlingExtractor } = await import("./onnx.js");
         return createWinzlingExtractor({
           ...this.options.winzling,
           device: (this.options.device ?? this.options.winzling?.device ?? "wasm") as "wasm" | "cpu" | "webgpu",

@@ -24,7 +24,7 @@ describe("DefussEmbeddingClient", () => {
     await client.loadModel("https://cdn.example.com/models/harrier");
 
     expect(client.model).toBe("https://cdn.example.com/models/harrier");
-    expect(observedModelId.startsWith("defuss-embeddings/")).toBe(true);
+    expect(observedModelId.startsWith("defuss-vectorsearch/")).toBe(true);
     expect(moduleEnv.remoteHost).toBe("https://cdn.example.com/");
     expect(moduleEnv.remotePathTemplate).toBe("models/harrier/");
   });

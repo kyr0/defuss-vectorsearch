@@ -1,3 +1,7 @@
+// VERIFIED: browser-path modules are imported statically (scripts/test-browser-bundle.ts). A lazy import makes
+// Vite emit a chunk that imports back from the entry chunk, which deadlocks apps using top-level await.
+import { loadBrowserCachedModelFile, storeBrowserCachedModelFile } from "./model-cache.browser.js";
+
 const isNodeRuntime = (): boolean => {
   return typeof process !== "undefined" && process.release?.name === "node";
 };
@@ -33,29 +37,7 @@ export const loadCachedModelFile = async (options: {
     return file ? { ...file, location: "filesystem" } : null;
   }
 
-  const {
-    readBrowserCacheApiFile,
-    readBrowserPersistentCachedFile,
-    writeBrowserCacheApiFile,
-  } = await import("./model-cache.browser.js");
-
-  const cacheApiHit = await readBrowserCacheApiFile(options.remoteUrl);
-  if (cacheApiHit) {
-    return { ...cacheApiHit, location: "browser-cache" };
-  }
-
-  const persistentHit = await readBrowserPersistentCachedFile(options.cacheKey);
-  if (!persistentHit) {
-    return null;
-  }
-
-  await writeBrowserCacheApiFile(
-    options.remoteUrl,
-    persistentHit.bytes,
-    persistentHit.contentType,
-  );
-
-  return { ...persistentHit, location: "browser-db" };
+  return loadBrowserCachedModelFile(options.cacheKey, options.remoteUrl);
 };
 
 export const storeCachedModelFile = async (options: {
@@ -78,23 +60,6 @@ export const storeCachedModelFile = async (options: {
     return "filesystem";
   }
 
-  const {
-    writeBrowserCacheApiFile,
-    writeBrowserPersistentCachedFile,
-  } = await import("./model-cache.browser.js");
-
-  await Promise.all([
-    writeBrowserCacheApiFile(options.remoteUrl, options.bytes, options.contentType),
-    writeBrowserPersistentCachedFile({
-      cacheKey: options.cacheKey,
-      remoteUrl: options.remoteUrl,
-      fileName: options.fileName,
-      modelId: options.modelId,
-      revision: options.revision,
-      bytes: options.bytes,
-      contentType: options.contentType,
-    }),
-  ]);
-
+  await storeBrowserCachedModelFile(options);
   return "browser-db";
 };

@@ -2,7 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
-export const DEFAULT_NODE_CACHE_DIR_NAME = "defuss-embeddings";
+export const DEFAULT_NODE_CACHE_DIR_NAME = "defuss-vectorsearch";
 
 export const getDefaultNodeCacheDir = (): string => {
   return path.join(os.tmpdir(), DEFAULT_NODE_CACHE_DIR_NAME);

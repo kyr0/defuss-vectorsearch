@@ -1,6 +1,6 @@
 export const LIVE_MODEL_ID = "tss-deposium/harrier-oss-v1-270m-onnx-int8";
-export const LIVE_CACHE_DIR = ".cache/defuss-embeddings-live";
-export const LIVE_BROWSER_CACHE_DIR = ".cache/defuss-embeddings-live-browser";
+export const LIVE_CACHE_DIR = ".cache/defuss-vectorsearch-live";
+export const LIVE_BROWSER_CACHE_DIR = ".cache/defuss-vectorsearch-live-browser";
 export const LIVE_TIMEOUT_MS = 900_000;
 
 export interface RetrievalDoc {

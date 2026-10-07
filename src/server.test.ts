@@ -28,6 +28,6 @@ describe("DefussEmbeddingServer", () => {
     await server.embedOne("server-cache");
 
     expect(typeof observedEnv.cacheDir).toBe("string");
-    expect(String(observedEnv.cacheDir)).toContain("defuss-embeddings");
+    expect(String(observedEnv.cacheDir)).toContain("defuss-vectorsearch");
   });
 });
