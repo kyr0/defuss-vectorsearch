@@ -9,7 +9,7 @@ Isomorphic (browser and Node.js) JavaScript library for vector search using Winz
 - Memory (RAM) footprint (runtime): ~200 MB
 - Model loading time (p95): ~375 ms
 - Search in TurboQuant index (p95): ~206 ms (needle against haystack)
-- Recall (R@5): **~97%** for the top 3 languages (German, Russian, English)
+- Recall (R@5): **~97%** for the top 3 languages (German, Russian, English) in [tiny-embedding-bench](https://github.com/kyr0/tiny-embedding-bench)
 
 ## Use case
 
