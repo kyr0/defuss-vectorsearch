@@ -5,32 +5,12 @@ Agents append `<UTC ISO> s=<session> LESSON <VAE-DIALECT>` only for a falsified 
 Session start injects the 3 newest open entries: LESSON, FINDING learn=none, FAIL without a later DONE.
 A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then delete its lines. -->
 
-2026-10-06T17:40:49Z s=93cfeaa7 FAIL layout,lint=?,tests.unit=?,tests.e2e=?,coverage=?
-2026-10-06T17:42:42Z s=93cfeaa7 FAIL toolchain,tests.no-mocks
-2026-10-06T17:43:32Z s=93cfeaa7 FAIL toolchain
-2026-10-06T17:54:26Z s=93cfeaa7 DONE fp=db2a98fc209b cov=65.0% paths=.github/workflows/verify.yml,AGENTS.md,Makefile,README.md(+9)
-2026-10-06T17:54:26Z s=93cfeaa7 FINDING src/core.ts:getExtractor learn=test: src/winzling.test.ts 'never runs Winzling under another repo ID' fails without fix
-2026-10-06T17:54:26Z s=93cfeaa7 FINDING src/model-source.ts:resolveModelSource learn=test: src/winzling.test.ts 'same cache keys with or without a trailing slash' fails without fix
 2026-10-06T17:54:26Z s=93cfeaa7 FINDING package.json:author learn=none: one-off metadata fix
-2026-10-06T17:54:26Z s=93cfeaa7 FINDING src/openai-compatible.test.ts:6 learn=verifier: gate tests.no-mocks rule enforces it; now uses a node:http local server
-2026-10-06T18:04:10Z s=93cfeaa7 DONE fp=fcb27ee84532 cov=65.0% paths=.github/workflows/verify.yml,AGENTS.md,Makefile,README.md(+7)
-2026-10-06T18:04:49Z s=93cfeaa7 DONE fp=9c48f001f1fc cov=65.0% paths=AGENTS.md,CHANGELOG.md
-2026-10-07T10:52:05Z s=93cfeaa7 FAIL env.example,tests.no-mocks
-2026-10-07T10:53:53Z s=93cfeaa7 DONE fp=3869848fa2fd cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bun.lock(+15)
 2026-10-07T10:53:53Z s=93cfeaa7 FINDING README.md:1 learn=none: one-off rename slip; no mechanical check for README/package version parity
-2026-10-07T10:53:53Z s=93cfeaa7 FINDING src/model-prefetch.test.ts:25 learn=verifier: gate tests.no-mocks rule enforces it
-2026-10-07T10:53:53Z s=93cfeaa7 FINDING src/model-cache-management.test.ts:17 learn=verifier: gate tests.no-mocks rule enforces it
-2026-10-07T10:53:53Z s=93cfeaa7 FINDING src/model-prefetch.ts:buildFetchHeaders learn=verifier: gate env.example rule enforces it
 2026-10-07T10:53:53Z s=93cfeaa7 FINDING README.md:186 learn=none: documentation precision; not mechanically checkable
-2026-10-07T11:16:27Z s=93cfeaa7 FAIL prose
-2026-10-07T11:20:27Z s=93cfeaa7 DONE fp=6425447ca747 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+27)
-2026-10-07T11:20:27Z s=93cfeaa7 FINDING .gitignore:29 learn=verifier: .agents/VERIFY.py gitignore.bench-sources-tracked fails with the old pattern, passes with the fix
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run (Harrier load fails otherwise); no unit-level check without a browser
-2026-10-07T11:20:27Z s=93cfeaa7 FINDING scripts/bench/run.ts:rendererRss learn=memory: inline VERIFIED comment at rendererRss records why heap usage is not used
-2026-10-07T11:20:27Z s=93cfeaa7 FINDING scripts/bench/report.ts:renderReadmeSection learn=verifier: gate prose check enforces it on every regenerated README
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:1 learn=none: one-off rename slip
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:186 learn=none: documentation precision
-2026-10-07T11:39:01Z s=93cfeaa7 DONE fp=a4b0921a4f87 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+27)
 2026-10-07T12:03:12Z s=93cfeaa7 DONE fp=21c0e5e73e4b cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+27)
 2026-10-07T15:03:12Z s=93cfeaa7 DONE fp=a5727c81a418 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+28)
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=none: documentation precision; not mechanically checkable
@@ -55,3 +35,73 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-07T15:43:06Z s=93cfeaa7 FINDING README.md:28,295,302 learn=none: hand-written analysis outside the generated block; it cites the 2026-10-07 run by date
 2026-10-07T16:18:01Z s=93cfeaa7 DONE fp=7484b0ccd875 cov=66.7% paths=CHANGELOG.md,README.md,scripts/bench/bench.test.ts,scripts/bench/dataset.ts(+1)
 2026-10-07T16:18:01Z s=93cfeaa7 FINDING scripts/bench/report.ts:renderReadmeSection learn=test: bench.test.ts asserts the four ### headings render
+2026-10-08T10:04:31Z s=542d48d6 FAIL tests.e2e.1
+2026-10-08T10:16:18Z s=542d48d6 DONE fp=225aa76adb63 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:<head> CDN links learn=test: test-docs.ts fails on any blocked resource/console error, so a wrong or removed hash is caught
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:showResults/showEmpty learn=none: timing-dependent (needs a transition in flight at the moment of clearing); not deterministically reproducible in e2e
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:[data-boot] listeners learn=test: test-docs.ts asserts no second 'load · device=' log line after clicking the hero link once ready
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:handlers.error learn=none: a search error needs a worker failure after a successful load; no deterministic trigger without altering the worker
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/render.js:renderHits rank learn=none: ARIA semantics; no accessibility tree assertion in the suite
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:state.device learn=none: dead state; lint does not flag object properties
+2026-10-08T10:16:18Z s=542d48d6 FINDING README.md:Static demo page (P precision) learn=none: prose precision; not mechanically checkable
+2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts coverage learn=test: test-docs.ts now covers both
+2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts:375 px check learn=test: test-docs.ts overflowing() assertion
+2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts:#vs-menu wait learn=test: the e2e itself
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:#cmd State API (upstream defuss-shadcn 0.9.7) learn=none: defect lives in defuss-shadcn command.ts (bindGlobalKeys handler); reported to the user, not fixable in this repo
+2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/docs/build-index.ts:batchSize learn=none: performance on one host; pinning timings in a test would be flaky
+2026-10-08T10:16:18Z s=542d48d6 FINDING .oxlintrc.json learn=none: lint itself enforces it
+2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:hero copy (B evidence) learn=test: test-docs.ts compares every figure and the 20 recall bars with bench.json
+2026-10-08T12:49:35Z s=542d48d6 DONE fp=5d3979cec624 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.js:palette click + Enter handlers (reported scroll jump) learn=test: test-docs.ts asserts |scrollY delta| < 2 for Enter and click picks
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.js:boot-retry learn=test: test-docs.ts index-failure context
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/index.html:<header> wrapper learn=test: test-docs.ts asserts the header top stays within 0..40 px at #use
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-cta example buttons learn=test: test-docs.ts overflowing() after the examples render
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-query .mk-search-box learn=none: visual layout; no width assertion beyond overflow
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-way code spans learn=none: visual layout
+2026-10-08T12:49:35Z s=542d48d6 FINDING docs/index.html:Use it 'NPM package' heading learn=none: registry state changes outside the repo
+2026-10-08T12:56:13Z s=542d48d6 DONE fp=dfe0b6e79bd4 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
+2026-10-08T12:56:13Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc + #intro learn=test: test-docs.ts recomputes the R@5 mean, the index ratio and the p95 bound from bench.json
+2026-10-08T12:56:13Z s=542d48d6 FINDING docs/index.html:#intro claims without evidence learn=none: needs measurements on such hardware / a reproduction; outside this change
+2026-10-08T13:38:01Z s=542d48d6 DONE fp=a4eb598d6279 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:#notes-region pane width learn=test: test-docs.ts clicks the FAB and checks the divider moves the board by 10 px
+2026-10-08T13:38:01Z s=542d48d6 FINDING scripts/test-docs.ts:scroll stability check learn=test: the round-2 mutation run still applies: the old scrollIntoView call fails the check
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/assets/render.js:renderNoteStatus learn=none: no markup-vocabulary checker runs in this repo's gate
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:phone split learn=test: test-docs.ts asserts border-layout-north and no overflow on 375 px
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/assets/search-view.js + notes.js (structure) learn=test: test-docs.ts drives both tabs through the same view code
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:footer ad portrait learn=none: content decision for the user
+2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:closing CTA copy learn=none: no cross-browser runs in this repo
+2026-10-08T13:43:03Z s=542d48d6 FAIL tests.e2e.1
+2026-10-08T13:44:32Z s=542d48d6 DONE fp=184237afc329 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
+2026-10-08T13:44:32Z s=542d48d6 FINDING scripts/test-docs.ts:pruned filter (tsc TS2532) learn=verifier: make e2e already typechecks scripts; run it, not node alone, before the gate
+2026-10-08T13:52:26Z s=542d48d6 DONE fp=1ddc78950483 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
+2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:[data-bench=index-gzip] (requested '522 kB') learn=test: test-docs.ts recomputes the gzip size from docs/data/index.json
+2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:external links learn=test: test-docs.ts checks every a[href^=http] against the rule
+2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.vs-flip text-rotate learn=test: test-docs.ts compares the six items with the data
+2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:#intro rewrite learn=test: test-docs.ts checks 256 bytes and 8,192 tokens against the data
+2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc (user edit) learn=none: author's copy decision
+2026-10-08T14:08:26Z s=542d48d6 DONE fp=b79951a2c5ff cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
+2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#try-live learn=test: test-docs.ts clicks it before and after loading and sees no model request / no second load
+2026-10-08T14:08:26Z s=542d48d6 FINDING docs/assets/demo.css:.vs-consult learn=test: test-docs.ts checks portrait/heading on one row and the text in its own column
+2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#intro-5 privacy block learn=test: test-docs.ts records zero network requests during a search
+2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#intro-6 quality block learn=test: test-docs.ts recomputes the R@25 mean from bench.json
+2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#add-note learn=test: test-docs.ts asserts it sits above the notes list
+2026-10-08T14:14:33Z s=542d48d6 FAIL tests.e2e.1
+2026-10-08T14:17:13Z s=542d48d6 DONE fp=d4c93af53bf9 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
+2026-10-08T14:17:13Z s=542d48d6 FINDING docs/data + scripts/docs/index-format.ts (v2) learn=test: index-format.test.ts round-trips the v2 format; test-docs.ts asserts the hint, readout and stat against manifest.json
+2026-10-08T14:17:13Z s=542d48d6 FINDING docs/index.html:size figures learn=test: test-docs.ts fails on any visible '40 MB' or 'MiB' and recomputes each figure from data
+2026-10-08T14:39:23Z s=542d48d6 DONE fp=a7bc4bc37c31 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
+2026-10-08T14:39:23Z s=542d48d6 FINDING docs/assets/notes.js:addRandom + docs/assets/sample-notes.js learn=test: test-docs.ts checks pool size/mix, 5 distinct pool notes with lang tags, all embedded, count, and a steady page
+2026-10-08T14:39:23Z s=542d48d6 FINDING scripts/test-docs.ts:random-notes scroll check learn=none: test mechanics, documented inline
+2026-10-08T14:39:23Z s=542d48d6 FINDING scripts/test-docs.ts:flip figures learn=test: figures derive from bench.json and manifest.json
+2026-10-08T14:39:23Z s=542d48d6 FINDING docs/index.html:flip '~21,5 kB' learn=none: copy decision
+2026-10-08T14:46:53Z s=542d48d6 DONE fp=180757def024 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
+2026-10-08T14:46:53Z s=542d48d6 FINDING docs/index.html:#bench .mk-stats-desc learn=test: test-docs.ts checks the sentence and the link
+2026-10-08T14:46:53Z s=542d48d6 FINDING docs/index.html:#pipeline diagram learn=test: test-docs.ts waits for the autoplay to pause on step 8 and counts nodes, edges and drawn wires; the phone overflow check includes #pipeline
+2026-10-08T15:42:43Z s=542d48d6 FAIL tests.e2e.1
+2026-10-08T15:44:55Z s=542d48d6 DONE fp=c3beb4edba03 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
+2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:#pipeline lanes + intro + agent prompt learn=none: copy precision
+2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:#intro-6 recall scope learn=test: test-docs.ts recomputes all three from bench.json
+2026-10-08T15:44:55Z s=542d48d6 FINDING examples/search-worker.ts:STRATEGY learn=test: test-docs.ts checks the summary in both tabs
+2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:.vs-flythrough position learn=none: visual spacing; screenshots checked, no layout assertion
+2026-10-08T15:44:55Z s=542d48d6 FINDING scripts/test-docs.ts:copy assertions learn=test: copy belongs to the author; numbers stay verified
+2026-10-08T15:58:37Z s=542d48d6 DONE fp=0107b9143104 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)

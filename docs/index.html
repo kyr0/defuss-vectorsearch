@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>defuss-vectorsearch · semantic search in your browser</title>
+  <meta name="description" content="Multilingual semantic search that runs entirely in the browser: the Winzling embedding model on ONNX Runtime Web and a 4-bit TurboQuant index of 2,000 passages in 20 languages.">
+  <script>
+    // Before paint, before df$ exists (defuss-shadcn Dark Mode guide): the saved choice, else the OS default.
+    let saved = '';
+    try {
+      const raw = JSON.parse(localStorage.getItem('defuss-shadcn-theme'));
+      saved = raw && raw.format === 'defuss-store' ? raw.value : raw;
+    } catch {}
+    if (saved === 'dark' || (!saved && matchMedia('(prefers-color-scheme: dark)').matches)) {
+      document.documentElement.classList.add('dark');
+      document.documentElement.style.colorScheme = 'dark';
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kyr0/defuss-shadcn@0.9.7/dist/components/core.min.css" integrity="sha384-XTkN5+CRRKO70LZ4OcV6O+kj6BY5lxdsRQ02oMz3kDCm9kd4B+16jbojkbgrbL0e" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kyr0/defuss-shadcn@0.9.7/dist/theme/utils/shapes.min.css" integrity="sha384-rExm9IhHhoT1LadbK2Lip6FVim8iSP+aRnHcT+YZ6qgrYhEEjgYQsr9snhV2zr/u" crossorigin="anonymous">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/kyr0/defuss-shadcn@0.9.7/dist/components/all.min.css" integrity="sha384-KNQj/Dk66BgA6c4mbwGVJt0hPZbRc8WN1s34HBwecCHZnN3vp631ctFMQgIjDo2f" crossorigin="anonymous">
+  <link rel="stylesheet" href="assets/demo.css">
+</head>
+<body>
+<svg class="sr-only" aria-hidden="true">
+  <symbol id="i-logo" viewBox="0 0 24 24"><circle cx="5" cy="6" r="2.5"/><circle cx="19" cy="5" r="2.5"/><circle cx="12" cy="18" r="2.5"/><path d="M7.3 7.1 10.6 16M17.6 7.2 13.3 16M7.5 6h9"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2m-7.07-17.07 1.41 1.41m11.32 11.32 1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></symbol>
+  <symbol id="i-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-7-7 7 7-7 7"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v4m0 4h.01"/></symbol>
+  <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-terminal" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6m8 14h8"/></symbol>
+  <symbol id="i-cpu" viewBox="0 0 24 24"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2m0 16v2M2 15h2m-2-6h2m16 6h2m-2-6h2M9 2v2m0 16v2"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5M3 12a9 3 0 0 0 18 0"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="m12.83 2.18 8.58 3.9a1 1 0 0 1 0 1.83l-8.58 3.9a2 2 0 0 1-1.66 0L2.6 7.91a1 1 0 0 1 0-1.83l8.58-3.9a2 2 0 0 1 1.66 0Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-languages" viewBox="0 0 24 24"><path d="m5 8 6 6m-7 0 6-6 2-3M2 5h12M7 2h1m14 20-5-10-5 10m2-4h6"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.94 15.5A2 2 0 0 0 8.5 14.06l-6.14-1.58a.5.5 0 0 1 0-.96L8.5 9.94A2 2 0 0 0 9.94 8.5l1.58-6.14a.5.5 0 0 1 .96 0l1.58 6.14a2 2 0 0 0 1.44 1.44l6.14 1.58a.5.5 0 0 1 0 .96l-6.14 1.58a2 2 0 0 0-1.44 1.44l-1.58 6.14a.5.5 0 0 1-.96 0z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2m16 0h2m-7-1v2m-6-2v2"/></symbol>
+  <symbol id="i-package" viewBox="0 0 24 24"><path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12m0 0 8.7-5M12 12 3.3 7"/></symbol>
+  <symbol id="i-sticky" viewBox="0 0 24 24"><path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"/><path d="M15 3v4a2 2 0 0 0 2 2h4"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="m5 12 7-7 7 7M12 19V5"/></symbol>
+  <symbol id="i-linkedin" viewBox="0 0 24 24"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-4 0v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/></symbol>
+  <symbol id="i-reload" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M7 7h10v10M7 17 17 7"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 5v14m7-7-7 7-7-7"/></symbol>
+  <symbol id="i-gift" viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13m7-9v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="m18 14 4 4-4 4M18 2l4 4-4 4M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22M2 6h1.9c1.5 0 2.9.9 3.6 2.2M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M10 12.5 8 15l2 2.5m4-5 2 2.5-2 2.5M14 2v4a2 2 0 0 0 2 2h4"/><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7z"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></symbol>
+  <!-- Hugging Face mark from Simple Icons 13.21.0 (CC0-1.0) -->
+  <symbol id="i-hf" viewBox="0 0 24 24"><path d="M1.4446 11.5059c0 1.1021.1673 2.1585.4847 3.1563-.0378-.0028-.0691-.0058-.1058-.0058-.4209 0-.8015.16-1.0704.4512-.3454.3737-.4984.8335-.4316 1.293a1.576 1.576 0 0 0 .2148.5978c-.2319.1864-.4018.4456-.4844.7578-.0646.2448-.131.7543.2149 1.2794a1.4552 1.4552 0 0 0-.0625.1055c-.208.3923-.2207.8372-.0371 1.25.2783.6258.9696 1.1175 2.3126 1.6467.8356.3292 1.5988.5411 1.6056.543 1.1046.2847 2.104.4277 2.969.4277 1.4173 0 2.4754-.3849 3.1525-1.1446 1.538.2651 2.791.1403 3.592.006.6773.7555 1.7332 1.1387 3.1467 1.1387.8649 0 1.8643-.143 2.969-.4278.0068-.0019.77-.2138 1.6056-.543 1.343-.5292 2.0343-1.0208 2.3126-1.6466.1836-.4129.171-.8577-.037-1.25a1.4685 1.4685 0 0 0-.0626-.1056c.346-.525.2795-1.0346.2149-1.2793-.0826-.3122-.2525-.5714-.4844-.7579.11-.1816.1831-.3788.2148-.5977.0669-.4595-.0862-.9193-.4316-1.293-.2688-.2913-.6495-.4513-1.0704-.4513-.0209 0-.0376.0008-.0588.0018.3162-.9966.4846-2.0518.4846-3.1523 0-5.807-4.7362-10.5144-10.5789-10.5144-5.8426 0-10.5788 4.7073-10.5788 10.5144Zm10.5788-9.4831c5.2727 0 9.5476 4.246 9.5476 9.483a9.4201 9.4201 0 0 1-.2696 2.2365c-.0039-.0047-.0079-.011-.0117-.0156-.274-.3255-.6679-.5059-1.1075-.5059-.352 0-.714.1155-1.0763.3438-.2403.1517-.5058.422-.7793.7598-.2534-.3492-.608-.5832-1.0137-.6465a1.5174 1.5174 0 0 0-.2344-.0176c-.9263 0-1.4828.7993-1.6935 1.5177-.1046.2426-.6065 1.3482-1.3614 2.0978-1.1681 1.1601-1.4458 2.3534-.8396 3.6382-.843.1029-1.5836.0927-2.365-.006.5906-1.212.3626-2.4388-.8426-3.6322-.755-.7496-1.2568-1.8552-1.3614-2.0978-.2107-.7184-.7673-1.5177-1.6935-1.5177-.078 0-.1568.0054-.2344.0176-.4057.0633-.7604.2973-1.0137.6465-.2735-.3379-.539-.6081-.7794-.7598-.3622-.2283-.7243-.3438-1.0762-.3438-.4266 0-.8094.171-1.0821.4786a9.4208 9.4208 0 0 1-.2598-2.1936c0-5.237 4.2749-9.483 9.5475-9.483zM8.6443 7.0036c-.4838.0043-.9503.2667-1.1934.7227-.3536.6633-.1006 1.4873.5645 1.84.351.1862.4883-.5261.836-.6485.3107-.1095.841.399 1.0078.086.3536-.6634.1025-1.4874-.5625-1.84a1.3659 1.3659 0 0 0-.6524-.1602Zm6.8403 0c-.2199-.002-.4426.05-.6504.1602-.665.3526-.9181 1.1766-.5645 1.84.1669.313.6971-.1955 1.0079-.086.3476.1224.4867.8347.838.6485.6649-.3527.916-1.1767.5624-1.84-.243-.456-.7096-.7184-1.1934-.7227Zm-9.7565 1.418a.8768.8768 0 0 0-.877.877c0 .4846.3925.877.877.877a.8768.8768 0 0 0 .877-.877.8768.8768 0 0 0-.877-.877zm12.6434 0c-.4845 0-.879.3925-.879.877 0 .4846.3945.877.879.877a.8768.8768 0 0 0 .877-.877.8768.8768 0 0 0-.877-.877zM8.7927 11.459c-.179-.003-.2793.1107-.2793.416 0 .8097.3874 2.125 1.4279 2.924.207-.7123 1.3453-1.2832 1.5079-1.2012.2315.1167.2191.4417.6074.7266.3884-.285.374-.6098.6056-.7266.1627-.082 1.3009.4889 1.5079 1.2012 1.0404-.799 1.4278-2.1144 1.4278-2.924 0-1.2212-1.583.6402-3.5413.6485-1.4686-.0061-2.7266-1.0558-3.2639-1.0645zM4.312 14.4768c.5792.365 1.6964 2.2751 2.1056 3.0177.1371.2488.371.3536.582.3536.4188 0 .7465-.4138.0391-.9395-1.0636-.791-.6914-2.0846-.1836-2.1642a.4302.4302 0 0 1 .0664-.004c.4616 0 .666.7892.666.7892s.5959 1.4898 1.6213 2.508c.942.9356 1.062 1.703.4961 2.6661-.0164-.004-.0159.0236-.1484.2149-.1853.2673-.4322.4688-.7188.6152-.5062.2269-1.1397.2696-1.7833.2696-1.037 0-2.1017-.1824-2.6975-.336-.0293-.0075-3.6505-.9567-3.1916-1.8224.0771-.1454.2033-.2031.3633-.2031.6463 0 1.823.9551 2.3283.9551.113 0 .196-.0865.2285-.2031.2249-.8045-3.2787-1.0522-2.9846-2.1642.0519-.1967.193-.2757.3907-.2754.854 0 2.7704 1.4923 3.172 1.4923.0307 0 .0525-.0085.0645-.0274.2012-.3227.1096-.5865-1.3087-1.4395-1.4182-.8533-2.4315-1.329-1.8653-1.9416.0651-.0707.1574-.1015.2695-.1015.8611.0002 2.8948 1.84 2.8948 1.84s.5487.5683.8809.5683c.0762 0 .1416-.0315.1855-.1054.2355-.3946-2.1858-2.2183-2.3224-2.971-.0926-.51.0641-.7676.3555-.7676-.0006.008.1701-.0285.4942.1759zm16.2257.5918c-.1366.7526-2.5579 2.5764-2.3224 2.9709.044.074.1092.1055.1855.1055.3321 0 .881-.5684.881-.5684s2.0336-1.8397 2.8947-1.84c.1121 0 .2044.0308.2695.1016.5662.6125-.447 1.0882-1.8653 1.9415-1.4183.853-1.51 1.1168-1.3087 1.4396.012.0188.0337.0273.0644.0273.4016 0 2.3181-1.4923 3.1721-1.4923.1977-.0002.3388.0787.3907.2754.294 1.112-3.2095 1.3597-2.9846 2.1642.0325.1166.1156.2032.2285.2032.5054 0 1.682-.9552 2.3283-.9552.16 0 .2862.0577.3633.2032.459.8656-3.1623 1.8149-3.1916 1.8224-.5958.1535-1.6605.336-2.6975.336-.6351 0-1.261-.0409-1.7638-.2599-.2949-.1472-.5488-.3516-.7383-.625-.0411-.0682-.1026-.1476-.1426-.205-.5726-.9679-.455-1.7371.4903-2.676 1.0254-1.0182 1.6212-2.508 1.6212-2.508s.2044-.7891.666-.7891a.4318.4318 0 0 1 .0665.0039c.5078.0796.88 1.3732-.1836 2.1642-.7074.5257-.3797.9395.039.9395.211 0 .445-.1047.5821-.3535.4092-.7426 1.5264-2.6527 2.1056-3.0178.5588-.3524.99-.1816.8497.5918z"/></symbol>
+  <symbol id="i-github" viewBox="0 0 24 24"><path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35 0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35 0 3.5A5.4 5.4 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/><path d="M9 18c-4.51 2-5-2-7-2"/></symbol>
+</svg>
+
+<div id="top" class="vs-page">
+  <header class="mk-header" data-variant="floating">
+    <div class="mk-header-inner">
+      <a href="#top" class="mk-header-brand"><svg class="vs-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-header-name">defuss-vectorsearch</span></a>
+      <nav class="mk-header-nav" aria-label="Main">
+        <ul class="nav-menu-list">
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#demo">Demo</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#how">How it works</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#bench">Benchmark</a></li>
+          <li class="nav-menu-item"><a class="nav-menu-link" href="#use">Use it</a></li>
+        </ul>
+      </nav>
+      <div class="mk-header-actions">
+        <button type="button" class="btn mk-header-wide" data-variant="outline" data-size="sm" data-command-trigger="cmd">
+          <svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>Queries
+          <kbd class="kbd-group"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></kbd>
+        </button>
+        <label class="swap" data-variant="rotate" data-size="sm">
+          <input type="checkbox" id="theme-toggle" aria-label="Dark mode">
+          <span class="swap-on"><svg class="vs-icon" aria-hidden="true"><use href="#i-moon"/></svg></span>
+          <span class="swap-off"><svg class="vs-icon" aria-hidden="true"><use href="#i-sun"/></svg></span>
+        </label>
+        <a class="btn mk-header-wide" data-variant="ghost" data-size="icon" href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener" aria-label="The Winzling model on Hugging Face (opens in a new tab)"><svg class="vs-icon vs-icon-fill" aria-hidden="true"><use href="#i-hf"/></svg></a>
+        <a class="btn mk-header-wide" data-variant="ghost" data-size="icon" href="https://github.com/kyr0/defuss-vectorsearch" aria-label="defuss-vectorsearch on GitHub"><svg class="vs-icon" aria-hidden="true"><use href="#i-github"/></svg></a>
+        <button type="button" class="btn mk-header-menu" data-variant="ghost" data-size="icon" data-sheet-trigger="vs-menu" aria-haspopup="dialog" aria-label="Open menu"><svg class="vs-icon" aria-hidden="true"><use href="#i-menu"/></svg></button>
+      </div>
+    </div>
+    <dialog id="vs-menu" class="sheet" data-side="right" role="dialog" aria-modal="true" aria-labelledby="vs-menu-title">
+      <div class="sheet-content">
+        <div class="sheet-header">
+          <h2 class="sheet-title" id="vs-menu-title">defuss-vectorsearch</h2>
+        </div>
+        <div class="sheet-body">
+          <p class="mk-header-sheet-label">This page</p>
+          <ul class="mk-header-sheet-nav">
+            <li><a href="#demo" data-sheet-close>Demo <small>Search 2,000 passages</small></a></li>
+            <li><a href="#how" data-sheet-close>How it works</a></li>
+            <li><a href="#bench" data-sheet-close>Benchmark</a></li>
+            <li><a href="#use" data-sheet-close>Use it</a></li>
+          </ul>
+        </div>
+        <div class="sheet-footer mk-header-sheet-actions">
+          <a class="btn" data-variant="outline" href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener"><svg class="vs-icon vs-icon-fill" aria-hidden="true"><use href="#i-hf"/></svg>Model on Hugging Face</a>
+          <a class="btn" data-variant="outline" href="https://github.com/kyr0/defuss-vectorsearch">GitHub</a>
+        </div>
+      </div>
+    </dialog>
+  </header>
+
+  <main class="vs-main">
+
+  <section class="parallax" aria-label="Introduction" style="padding-block:clamp(4rem, 10vw, 7rem) 1rem">
+    <div class="parallax-layer" data-depth="far" aria-hidden="true">
+      <div class="pattern-grid" style="width:100%;height:100%;--shape-ink:color-mix(in oklch, var(--foreground) 7%, transparent);--shape-pattern:32px;mask-image:radial-gradient(55% 60% at 50% 45%, #000, transparent 75%)"></div>
+    </div>
+    <div class="parallax-layer" data-depth="mid" aria-hidden="true" style="--parallax-speed:22%;mask-image:linear-gradient(#000 55%, transparent 92%)">
+      <div class="corner-blob" style="position:absolute;inset-block-start:10%;inset-inline-start:8%;width:min(22rem, 45%);aspect-ratio:1;background:color-mix(in oklch, var(--chart-1) 40%, transparent);filter:blur(60px);opacity:.55"></div>
+      <div class="corner-blob-3" style="position:absolute;inset-block-start:28%;inset-inline-end:6%;width:min(18rem, 40%);aspect-ratio:1;background:color-mix(in oklch, var(--chart-3) 40%, transparent);filter:blur(60px);opacity:.5"></div>
+    </div>
+    <div class="parallax-content">
+      <section class="mk-hero" style="width:100%">
+        <div class="mk-hero-copy">
+          <a class="mk-hero-pill" href="#bench"><span class="badge" data-variant="default" data-size="sm">v0.1.0</span>No server, no API key, nothing leaves your browser <svg class="vs-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <h1 class="mk-hero-title"><strong>Semantic</strong> search is <i>now</i> open, fast, free and available for everyone</h1>
+          <p class="vs-flip"><span class="text-rotate"><span>
+              <span class="vs-accent">in your browser &amp; Node.js</span>
+              <span class="vs-accent">for fast search &lt; 100&nbsp;ms</span>
+              <span class="vs-accent">for ~97% recall @ top 5</span>
+              <span class="vs-accent">with just 39.8&nbsp;MB model all-in</span>
+              <span class="vs-accent">and ~21,5&nbsp;kB index for 100 docs</span>
+              <span class="vs-accent">who need fast, efficient semantic search</span>
+          </span></span></p>
+          <p class="mk-hero-desc">The Winzling embedding model is an extremely small text embedding model created with specific quantization and pruning methods. With a model size of <strong>39.8&nbsp;MB all-in</strong> it achieves <strong>~97% recall</strong> in German, English and other languages at top 5 - usually within <strong>< 100ms</strong> even on the weakest devices and in-browser.</p>
+          <div class="mk-hero-actions">
+            <a class="btn" data-size="lg" href="#demo" id="try-live">Try it now! (Live)<svg class="vs-icon" aria-hidden="true"><use href="#i-arrow-down"/></svg></a>
+            <a class="btn" data-variant="outline" data-size="lg" href="#bench">Benchmark results</a>
+          </div>
+          <p class="mk-hero-note">Model, inference and vector search algorithms brought to you by <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (kyr0)<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> – Open Source (<a href="https://github.com/kyr0/defuss-vectorsearch/blob/main/LICENSE" target="_blank" rel="noopener">MIT<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>)</p>
+        </div>
+      </section>
+      <div class="vs-intro" id="intro">
+        <section class="vs-intro-item" aria-labelledby="intro-1">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-layers"/></svg></span>
+          <h3 id="intro-1">Small enough to ship</h3>
+          <p>4-bit TurboQuant stores each document in <strong>256&nbsp;bytes</strong>, so a whole index travels to the client like an image does. Vectors have 384 dimensions; a text may run to <strong>8,192&nbsp;tokens</strong>.</p>
+        </section>
+        <section class="vs-intro-item" aria-labelledby="intro-2">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-cpu"/></svg></span>
+          <h3 id="intro-2">Runs on modest hardware</h3>
+          <p>One codebase for Node.js and the browser, on CPU/WASM with <strong>no GPU</strong>: <strong>&lt;&nbsp;100&nbsp;ms</strong> end to end and about <strong>216&nbsp;MB</strong> RAM. Made for old phones, weak business laptops and embedded boards.</p>
+        </section>
+        <section class="vs-intro-item" aria-labelledby="intro-3">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-sparkles"/></svg></span>
+          <h3 id="intro-3">Open Research, Customizable</h3>
+          <p><code>make bench</code> regenerates every figure on this page from a <a href="https://github.com/kyr0/tiny-embedding-bench" target="_blank" rel="noopener">tiny benchmark<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>. The method carries over to other languages, multimodal, late-interaction and fine-tuned embedders. Do you need a custom model? Ask <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (LinkedIn)<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>.</p>
+        </section>
+        <section class="vs-intro-item" aria-labelledby="intro-4">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-gift"/></svg></span>
+          <h3 id="intro-4">Zero cost - it's free!</h3>
+          <p>MIT-licensed code, <strong>commercially usable</strong>, public model files on Hugging Face and static hosting: <strong>no API keys</strong>, <strong>no per-query fees</strong>, no servers to run. This page is plain files.</p>
+        </section>
+        <section class="vs-intro-item" aria-labelledby="intro-5">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-shield"/></svg></span>
+          <h3 id="intro-5">Perfect when privacy matters</h3>
+          <p>Queries and your own documents <strong>never leave the device</strong>: no server, no third-party AI API, no data transfer to justify under GDPR (DSGVO). Only the model and runtime files are fetched; self-host them to keep even that in-house.</p>
+        </section>
+        <section class="vs-intro-item" aria-labelledby="intro-6">
+          <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-target"/></svg></span>
+          <h3 id="intro-6">Pareto-optimal quality</h3>
+          <p>Good enough for most retrieval and ranking: the right passage is in the top 5 for <strong>~97%</strong> of German, English and Russian queries (92.2% across all nine target languages) and in the top 25 for <strong>98.9%</strong>, at <strong>39.8&nbsp;MB</strong> instead of 305&nbsp;MB for the larger Harrier. Measured on 2,000 passages.</p>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <div class="vs-flythrough">
+    <section class="parallax" data-sticky style="--parallax-length:2" aria-label="Tokenize, embed, retrieve">
+      <div class="parallax-stage" style="background:radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--chart-3) 55%, #05060f), #05060f 72%);color:#fff;border-radius:var(--radius-xl)">
+        <div class="parallax-layer" data-motion="zoom fade" style="--parallax-scale:6"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><circle cx="200" cy="200" r="60" fill="none" stroke="#7c8cff" stroke-width="1.5" opacity=".7"/><circle cx="200" cy="200" r="110" fill="none" stroke="#b07cff" stroke-width="1" opacity=".5"/><circle cx="200" cy="200" r="170" fill="none" stroke="#7cf0ff" stroke-width=".8" opacity=".35"/></svg></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 0% contain 40%;z-index:1"><p class="vs-fly-word">Tokenize.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 30% contain 70%;z-index:2"><p class="vs-fly-word">Embed.</p></div>
+        <div class="parallax-layer" data-motion="pass" style="animation-range:contain 60% contain 100%;z-index:3"><p class="vs-fly-word">Retrieve.</p></div>
+        <div class="parallax-layer" data-motion="spin" style="--parallax-turn:180deg;--parallax-speed:0%;z-index:-1;opacity:.25"><svg viewBox="0 0 400 400" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width=".6"><line x1="200" y1="200" x2="460" y2="200"/><line x1="200" y1="200" x2="425.2" y2="330"/><line x1="200" y1="200" x2="330" y2="425.2"/><line x1="200" y1="200" x2="200" y2="460"/><line x1="200" y1="200" x2="70" y2="425.2"/><line x1="200" y1="200" x2="-25.2" y2="330"/><line x1="200" y1="200" x2="-60" y2="200"/><line x1="200" y1="200" x2="-25.2" y2="70"/><line x1="200" y1="200" x2="70" y2="-25.2"/><line x1="200" y1="200" x2="200" y2="-60"/><line x1="200" y1="200" x2="330" y2="-25.2"/><line x1="200" y1="200" x2="425.2" y2="70"/></g></svg></div>
+      </div>
+    </section>
+  </div>
+
+  <section id="demo" class="container vs-section parallax-reveal" data-reveal="zoom" aria-labelledby="demo-title">
+    <header class="mk-section-header" data-align="center">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">Live demo</span>
+        <h2 class="mk-section-header-title" id="demo-title">🔍 Finding a needle in a haystack</h2>
+        <p class="mk-section-header-desc">100 Belebele passages, each in 20 languages: 2,000 passages in one index. Pick one of the 1,000 example queries with <kbd class="kbd-group"><kbd class="kbd">⌘</kbd><kbd class="kbd">K</kbd></kbd>, or type your own. Or create your own vector database index right in your browser, in the <button type="button" class="btn vs-inline-link" data-variant="link" data-tab="1">My data (custom)</button> tab.</p>
+      </div>
+    </header>
+
+    <div class="vs-window frame-window">
+      <div class="card vs-boot" aria-labelledby="boot-title">
+        <div class="card-header">
+          <h3 class="card-title" id="boot-title">Runtime</h3>
+          <p class="card-description" id="boot-status" aria-live="polite">Loading the index. The model loads with your first search.</p>
+        </div>
+        <div class="card-content vs-boot-body">
+          <div class="radial-progress vs-ring" id="ring" role="progressbar" aria-label="Overall loading progress" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="--value:0;--size:7.5rem;--thickness:6px">
+            <span class="radial-progress-value"></span>
+            <span class="radial-progress-caption">index</span>
+          </div>
+          <div class="vs-phases">
+            <div class="progress-field">
+              <div class="progress-header">
+                <span class="progress-label" id="p-index-label"><svg class="vs-icon" aria-hidden="true"><use href="#i-db"/></svg>Index · 2,000 passages</span>
+                <output class="progress-value" for="p-index" data-template="{percent} of 868 kB (gzip)"></output>
+              </div>
+              <progress class="progress" id="p-index" value="0" max="868356" aria-labelledby="p-index-label"></progress>
+              <span class="progress-hint" id="p-index-hint">vector index and passage text, gzipped</span>
+            </div>
+            <div class="progress-field">
+              <div class="progress-header">
+                <span class="progress-label" id="p-model-label"><svg class="vs-icon" aria-hidden="true"><use href="#i-cpu"/></svg>Model · Winzling uint4</span>
+                <output class="progress-value" for="p-model" data-template="{percent} of 39.8 MB"></output>
+              </div>
+              <progress class="progress" id="p-model" value="0" max="39759598" aria-labelledby="p-model-label"></progress>
+            </div>
+            <div class="progress-field">
+              <div class="progress-header">
+                <span class="progress-label" id="p-runtime-label"><svg class="vs-icon" aria-hidden="true"><use href="#i-layers"/></svg>Runtime · ONNX Runtime Web</span>
+                <output class="progress-value" for="p-runtime" data-template="{percent}" data-indeterminate="compiling…"></output>
+              </div>
+              <progress class="progress" id="p-runtime" value="0" max="100" aria-labelledby="p-runtime-label"></progress>
+              <span class="progress-hint" id="p-runtime-hint">~216 MB RAM reserved for model, runtime and index (measured in Chromium)</span>
+            </div>
+            <div class="vs-boot-actions">
+              <label class="sr-only" for="backend">Backend</label>
+              <select class="select" id="backend" data-size="sm">
+                <option value="wasm" selected>WASM · CPU</option>
+                <option value="webgpu">WebGPU · experimental</option>
+              </select>
+              <button type="button" class="btn" data-size="sm" id="boot-start" data-boot>Load the model · 39.8 MB</button>
+              <button type="button" class="btn" data-variant="ghost" data-size="sm" id="clear-cache">Clear cached model</button>
+            </div>
+          </div>
+          <div class="vs-stats" id="boot-stats">
+            <div class="statistic"><p class="statistic-title">Backend</p><p class="statistic-value" data-stat="device">–</p><p class="statistic-description">ONNX Runtime Web, 1 thread</p></div>
+            <div class="statistic"><p class="statistic-title">Ready in</p><p class="statistic-value" data-stat="ready">–</p><p class="statistic-description" data-stat="source">download, compile, warm-up</p></div>
+            <div class="statistic"><p class="statistic-title">Vector Database Index</p><p class="statistic-value" data-stat="passages">–</p><p class="statistic-description" data-stat="languages">documents</p></div>
+            <div class="statistic"><p class="statistic-title">Last query</p><p class="statistic-value" data-stat="query">–</p><p class="statistic-description" data-stat="scan">embed + TurboQuant scan</p></div>
+          </div>
+        </div>
+        <div class="card-footer vs-boot-foot">
+          <div class="alert" id="boot-notice" role="status" hidden>
+            <svg class="alert-icon vs-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+            <div class="alert-content">
+              <h5 class="alert-title">Running on WASM</h5>
+              <p class="alert-description" id="boot-notice-text"></p>
+            </div>
+          </div>
+          <div class="alert" data-variant="destructive" id="boot-error" role="alert" hidden>
+            <svg class="alert-icon vs-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+            <div class="alert-content">
+              <h5 class="alert-title" id="boot-error-title">Loading failed</h5>
+              <p class="alert-description" id="boot-error-text"></p>
+            </div>
+            <div class="alert-action"><button type="button" class="btn" data-variant="outline" data-size="sm" id="boot-retry">Retry</button></div>
+          </div>
+          <details class="collapsible" data-variant="ghost" data-size="sm" data-marker="arrow" id="log-panel">
+            <summary class="collapsible-trigger"><span class="collapsible-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-terminal"/></svg></span>Worker log</summary>
+            <div class="collapsible-content">
+              <div class="mockup-code vs-log" data-size="sm" data-wrap data-title="search-worker.js" id="log" aria-live="off">
+                <pre data-prefix="$" data-cursor><code>waiting for "Load the model"</code></pre>
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div class="tabs vs-tabs">
+        <div class="tab-list" role="tablist" aria-label="Demo" id="demo-tabs" data-size="xl">
+          <button class="tab-trigger vs-tab" role="tab" aria-selected="true" aria-controls="panel-bench" id="tab-bench"><svg class="vs-icon vs-tab-icon" aria-hidden="true"><use href="#i-db"/></svg><span class="vs-tab-text"><span class="vs-tab-title">Benchmark data</span><span class="vs-tab-desc">2,000 passages · 20 languages</span></span></button>
+          <button class="tab-trigger vs-tab" role="tab" aria-selected="false" aria-controls="panel-notes" id="tab-notes" tabindex="-1"><svg class="vs-icon vs-tab-icon" aria-hidden="true"><use href="#i-sticky"/></svg><span class="vs-tab-text"><span class="vs-tab-title">My data (custom)</span><span class="vs-tab-desc">Your own vector database, in-browser</span></span></button>
+        </div>
+        <div class="tab-content" role="tabpanel" id="panel-bench" aria-labelledby="tab-bench" tabindex="0">
+          <div class="vs-query">
+            <search class="mk-search-box vs-search" data-variant="large">
+              <form action="#" method="get" role="search" id="search-form">
+                <div class="search-box" data-size="lg" data-variant="muted" id="search-box">
+                  <svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>
+                  <input type="search" id="q" name="q" placeholder="Ask a question, in your language…" aria-label="Search the 2,000 passages" aria-controls="results" autocomplete="off" enterkeyhint="search">
+                  <kbd class="kbd" data-size="sm">⌘K</kbd>
+                  <button type="button" class="search-box-clear" aria-label="Clear search"></button>
+                </div>
+                <button class="btn" type="submit" id="search-submit"><svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>Search</button>
+              </form>
+            </search>
+            <button type="button" class="btn" data-variant="outline" data-command-trigger="cmd">Browse 1,000 example queries</button>
+          </div>
+
+          <div class="mk-search-summary" role="status" id="summary" hidden>
+            <p><strong class="vs-summary-count" id="summary-count"></strong> for <q class="vs-summary-query" id="summary-query"></q> <span class="badge vs-summary-note" data-variant="secondary" id="summary-gold" hidden></span></p>
+            <span class="mk-search-summary-time" id="summary-time"></span>
+            <a class="mk-search-summary-clear" href="#demo" id="summary-clear">Clear search</a>
+          </div>
+
+          <section class="mk-empty-state vs-cta" aria-labelledby="empty-title" id="empty">
+            <span class="mk-empty-state-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-sparkles"/></svg></span>
+            <h2 class="mk-empty-state-title" id="empty-title">Search 2,000 passages in 20 languages</h2>
+            <p class="mk-empty-state-text">Enter a question above and press Search, or pick one of the 1,000 example queries. The first search downloads the 39.8 MB model once; every search after that runs on this device as you type.</p>
+            <div class="mk-empty-state-actions">
+              <button type="button" class="btn" data-size="lg" data-command-trigger="cmd"><svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>Browse 1,000 example queries</button>
+            </div>
+            <div class="mk-empty-state-actions" id="empty-examples"></div>
+          </section>
+
+          <ol class="vs-results grid grid-cols-auto gap-4" id="results" aria-label="Search results, best match first" data-df-stagger style="--df-motion-stagger-step:45ms;--df-motion-duration:520ms"></ol>
+
+        </div>
+        <div class="tab-content" role="tabpanel" id="panel-notes" aria-labelledby="tab-notes" tabindex="0" hidden>
+          <div class="border-layout vs-notes-layout" id="notes-layout" data-grip="bar" data-center-min="280">
+            <div class="resizer border-layout-west" id="notes-region"><section class="border-layout-pane vs-board" style="width:30rem" aria-labelledby="notes-title">
+              <header class="vs-board-head">
+                <h3 class="vs-way-title" id="notes-title"><svg class="vs-icon" aria-hidden="true"><use href="#i-sticky"/></svg>Your notes</h3>
+                <div class="vs-board-actions">
+                <span class="badge" data-variant="outline" id="notes-count">0 notes · 0 embedded</span>
+                <button type="button" class="btn" data-size="sm" id="add-note"><svg class="vs-icon" aria-hidden="true"><use href="#i-plus"/></svg>Add note</button>
+                <button type="button" class="btn" data-variant="outline" data-size="sm" id="add-random-notes"><svg class="vs-icon" aria-hidden="true"><use href="#i-shuffle"/></svg>Add random notes</button>
+              </div>
+              </header>
+              <p class="vs-way-desc">Write anything, in any language. A note is embedded 500 ms after you stop typing, or when you leave it; an empty note leaves the index.</p>
+              <div class="vs-notes-scroll">
+                <div class="vs-notes" id="notes"></div>
+              <section class="mk-empty-state" data-variant="dashed" aria-labelledby="notes-empty-title" id="notes-empty">
+                <span class="mk-empty-state-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-sticky"/></svg></span>
+                <h2 class="mk-empty-state-title" id="notes-empty-title">No notes yet</h2>
+                <p class="mk-empty-state-text">Add a note with the button above. Each one becomes a 384-dimensional vector in your browser.</p>
+              </section>
+              </div>
+            </section></div>
+            <div class="border-layout-center border-layout-pane vs-notes-search" id="notes-search">
+              <div class="vs-query">
+                <search class="mk-search-box vs-search" data-variant="large">
+                  <form action="#" method="get" role="search">
+                    <div class="search-box" data-size="lg" data-variant="muted" id="notes-box">
+                      <svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>
+                      <input type="search" id="notes-q" name="q" placeholder="Search your notes…" aria-label="Search your notes" aria-controls="notes-results" autocomplete="off" enterkeyhint="search">
+                      <button type="button" class="search-box-clear" aria-label="Clear search"></button>
+                    </div>
+                    <button class="btn" type="submit" id="notes-submit"><svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>Search</button>
+                  </form>
+                </search>
+              </div>
+              <div class="mk-search-summary" role="status" id="notes-summary" hidden>
+                <p><strong class="vs-summary-count"></strong> for <q class="vs-summary-query"></q> <span class="badge vs-summary-note" data-variant="secondary" hidden></span></p>
+                <span class="mk-search-summary-time"></span>
+                <a class="mk-search-summary-clear" href="#demo">Clear search</a>
+              </div>
+              <section class="mk-empty-state vs-cta" aria-labelledby="notes-cta-title" id="notes-cta">
+                <span class="mk-empty-state-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-search"/></svg></span>
+                <h2 class="mk-empty-state-title" id="notes-cta-title">Search what you wrote</h2>
+                <p class="mk-empty-state-text">Add a few notes on the left, then ask a question here. Matching is by meaning, across languages, not by shared words.</p>
+              </section>
+              <ol class="vs-results grid grid-cols-auto gap-4" id="notes-results" aria-label="Your notes, best match first" data-df-stagger style="--layout-min:14rem;--df-motion-stagger-step:45ms;--df-motion-duration:520ms"></ol>
+            </div>
+          </div>
+          <script>
+            // Phones get the stacked split (notes above, search below) - chosen before the layout initializes.
+            if (matchMedia("(max-width: 40rem)").matches) {
+              const region = document.getElementById("notes-region");
+              region.classList.replace("border-layout-west", "border-layout-north");
+              region.firstElementChild.style.cssText = "height:22rem";
+            }
+          </script>
+
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" class="container vs-section parallax-reveal" aria-labelledby="how-title">
+    <section class="mk-features" style="width:100%">
+      <div class="mk-features-head">
+        <span class="mk-features-eyebrow">How it works</span>
+        <h2 class="mk-features-title" id="how-title">💡 One query, three steps, all on your device</h2>
+        <p class="mk-features-desc">Documents are embedded once, ahead of search: this demo's passages in Node.js, your own notes right in the browser. A search embeds only the query and compares it with the compressed vectors.</p>
+      </div>
+      <figure class="diagram vs-pipeline" id="pipeline" data-type="data-flow" data-steps data-autoplay="400" aria-label="How a query is answered on your device">
+        <div class="diagram-canvas" style="grid-template-columns:6.5rem repeat(4,minmax(9rem,1fr));--diagram-node-w:11rem">
+          <div class="diagram-group" data-shape="lane" data-step="0" style="--col:1;--row:2;--span:5"><span class="diagram-group-label">Index · Node.js or browser</span></div>
+          <div class="diagram-group" data-shape="lane" data-step="0" style="--col:1;--row:3;--span:5"><span class="diagram-group-label">Search · browser or Node.js</span></div>
+          <div class="diagram-cell" data-role="head" data-step="0" style="--col:2;--row:1">01 · Text</div>
+          <div class="diagram-cell" data-role="head" data-step="0" style="--col:3;--row:1">02 · Embed</div>
+          <div class="diagram-cell" data-role="head" data-step="0" style="--col:4;--row:1">03 · TurboQuant</div>
+          <div class="diagram-cell" data-role="head" data-step="0" style="--col:5;--row:1">04 · Result</div>
+          <div class="diagram-node" data-node="passages" data-step="1" data-step-label="Index: the documents" style="--col:2;--row:2">
+            <span class="diagram-node-eyebrow">Documents</span>
+            <span class="diagram-node-name">2,000 passages</span>
+            <span class="diagram-node-meta">20 languages</span>
+          </div>
+          <div class="diagram-node" data-node="embed-build" data-step="2" data-step-label="Index: embed once" style="--col:3;--row:2">
+            <span class="diagram-node-eyebrow">Winzling</span>
+            <span class="diagram-node-name">Embed once</span>
+            <span class="diagram-node-meta">Node.js or browser · 384-d</span>
+          </div>
+          <div class="diagram-node" data-node="quantize" data-step="3" data-step-label="Index: 4-bit codes" style="--col:4;--row:2">
+            <span class="diagram-node-eyebrow">TurboQuant</span>
+            <span class="diagram-node-name">4-bit codes</span>
+            <span class="diagram-node-meta">256 B per passage</span>
+          </div>
+          <div class="diagram-node" data-node="files" data-shape="store" data-step="4" data-step-label="Index: file or memory" style="--col:5;--row:2">
+            <span class="diagram-node-name">Vector index</span>
+            <span class="diagram-node-meta">431 kB · file or memory</span>
+          </div>
+          <div class="diagram-node" data-node="query" data-shape="pill" data-step="5" data-step-label="Search: your query" style="--col:2;--row:3">
+            <span class="diagram-node-name">User search query</span>
+            <span class="diagram-node-meta">any language</span>
+          </div>
+          <div class="diagram-node" data-node="embed" data-tone="accent" data-step="6" data-step-label="Search: embed the query" style="--col:3;--row:3">
+            <span class="diagram-node-eyebrow">Winzling</span>
+            <span class="diagram-node-name">Embed the query</span>
+            <span class="diagram-node-meta">~21 ms in Chromium · 64k tokenizer</span>
+            <ul class="diagram-node-chips"><li>39.8 MB, cached</li></ul>
+          </div>
+          <div class="diagram-node" data-node="scan" data-step="7" data-step-label="Search: scan the index" style="--col:4;--row:3">
+            <span class="diagram-node-eyebrow">TurboQuant</span>
+            <span class="diagram-node-name">Scan 2,000 codes</span>
+            <span class="diagram-node-meta">0.4 ms</span>
+          </div>
+          <div class="diagram-node" data-node="results" data-shape="pill" data-step="8" data-step-label="Search: ranked results" style="--col:5;--row:3">
+            <span class="diagram-node-name">Top 12, ranked</span>
+            <span class="diagram-node-meta">by meaning</span>
+          </div>
+        </div>
+        <ol class="diagram-edges">
+          <li class="diagram-edge" data-from="passages" data-to="embed-build">text</li>
+          <li class="diagram-edge" data-from="embed-build" data-to="quantize">vectors</li>
+          <li class="diagram-edge" data-from="quantize" data-to="files">codes</li>
+          <li class="diagram-edge" data-from="files" data-to="scan" data-line="dashed">431 kB · once</li>
+          <li class="diagram-edge" data-from="query" data-to="embed" data-flow="2400" data-flow-delay="0">text</li>
+          <li class="diagram-edge" data-from="embed" data-to="scan" data-tone="accent" data-flow="2400" data-flow-delay="700">384-d</li>
+          <li class="diagram-edge" data-from="scan" data-to="results" data-flow="2400" data-flow-delay="1400">top k</li>
+        </ol>
+      </figure>
+    </section>
+  </section>
+
+
+  <section id="bench" class="container vs-section parallax-reveal" aria-labelledby="bench-title">
+    <section class="mk-stats" style="width:100%">
+      <div class="mk-stats-layout">
+        <div class="mk-stats-copy">
+          <div class="mk-stats-head">
+            <h2 class="mk-stats-title" id="bench-title">Measured, not promised<sup class="vs-footnote-mark">*</sup></h2>
+            <p class="mk-stats-desc">Winzling in headless Chromium (WASM, 1 thread) on the same 2,000-passage haystack, from <code>make bench</code>. <a href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener">Winzling-Embed-a8m-64k<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> is a pruned model that is further pruned for a few select languages, and then custom quantized to extremely shrink it in size. Therefore, low performance in non-target languages is by design.</p>
+          </div>
+          <div class="mk-stats-grid">
+            <div class="mk-stat" data-bench="query-p50"><span class="mk-stat-value">21.3 ms</span><span class="mk-stat-label">to embed a query (p50)</span></div>
+            <div class="mk-stat" data-bench="scan-p50"><span class="mk-stat-value">0.4 ms</span><span class="mk-stat-label">to scan the TurboQuant index (p50)</span></div>
+            <div class="mk-stat" data-bench="index-gzip"><span class="mk-stat-value">431 kB <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">TurboQuant index for 2,000 passages; 0.51 MB raw, 6× smaller than float32</span></div>
+            <div class="mk-stat" data-bench="recall-eng"><span class="mk-stat-value">100%</span><span class="mk-stat-label">R@5 for English queries</span><a href="https://github.com/kyr0/defuss-vectorsearch#benchmark" class="btn mk-stat-link" data-variant="link" data-size="default" target="_blank" rel="noopener">All languages<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></div>
+          </div>
+          <p class="vs-footnote">* measured on an Apple MacBook Air M4 in a Chromium-based browser.</p>
+        </div>
+        <figure class="mk-stats-media card vs-recall">
+          <figcaption class="card-header"><h3 class="card-title">R@5 by query language</h3><p class="card-description">Share of a language's 50 questions whose gold passage ranks in the top 5 of 2,000. Chromium, TurboQuant. Target: the nine languages Winzling is built for. Pruned: below 70% R@5.</p></figcaption>
+          <div class="card-content vs-recall-list">
+            <div class="progress-field" data-recall="eng_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-eng_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-eng_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r5-eng_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="deu_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-deu_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-deu_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-deu_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="rus_Cyrl">
+              <div class="progress-header"><span class="progress-label" id="r5-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-rus_Cyrl" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-rus_Cyrl"></progress>
+            </div>
+            <div class="progress-field" data-recall="fra_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-fra_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-fra_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-fra_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="ind_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ind_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-ind_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-ind_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="por_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-por_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-por_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-por_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="ita_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ita_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-ita_Latn" data-size="xs" data-tone="auto" value="90" max="100" aria-labelledby="r5-ita_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="nld_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-nld_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-nld_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r5-nld_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="spa_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-spa_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-spa_Latn" data-size="xs" data-tone="auto" value="82" max="100" aria-labelledby="r5-spa_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="pol_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-pol_Latn">Polish</span><output class="progress-value" for="r5-bar-pol_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-pol_Latn" data-size="xs" data-tone="auto" value="76" max="100" aria-labelledby="r5-pol_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="tur_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-tur_Latn">Turkish</span><output class="progress-value" for="r5-bar-tur_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-tur_Latn" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r5-tur_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="vie_Latn">
+              <div class="progress-header"><span class="progress-label" id="r5-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-vie_Latn" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-vie_Latn" data-size="xs" data-tone="auto" value="54" max="100" aria-labelledby="r5-vie_Latn"></progress>
+            </div>
+            <div class="progress-field" data-recall="kor_Hang">
+              <div class="progress-header"><span class="progress-label" id="r5-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-kor_Hang" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-kor_Hang" data-size="xs" data-tone="auto" value="42" max="100" aria-labelledby="r5-kor_Hang"></progress>
+            </div>
+            <div class="progress-field" data-recall="jpn_Jpan">
+              <div class="progress-header"><span class="progress-label" id="r5-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-jpn_Jpan" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="38" max="100" aria-labelledby="r5-jpn_Jpan"></progress>
+            </div>
+            <div class="progress-field" data-recall="zho_Hans">
+              <div class="progress-header"><span class="progress-label" id="r5-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-zho_Hans" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-zho_Hans" data-size="xs" data-tone="auto" value="32" max="100" aria-labelledby="r5-zho_Hans"></progress>
+            </div>
+            <div class="progress-field" data-recall="tha_Thai">
+              <div class="progress-header"><span class="progress-label" id="r5-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-tha_Thai" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-tha_Thai" data-size="xs" data-tone="auto" value="20" max="100" aria-labelledby="r5-tha_Thai"></progress>
+            </div>
+            <div class="progress-field" data-recall="urd_Arab">
+              <div class="progress-header"><span class="progress-label" id="r5-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-urd_Arab" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-urd_Arab" data-size="xs" data-tone="auto" value="18" max="100" aria-labelledby="r5-urd_Arab"></progress>
+            </div>
+            <div class="progress-field" data-recall="hin_Deva">
+              <div class="progress-header"><span class="progress-label" id="r5-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-hin_Deva" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-hin_Deva" data-size="xs" data-tone="auto" value="14" max="100" aria-labelledby="r5-hin_Deva"></progress>
+            </div>
+            <div class="progress-field" data-recall="ben_Beng">
+              <div class="progress-header"><span class="progress-label" id="r5-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-ben_Beng" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-ben_Beng" data-size="xs" data-tone="auto" value="10" max="100" aria-labelledby="r5-ben_Beng"></progress>
+            </div>
+            <div class="progress-field" data-recall="arb_Arab">
+              <div class="progress-header"><span class="progress-label" id="r5-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-arb_Arab" data-template="{value}%"></output></div>
+              <progress class="progress" id="r5-bar-arb_Arab" data-size="xs" data-tone="auto" value="6" max="100" aria-labelledby="r5-arb_Arab"></progress>
+            </div>
+          </div>
+        </figure>
+      </div>
+    </section>
+  </section>
+
+  <div class="container vs-section parallax-reveal" id="consulting">
+    <div class="corner-leaf-reverse pattern-mesh vs-consult">
+    <section class="mk-cta" data-variant="split" aria-labelledby="consult-title">
+      <div class="mk-cta-inner">
+        <div class="mk-cta-copy">
+          <div class="vs-cta-head">
+            <div class="aura aura-glow aura-gold vs-cta-portrait" style="--shape-round:1.25rem"><img class="shape-squircle" src="assets/aron-homberg.jpg" width="400" height="400" alt="Portrait of Aron Homberg" loading="lazy"></div>
+            <h2 class="mk-cta-title" id="consult-title">Need it tuned to your languages and data?</h2>
+          </div>
+          <p class="mk-cta-desc">Aron Homberg, freelance and independent AI researcher: custom embedding models, vector search and on-device AI, offers consulting services worldwide.</p>
+        </div>
+        <div class="mk-cta-actions">
+          <a class="btn" data-size="lg" href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener"><svg class="vs-icon vs-icon-fill" aria-hidden="true"><use href="#i-linkedin"/></svg>Talk to Aron on LinkedIn<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+        </div>
+      </div>
+    </section>
+    </div>
+  </div>
+
+  <section id="use" class="container vs-section parallax-reveal" aria-labelledby="use-title">
+    <div class="corner-leaf pattern-dots vs-use">
+    <header class="mk-section-header">
+      <div class="mk-section-header-copy">
+        <span class="mk-section-header-eyebrow">Use it</span>
+        <h2 class="mk-section-header-title" id="use-title">🧑‍💻 Add it to your own app</h2>
+        <p class="mk-section-header-desc">Write the six lines yourself, or hand one prompt to your coding agent.</p>
+      </div>
+    </header>
+    <div class="vs-ways">
+      <div class="vs-way">
+        <h3 class="vs-way-title"><svg class="vs-icon" aria-hidden="true"><use href="#i-package"/></svg>NPM package</h3>
+        <p class="vs-way-desc">6 lines in your frontend app. The first call downloads the pinned model from Hugging Face, checks every file's SHA-256 and caches it in the browser.</p>
+        <figure class="mk-code-block" data-variant="file">
+          <div class="mk-code-block-head"><span class="mk-code-block-file"><svg class="vs-icon" aria-hidden="true"><use href="#i-file"/></svg>search.ts</span><button class="mk-code-block-copy" type="button" aria-label="Copy code"><svg class="vs-icon" aria-hidden="true"><use href="#i-copy"/></svg></button></div>
+          <pre data-numbers><code><span><span class="mk-code-block-k">import</span> { buildTurboQuantIndex, createWinzlingEmbedder, searchTurboQuantIndex } <span class="mk-code-block-k">from</span> <span class="mk-code-block-s">"defuss-vectorsearch/browser.js"</span>;</span><span></span><span><span class="mk-code-block-k">const</span> embedder = createWinzlingEmbedder();</span><span><span class="mk-code-block-k">const</span> documents = [<span class="mk-code-block-s">"The cat sleeps on the sofa."</span>, <span class="mk-code-block-s">"Die Börse schloss heute im Plus."</span>, <span class="mk-code-block-s">"Кошка спит на диване."</span>];</span><span data-highlight><span class="mk-code-block-k">const</span> index = buildTurboQuantIndex(<span class="mk-code-block-k">await</span> embedder.embedDocuments(documents));</span><span data-highlight><span class="mk-code-block-k">const</span> hits = searchTurboQuantIndex(index, <span class="mk-code-block-k">await</span> embedder.embedQuery(<span class="mk-code-block-s">"A sleeping cat on a couch."</span>), 2);</span><span>console.log(hits.map((hit) =&gt; documents[hit.index])); <span class="mk-code-block-c">// both cat sentences</span></span></code></pre>
+          <span class="mk-code-block-status" role="status"></span>
+        </figure>
+      </div>
+      <div class="separator vs-sep-vertical" data-orientation="vertical" role="separator"></div>
+      <hr class="separator vs-sep-horizontal">
+      <div class="vs-way">
+        <h3 class="vs-way-title"><svg class="vs-icon" aria-hidden="true"><use href="#i-bot"/></svg>Vibe coding</h3>
+        <p class="vs-way-desc">Paste this prompt into your coding agent. It links the repository, so the agent works from the current README.</p>
+        <div class="vs-prompt">
+          <div class="mockup-code" data-chrome="mac" data-title="coding agent · ~/your-app" data-wrap id="agent-prompt">
+          <pre data-prefix=">"><code>Integrate defuss-vectorsearch into this app: https://github.com/kyr0/defuss-vectorsearch</code></pre>
+          <pre data-prefix=""><code>Read its README first and follow the browser quick start: import from "defuss-vectorsearch/browser.js", embed with createWinzlingEmbedder() inside a Web Worker, index with buildTurboQuantIndex() and search with searchTurboQuantIndex().</code></pre>
+          <pre data-prefix=""><code>Embed the documents once ahead of time, in Node.js or in the browser, and keep the index as a static file or in memory; a search then embeds only the query.</code></pre>
+          <pre data-prefix=""><code>The first use downloads the pinned Winzling model (39.8 MB) and caches it in the browser, so start it when the user first searches.</code></pre>
+            <pre data-prefix="" data-tone="muted" data-cursor><code>⏎ send</code></pre>
+          </div>
+          <button type="button" class="btn vs-prompt-copy" data-variant="secondary" data-size="sm" id="copy-prompt"><svg class="vs-icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy prompt</span></button>
+          <span class="sr-only" role="status" id="copy-prompt-status"></span>
+        </div>
+      </div>
+    </div>
+    </div>
+  </section>
+
+  <div class="container vs-section parallax-reveal" data-reveal="zoom">
+    <section class="mk-cta" data-variant="dark" aria-labelledby="cta-title">
+      <div class="mk-cta-inner">
+        <div class="mk-cta-copy">
+          <h2 class="mk-cta-title" id="cta-title">Embed, index and search anywhere, for free</h2>
+          <p class="mk-cta-desc">Running an embedding model, building a vector index and searching it now works wherever Node.js or a browser runs: no GPU, no server, no per-query API bill.</p>
+        </div>
+        <div class="mk-cta-actions">
+          <a class="btn" data-size="lg" href="https://github.com/kyr0/defuss-vectorsearch" target="_blank" rel="noopener">View on GitHub<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+          <a class="btn" data-variant="outline" data-size="lg" href="https://github.com/kyr0/defuss-vectorsearch#benchmark" target="_blank" rel="noopener">Read the benchmark<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+        </div>
+        <p class="mk-cta-note">MIT licensed · Winzling model and Belebele data credited below</p>
+      </div>
+    </section>
+  </div>
+
+  </main>
+
+  <footer class="mk-footer" style="width:100%">
+    <div class="mk-footer-inner">
+      <nav class="mk-footer-nav vs-footer-nav" aria-label="Footer">
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Project</h3>
+          <ul class="mk-footer-list">
+            <li><a href="https://github.com/kyr0/defuss-vectorsearch" target="_blank" rel="noopener">Source code<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-vectorsearch#benchmark" target="_blank" rel="noopener">Benchmark<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-vectorsearch/blob/main/CHANGELOG.md" target="_blank" rel="noopener">Changelog<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Model and data</h3>
+          <ul class="mk-footer-list">
+            <li><a href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener">Winzling-Embed-a8m-64k<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/tiny-embedding-bench/tree/main/datasets/tiny-embedding-bench-v1" target="_blank" rel="noopener">tiny-embedding-bench-v1<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://huggingface.co/datasets/facebook/belebele" target="_blank" rel="noopener">Belebele <span class="badge" data-variant="outline">CC BY-SA 4.0</span><svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Built with</h3>
+          <ul class="mk-footer-list">
+            <li><a href="https://onnxruntime.ai/docs/tutorials/web/" target="_blank" rel="noopener">ONNX Runtime Web<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://huggingface.co/hotchpotch/bekko-embedding-v1-a8m" target="_blank" rel="noopener">bekko-embedding<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+            <li><a href="https://github.com/kyr0/defuss-shadcn" target="_blank" rel="noopener">defuss-shadcn<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></li>
+          </ul>
+        </div>
+        <div class="mk-footer-col">
+          <h3 class="mk-footer-heading">Professional consulting services</h3>
+          <aside class="corner-leaf vs-ad" aria-label="Consulting by Aron Homberg">
+            <div class="vs-ad-head">
+              <div class="aura aura-glow aura-gold vs-ad-portrait" style="--shape-round:1.5rem"><img class="shape-squircle" src="assets/aron-homberg.jpg" width="400" height="400" alt="Portrait of Aron Homberg" loading="lazy"></div>
+              <div>
+                <p class="vs-ad-name">Aron Homberg</p>
+                <p class="vs-ad-role">Freelance expert · independent AI researcher</p>
+              </div>
+            </div>
+            <a class="btn" data-size="sm" href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener"><svg class="vs-icon vs-icon-fill" aria-hidden="true"><use href="#i-linkedin"/></svg>Connect on LinkedIn<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>
+          </aside>
+        </div>
+      </nav>
+      <hr class="separator mk-footer-rule">
+      <div class="mk-footer-bottom">
+        <a href="#top" class="mk-footer-brand" aria-label="Back to the top"><svg class="vs-icon" aria-hidden="true"><use href="#i-logo"/></svg><span class="mk-footer-brand-name">defuss-vectorsearch</span></a>
+        <div class="mk-footer-meta">
+          <p class="mk-footer-copy">© 2026 <a href="https://www.linkedin.com/in/aronhomberg/" target="_blank" rel="noopener">Aron Homberg (kyr0)<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> · MIT. Passages and questions: Belebele (Bandarkar et al., ACL 2024; Meta; Wikimedia contributors), <a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener">CC BY-SA 4.0<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>, sampled by <a href="https://github.com/kyr0/tiny-embedding-bench/tree/main/datasets/tiny-embedding-bench-v1" target="_blank" rel="noopener">tiny-embedding-bench-v1<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a>.</p>
+        </div>
+      </div>
+    </div>
+  </footer>
+</div>
+<div class="fab" data-scroll-top>
+  <a class="btn fab-trigger" href="#top" aria-label="Back to top"><span class="fab-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-arrow-up"/></svg></span></a>
+</div>
+
+<dialog id="cmd" class="command" role="dialog" aria-modal="true" aria-label="Bench queries and actions">
+  <div class="command-content">
+    <div class="command-input-wrapper">
+      <svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>
+      <input class="command-input" type="text" placeholder="Filter 1,000 example queries, or type your own and press Enter…" autocomplete="off" autocorrect="off" spellcheck="false">
+    </div>
+    <div class="command-list" id="cmd-list">
+      <div class="command-group" id="cmd-placeholder">
+        <p class="command-group-heading">Bench questions</p>
+        <button class="command-item" aria-disabled="true">Loading 1,000 example queries in 20 languages…</button>
+      </div>
+    </div>
+    <div class="command-empty" hidden>No example query matches. Press Enter to search for your own text.</div>
+  </div>
+</dialog>
+
+<script type="module" src="https://cdn.jsdelivr.net/gh/kyr0/defuss-shadcn@0.9.7/dist/components/all.min.js" integrity="sha384-JmEU+8ZPWy1rlTlMFk/KEDwAGEFHBY5hz8soLiLVFnshIEAAcwjMUoF40IHEv6aR" crossorigin="anonymous"></script>
+<script type="module" src="assets/demo.js"></script>
+</body>
+</html>

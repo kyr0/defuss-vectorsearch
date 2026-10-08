@@ -1,0 +1,222 @@
+/* Page layout and the demo's own composition. Colours, radii and shadows come from defuss-shadcn tokens only. */
+@layer components {
+  /* the base reset the defuss-shadcn docs site applies (docs-theme.css), which its Landing Page template assumes */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; line-height: 1.6; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+  /* component rules set display, which would otherwise beat the hidden attribute */
+  [hidden] { display: none !important; }
+  /* the header is a direct child of the page, so it stays sticky over every section, not only the hero */
+  .vs-page { overflow-x: clip; }
+  .vs-main { display: flex; flex-direction: column; gap: clamp(5rem, 11vw, 9rem); padding-block-end: clamp(5rem, 11vw, 9rem); }
+  .vs-section { width: 100%; max-width: 76rem; padding-inline: 1rem; scroll-margin-top: 5rem; }
+  .vs-icon { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .vs-icon-fill { fill: currentColor; stroke: none; }
+  .mk-hero-note a, .mk-footer-copy a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+  /* the hero's long intro: three columns of muted prose under the CTA, so the buttons stay above the fold */
+  .vs-intro { display: grid; gap: 2rem 2.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+    width: 100%; max-width: 64rem; margin: clamp(5.5rem, 13vw, 10rem) auto 0; padding-inline: 1.25rem; text-align: start; }
+  .vs-intro-item { display: flex; flex-direction: column; gap: .5rem; }
+  .vs-intro-icon { display: grid; place-items: center; width: 4.5rem; height: 4.5rem; border-radius: var(--radius-xl); font-size: 2.25rem;
+    color: var(--foreground); background: color-mix(in oklch, var(--chart-2) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--chart-2) 35%, transparent); }
+  .vs-intro h3 { margin: .25rem 0 0; font-size: .9375rem; font-weight: 600; }
+  .vs-intro p { margin: 0; font-size: .8125rem; line-height: 1.6; color: var(--muted-foreground); text-wrap: pretty; }
+  .vs-intro code { font-family: var(--font-mono); font-size: .9em; }
+  .vs-intro a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .vs-ext { width: .75em; height: .75em; margin-inline-start: .15em; vertical-align: -.05em; opacity: .75; }
+  .vs-flip { margin: 0; font-size: clamp(1.5rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  .vs-accent { background: linear-gradient(90deg, var(--chart-1), var(--chart-3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  /* the demo window */
+  .vs-window {
+    display: flex; flex-direction: column; gap: 1.25rem; margin-block-start: 2.5rem; padding: clamp(.75rem, 2.5vw, 1.5rem);
+    background-color: var(--card); border-radius: var(--radius-xl); box-shadow: var(--shadow-2xl),
+      0 30px 80px -30px color-mix(in oklch, var(--chart-2) 45%, transparent);
+  }
+  .vs-boot-body { display: grid; gap: 1.25rem 1.75rem; grid-template-columns: auto 1fr; align-items: center; }
+  .vs-ring { --size: 7.5rem; }
+  .vs-phases { display: flex; flex-direction: column; gap: .875rem; min-width: 0; }
+  .vs-phases .progress-label { display: inline-flex; align-items: center; gap: .4rem; }
+  .vs-boot-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+  .vs-boot-actions .select { width: auto; }
+  .vs-stats { grid-column: 1 / -1; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
+  .vs-stats .statistic { padding: .75rem 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--muted) 45%, transparent); }
+  .vs-stats .statistic-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .vs-boot-foot { flex-direction: column; align-items: stretch; gap: .75rem; }
+  .vs-log { max-height: 13rem; overflow-y: auto; overscroll-behavior: contain; }
+  @container (max-width: 34rem) { .vs-boot-body { grid-template-columns: 1fr; justify-items: center; } .vs-phases, .vs-stats { justify-self: stretch; } }
+  .vs-boot { container-type: inline-size; }
+
+  /* query row */
+  .vs-query { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; scroll-margin-top: 6rem; }
+  .vs-search { flex: 1 1 26rem; min-width: 0; }
+  .vs-query .mk-search-box { max-width: none; } /* the block caps the large bar at 44rem; the demo row is wider */
+  .vs-search form { width: 100%; }
+  .vs-search .search-box { flex: 1; min-width: 0; }
+  .vs-cta { padding-block: clamp(2rem, 6vw, 4rem); min-width: 0; }
+  /* example queries are whole questions: let them wrap instead of widening the CTA past a phone screen */
+  .vs-cta .mk-empty-state-actions { max-width: 100%; }
+  .vs-cta #empty-examples .btn { white-space: normal; height: auto; min-height: 2rem; padding-block: .375rem; text-align: start; max-width: 100%; }
+
+  /* results: an ordered grid; each card keeps its passage id as a view-transition name, so re-ranks glide */
+  .vs-results { list-style: none; margin: 0; padding: 0; --layout-min: 17rem; position: relative; }
+  .vs-hit { view-transition-class: vs-hit; min-width: 0; }
+  .vs-hit .card { height: 100%; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, opacity .25s ease; }
+  .vs-hit .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+  .vs-hit > .aura { height: 100%; }
+  .vs-hit .card-header .vs-gold { margin-inline-start: auto; }
+  .vs-gold.aura { display: inline-grid; }
+  .vs-hit .card-header { flex-direction: row; align-items: center; gap: .625rem; flex-wrap: wrap; }
+  .vs-rank { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
+  .vs-hit .card-title { font-size: .9375rem; }
+  .vs-hit .card-description { font-family: var(--font-mono); font-size: .75rem; }
+  .vs-hit-text { margin: 0; font-size: .875rem; line-height: 1.55; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
+  .vs-hit .card-footer { gap: .75rem; }
+  .vs-hit .card-footer .progress { flex: 1; }
+  .vs-score { font-family: var(--font-mono); font-size: .8125rem; font-variant-numeric: tabular-nums; color: var(--muted-foreground); }
+  .vs-hit[data-gold] .card { border-color: color-mix(in oklch, var(--chart-2) 70%, var(--border)); box-shadow: 0 0 0 1px color-mix(in oklch, var(--chart-2) 45%, transparent), 0 12px 32px -16px color-mix(in oklch, var(--chart-2) 70%, transparent); }
+  .vs-hit[data-gold="exact"] .vs-rank { color: var(--chart-2); }
+  .vs-skeleton { display: flex; flex-direction: column; gap: .75rem; padding: 1.25rem; min-height: 10rem; }
+
+  /* searching: cards dim and a light beam sweeps the grid */
+  .vs-results[aria-busy="true"] .vs-hit .card { opacity: .55; }
+  .vs-results::after {
+    content: ""; position: absolute; inset: -.5rem; pointer-events: none; opacity: 0; border-radius: var(--radius-xl);
+    background: linear-gradient(105deg, transparent 35%, color-mix(in oklch, var(--chart-1) 28%, transparent) 50%, transparent 65%);
+    background-size: 250% 100%; transition: opacity .2s ease;
+  }
+  .vs-results[aria-busy="true"]::after { opacity: 1; animation: vs-scan .9s linear infinite; }
+  @keyframes vs-scan { from { background-position: 120% 0; } to { background-position: -20% 0; } }
+
+  ::view-transition-group(*.vs-hit) { animation-duration: .45s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+  ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
+
+  /* flythrough: the stage is viewport-high (so the animation spans exactly the pinned stretch) and only its middle
+     28rem band shows - the panel pins in the middle of the screen, with page visible above and below it */
+  /* between the intro and the demo: the viewport-high stage shows only its middle band, so pull its empty
+     top and bottom into the neighbouring gaps */
+  .vs-flythrough { padding-inline: 1rem; margin-block: calc(-1 * clamp(4rem, 12vh, 9rem)); }
+  .vs-flythrough .parallax-stage { clip-path: inset(max(0px, calc((100dvh - 28rem) / 2)) 0 round var(--radius-xl)); }
+  .vs-fly-word { margin: 0; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #9db2ff, #e3a6ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+  .vs-recall { margin: 0; align-self: start; aspect-ratio: auto; overflow: visible; background: var(--card); }
+  .vs-recall-list { display: grid; gap: .5rem 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+  .vs-recall-list .progress-label { display: inline-flex; align-items: center; gap: .375rem; }
+  /* two ways in: side by side with a vertical separator, stacked with a horizontal one */
+  .vs-ways { display: flex; gap: 2.5rem; margin-block-start: 2.5rem; }
+  .vs-way { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 1.5rem; }
+  .vs-way-title { display: flex; align-items: center; gap: .5rem; margin: 0; font-size: 1.25rem; font-weight: 600; }
+  .vs-way-desc { margin: 0; color: var(--muted-foreground); }
+  .vs-way .mk-code-block { margin: 0; }
+  /* a half-width column: wrap instead of cutting, with continuation lines hanging past the 2rem + 1rem number column */
+  .vs-way .mk-code-block code > span { white-space: pre-wrap; overflow-wrap: anywhere; padding-inline-start: 3rem; text-indent: -3rem; }
+  .vs-sep-horizontal { display: none; }
+  @media (max-width: 56rem) {
+    .vs-ways { flex-direction: column; }
+    .vs-sep-vertical { display: none; }
+    .vs-sep-horizontal { display: block; width: 100%; margin: 0; }
+  }
+  .vs-prompt { position: relative; }
+  .vs-prompt .mockup-code { margin: 0; }
+  .vs-prompt-copy { position: absolute; inset-block-start: .3rem; inset-inline-end: .5rem; }
+  /* tab 2: notes board (west) and notes search (center) in a resizable border layout */
+  .vs-tabs .tab-list { margin-block-end: 1.25rem; }
+  .vs-notes-layout { height: clamp(38rem, 75vh, 48rem); }
+  .vs-board { position: relative; display: flex; flex-direction: column; gap: .75rem; height: 100%; min-width: 0; overflow: hidden; }
+  .vs-board-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+  .vs-board-actions { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+  .vs-notes-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .5rem .25rem 1rem; }
+  .vs-notes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); }
+  .vs-notes-search { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; min-width: 0; }
+  @media (max-width: 40rem) { .vs-notes-layout { height: 56rem; } }
+
+  /* a yellow sticky note: paper colours have no token, so they are literals here (the tokens stay for the UI) */
+  .vs-note {
+    --vs-note-paper: oklch(0.95 0.12 100); --vs-note-ink: oklch(0.28 0.04 85); --vs-note-pulse: oklch(0.78 0.17 85 / .85);
+    position: relative; display: flex; flex-direction: column; gap: .375rem; padding: .75rem .875rem .625rem;
+    background: var(--vs-note-paper); color: var(--vs-note-ink); border-radius: 2px 2px 1.25rem 2px;
+    box-shadow: var(--shadow-md); rotate: -.6deg; overflow: hidden;
+  }
+  .vs-note:nth-child(even) { rotate: .5deg; }
+  .vs-note:focus-within { outline: 2px solid oklch(0.62 0.15 80); outline-offset: 2px; }
+  .vs-note-label { font-size: .75rem; font-weight: 600; letter-spacing: .02em; opacity: .7; }
+  .vs-note .textarea { min-height: 6.5rem; padding: 0; border: 0; background: transparent; color: inherit; box-shadow: none; resize: vertical; font-size: .9375rem; line-height: 1.5; }
+  .vs-note .textarea:focus-visible { outline: none; box-shadow: none; }
+  .vs-note .textarea::placeholder { color: color-mix(in oklch, var(--vs-note-ink) 50%, transparent); }
+  .vs-note-status { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; min-height: 1.5rem; margin: 0; font-size: .75rem; }
+  .vs-note-status .spinner { width: 1rem; height: 1rem; }
+  .vs-note-time { font-family: var(--font-mono); opacity: .8; white-space: nowrap; }
+  .vs-note::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s ease;
+    background: linear-gradient(105deg, transparent 35%, oklch(1 0 0 / .65) 50%, transparent 65%); background-size: 250% 100%;
+  }
+  .vs-note[aria-busy="true"]::after { opacity: 1; animation: vs-scan .9s linear infinite; }
+
+  /* footer ad: a leaf-cornered panel with a squircle portrait in a gold halo */
+  .vs-ad {
+    --shape-round: 2rem; display: flex; flex-direction: column; gap: .875rem; padding: 1.25rem;
+    border: 1px solid var(--border); box-shadow: var(--shadow-lg);
+    background: linear-gradient(135deg, color-mix(in oklch, var(--chart-1) 16%, var(--card)), var(--card) 65%);
+  }
+  .vs-ad-head { display: flex; align-items: center; gap: .875rem; }
+  .vs-ad-portrait { width: 5.5rem; flex: none; }
+  /* the ad is the footer's widest column on large screens */
+  @media (min-width: 64rem) { .vs-footer-nav.mk-footer-nav { grid-template-columns: 1fr 1fr 1fr 1.8fr; } }
+  .vs-ad-portrait img { display: block; width: 100%; height: auto; }
+  .vs-ad-name { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--foreground); }
+  .vs-ad-role { margin: 0; font-size: .8125rem; line-height: 1.5; color: var(--muted-foreground); }
+  .vs-ad .btn { align-self: flex-start; }
+  .vs-footnote { margin: 0; font-size: .75rem; color: var(--muted-foreground); }
+  .vs-footnote-mark { font-size: .5em; color: var(--muted-foreground); }
+  .mk-stat-value .badge { vertical-align: middle; }
+  .vs-cta-portrait { width: 4rem; flex: none; }
+  .vs-cta-portrait img { display: block; width: 100%; height: auto; }
+
+  .vs-inline-link { height: auto; padding: 0; font-size: inherit; vertical-align: baseline; }
+
+  /* demo tabs: bigger, centred, an icon and a two-line label (title + what it holds) */
+  .vs-tabs .tab-list { width: fit-content; max-width: 100%; margin-inline: auto; scroll-margin-top: 6rem; }
+  .vs-tab { display: flex; align-items: center; gap: .75rem; height: auto; padding-block: .625rem; text-align: start; white-space: normal; overflow: visible; }
+  .vs-tab-icon { width: 1.75rem; height: 1.75rem; flex: none; }
+  .vs-tab-title { display: block; font-weight: 600; line-height: 1.25; }
+  .vs-tab-desc { display: block; font-size: .75rem; font-weight: 400; line-height: 1.3; color: var(--muted-foreground); }
+
+  /* consulting CTA: a leaf-cornered mesh panel; portrait + heading, then the wider text column, then the action */
+  .vs-consult { --shape-round: 3rem; overflow: hidden; border: 1px solid var(--border); background-color: var(--card); }
+  .vs-consult .mk-cta, .vs-consult .mk-cta[data-variant] { background: transparent; }
+  .vs-consult .mk-cta[data-variant] .mk-cta-inner { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto; align-items: center; gap: 1.25rem 2rem; text-align: start;
+    padding: clamp(1.5rem, 3vw, 2.25rem) clamp(1.5rem, 3vw, 2.5rem); background: transparent; border-radius: 0; }
+  .vs-consult .mk-cta[data-variant] .mk-cta-copy { display: contents; }
+  .vs-consult .vs-cta-head { grid-column: 1; display: flex; align-items: center; gap: 1.25rem; }
+  .vs-consult .mk-cta[data-variant] .mk-cta-title { margin: 0; font-size: clamp(1.25rem, 2.2vw, 1.625rem); }
+  .vs-consult .mk-cta[data-variant] .mk-cta-desc { grid-column: 2; margin: 0; font-size: .875rem; }
+  .vs-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: 3; justify-content: flex-end; }
+  @media (max-width: 56rem) {
+    .vs-consult .mk-cta[data-variant] .mk-cta-inner { grid-template-columns: minmax(0, 1fr); }
+    .vs-consult .vs-cta-head, .vs-consult .mk-cta[data-variant] .mk-cta-desc, .vs-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: auto; justify-content: flex-start; }
+  }
+
+  /* "Use it": one leaf-cornered panel on a faint dot pattern */
+  .vs-use {
+    --shape-round: 3rem; --shape-ink: color-mix(in oklch, var(--foreground) 9%, transparent); --shape-pattern: 18px;
+    padding: clamp(1.5rem, 4vw, 3rem); border: 1px solid var(--border);
+    background-color: color-mix(in oklch, var(--card) 75%, transparent);
+    box-shadow: var(--shadow-xl), 0 30px 80px -40px color-mix(in oklch, var(--chart-2) 45%, transparent);
+  }
+  .mk-stats-desc a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .mk-stats-desc code { font-family: var(--font-mono); font-size: .875em; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vs-results[aria-busy="true"]::after, .vs-note[aria-busy="true"]::after { animation: none; }
+    .vs-hit .card { transition: none; }
+    ::view-transition-group(*.vs-hit) { animation: none; }
+  }
+  @media (prefers-contrast: more) {
+    .vs-results[aria-busy="true"] .vs-hit .card { opacity: 1; }
+    .vs-results::after { display: none; }
+  }
+  @media (forced-colors: active) {
+    .vs-accent, .vs-fly-word { color: CanvasText; background: none; }
+    .vs-hit[data-gold] .card { border: 2px solid Highlight; }
+    .vs-results::after { display: none; }
+  }
+}

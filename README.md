@@ -38,7 +38,7 @@ VERIFIED by `scripts/test-browser-bundle.ts` (part of `make e2e`) and one run ag
 - **Bundlers.** Only Vite was tested. Under Vite's dev server, keep `onnxruntime-web` out of dependency pre-bundling (`optimizeDeps: { exclude: ["onnxruntime-web"] }`), as this repo's `vite.config.ts` does. With another bundler, pass `wasmPaths` pointing at a copy of `onnxruntime-web/dist/`, as the demo does with `"/ort/"`.
 - **Format.** The entry is ESM-only and accepts `device: "wasm"` (default) or `"webgpu"`.
 
-This is the smallest and fastest setup in the [benchmark](#benchmark): 40 MB instead of 305 MB to download, 2.8× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. It retrieves less well than Harrier in the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish). R@3 is 83.8% against 98.9%, and R@25 is 98.9% against 100% (Node.js, bruteforce). Its weakest target languages are Portuguese and Spanish, at 76% and 74% R@3. When the top 3 must be right, use Harrier through `client.js`.
+This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.8× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. It retrieves less well than Harrier in the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish). R@3 is 83.8% against 98.9%, and R@25 is 98.9% against 100% (Node.js, bruteforce). Its weakest target languages are Portuguese and Spanish, at 76% and 74% R@3. When the top 3 must be right, use Harrier through `client.js`.
 
 ## Start from this download
 
@@ -65,6 +65,40 @@ After dependency installation and asset preparation, the examples need no networ
 Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUDA='skip'`,
 then run `bun install`, `bunx playwright install chromium`, `bun run build` and
 `bun run models:download`. A minimal Linux host needs `make setup PLAYWRIGHT_FLAGS=--with-deps`.
+
+## Static demo page
+
+`docs/index.html` is a standalone page built with defuss-shadcn from its CDN. On page load it fetches
+a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model
+with byte progress, and later searches run as you type. The ⌘K palette lists the 1,000 benchmark
+questions by language; for those, the results mark the gold passage and its translations. A second
+tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms
+after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it.
+The "Use it" section gives a prompt that points a coding agent at this repository.
+
+```sh
+python3 -m http.server -d docs 8080   # serves docs/ at http://localhost:8080/
+make docs                            # rebuilds docs/data/ (~9 min) and docs/assets/search-worker.js
+```
+
+VERIFIED by `scripts/test-docs.ts` (part of `make e2e`), which serves the model and ONNX Runtime
+from the local mirrors:
+
+- **Prebuilt index.** In Chromium, Winzling embeds a passage in 123 ms on average and a query in
+  21 ms (p50, `bench.json`). Indexing 2,000 passages in the browser would take about 4 minutes, so
+  `make docs` embeds them once in Node.js. `docs/data/vectors.bin.gz` holds the 4-bit TurboQuant
+  index (0.51 MB raw, 431 kB gzipped); `docs/data/documents.json.gz` the passages and questions
+  (438 kB gzipped). They are gzipped at build time, so every host sends the same bytes, and the
+  worker unpacks them with the browser's `DecompressionStream`.
+- **No bundler on the page.** `examples/search-worker.ts` becomes one 294 KB file,
+  `docs/assets/search-worker.js`. ONNX Runtime's `onnxruntime-web-use-extern-wasm` export condition
+  keeps its WASM out of the bundle; the worker fetches it from jsDelivr at the installed version,
+  and the model from Hugging Face. Both answer cross-origin requests.
+- **Downloads on request.** Typing alone downloads nothing; the model downloads with the first search
+  (the Search button, an example query) or "Load the model". The worker keeps the three files in the
+  Cache API, and a reload loads them from there with no model request.
+- **Steady scroll.** Picking an example query keeps the scroll position, so the re-ranked results
+  stay in view.
 
 ## Supported models
 
@@ -340,7 +374,7 @@ make verify   # lint → test → coverage → e2e; CI runs the same after `make
 Winzling CPU/browser inference. `coverage` prints the Node suite's line coverage.
 `e2e` builds ESM/CJS/declarations, typechecks the examples and scripts against them,
 exercises the built package exports, tests the Worker demo (report in `output/`),
-and builds the demo. Individual commands are listed in `Makefile` and `package.json`.
+builds the demo, rebuilds the static demo's worker and drives `docs/` in Chromium. Individual commands are listed in `Makefile` and `package.json`.
 
 The checked-in oracle contains **24 multilingual and adversarial cases** made
 with Rust tokenizers and Python native ONNX Runtime. Tests require exact token-ID
