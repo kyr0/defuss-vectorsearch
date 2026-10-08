@@ -4,6 +4,7 @@
 
 ### Added
 
+- `docs/index.html`: a static demo page built with defuss-shadcn. It loads a prebuilt TurboQuant index of the 2,000 benchmark passages on page load and the model, with byte progress, on the first search; then it searches as you type. The 1,000 benchmark questions sit in a ⌘K palette with gold-passage marks; a second tab embeds notes you write into an in-browser TurboQuant index and searches them; a coding-agent prompt links this repository. `make docs` rebuilds its index and worker bundle; `make e2e` drives it in Chromium.
 - `defuss-vectorsearch/browser.js`: a browser-only ESM entry with the Winzling embedder and TurboQuant search. It downloads the pinned model on first use and caches it in the Cache API and IndexedDB. Its Vite bundle contains no Transformers.js, `defuss-multicore` or Node code; `make e2e` checks this.
 - `make bench` measures Winzling and Harrier on the 20-language tiny-embedding-bench-v1 dataset. Each model runs in Node.js (native ONNX Runtime) and headless Chromium (WASM), with bruteforce and TurboQuant search. Results go to `bench.json` and the README. The README's overall recall counts the nine languages the models target (`TARGET_LANGUAGES`). `make download-bench` fetches the dataset and checks its pinned SHA-256.
 

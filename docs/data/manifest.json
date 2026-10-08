@@ -1,0 +1,17 @@
+{
+  "documents": {
+    "file": "documents.json.gz",
+    "bytes": 437721,
+    "rawBytes": 955378
+  },
+  "vectors": {
+    "file": "vectors.bin.gz",
+    "bytes": 430635,
+    "rawBytes": 512512
+  },
+  "modelFiles": {
+    "tokenizer.json": 9292544,
+    "tokenizer_config.json": 2448,
+    "onnx/model_uint4.onnx": 30464606
+  }
+}
