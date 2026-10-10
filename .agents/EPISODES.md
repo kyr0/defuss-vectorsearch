@@ -17,9 +17,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-07T15:06:18Z s=93cfeaa7 FINDING README.md:Download size learn=none: documentation precision; persistence in a regular browser profile is untested
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING README.md:Download size learn=none: documentation precision
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-cache-management.test.ts:17 learn=verifier: gate tests.no-mocks rule
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-prefetch.ts:buildFetchHeaders learn=verifier: gate env.example rule
-2026-10-07T15:43:06Z s=93cfeaa7 DONE fp=8f471973a819 cov=66.7% paths=CHANGELOG.md,README.md,scripts/bench/bench.test.ts,scripts/bench/dataset.ts(+1)
 2026-10-07T15:43:06Z s=93cfeaa7 FINDING README.md:Benchmark scope (P precision) learn=none: documentation precision; not mechanically checkable
 2026-10-07T15:43:06Z s=93cfeaa7 FINDING README.md:28,295,302 learn=none: hand-written analysis outside the generated block; it cites the 2026-10-07 run by date
 2026-10-07T16:18:01Z s=93cfeaa7 DONE fp=7484b0ccd875 cov=66.7% paths=CHANGELOG.md,README.md,scripts/bench/bench.test.ts,scripts/bench/dataset.ts(+1)
@@ -105,3 +102,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:426 A01 learn=none: structure
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:27,403 T07 learn=none: checker is line-based; <br/> is the working form
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:379 B01 learn=none: needs the author's answer, not a mechanism
+2026-10-10T16:29:58Z s=53696323 DONE fp=a5ecb4c37f27 cov=66.7% paths=bun.lock,package.json
+2026-10-10T16:29:58Z s=53696323 FINDING package.json:135 devDependencies.playwright learn=none: Dependabot already watches the manifest; a repo rule would duplicate it
+2026-10-10T17:14:50Z s=53696323 DONE fp=8c28876fae9b cov=66.7% paths=README.md,bun.lock,package.json

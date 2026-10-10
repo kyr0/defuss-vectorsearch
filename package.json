@@ -132,7 +132,7 @@
     "onnxruntime-node": "1.21.0",
     "oxlint": "^1.87.0",
     "pkgroll": "^2.25.2",
-    "playwright": "1.55.0",
+    "playwright": "1.55.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vitest": "^4.0.18"
