@@ -11,7 +11,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run (Harrier load fails otherwise); no unit-level check without a browser
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:1 learn=none: one-off rename slip
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:186 learn=none: documentation precision
-2026-10-07T12:03:12Z s=93cfeaa7 DONE fp=21c0e5e73e4b cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+27)
 2026-10-07T15:03:12Z s=93cfeaa7 DONE fp=a5727c81a418 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+28)
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=none: documentation precision; not mechanically checkable
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=none: documentation precision
@@ -105,3 +104,4 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:.vs-flythrough position learn=none: visual spacing; screenshots checked, no layout assertion
 2026-10-08T15:44:55Z s=542d48d6 FINDING scripts/test-docs.ts:copy assertions learn=test: copy belongs to the author; numbers stay verified
 2026-10-08T15:58:37Z s=542d48d6 DONE fp=0107b9143104 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
+2026-10-10T12:42:05Z s=48639839 DONE fp=b67282cf12c4 cov=66.7% paths=docs/assets/render.js,scripts/test-docs.ts

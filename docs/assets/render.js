@@ -14,13 +14,14 @@ export const formatMs = (ms) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.round
 
 /**
  * One result card per item, best first. The first card wears an aura (a light running around it); a gold mark shows
- * as a badge in a gold aura, at the end of the header. `key` is the card's identity across re-ranks.
+ * as a badge in a gold aura ring, at the end of the header: filled for the gold passage, secondary for a translation
+ * of it. `key` is the card's identity across re-ranks.
  */
 const renderCards = (items) => items.map((item, i) => {
   const score = Math.max(0, Math.min(1, item.score));
-  const badge = item.mark === "exact"
-    ? `<span class="aura aura-gold aura-sm vs-gold" style="--shape-round:999px"><span class="badge" data-size="sm">Gold</span></span>`
-    : item.mark === "translation" ? `<span class="badge vs-gold" data-variant="secondary" data-size="sm">Gold · translation</span>` : "";
+  const badge = item.mark
+    ? `<span class="aura aura-gold aura-sm vs-gold" style="--shape-round:999px"><span class="badge"${item.mark === "translation" ? ` data-variant="secondary"` : ""} data-size="sm">${item.mark === "exact" ? "Gold" : "Gold · translation"}</span></span>`
+    : "";
   const card = `<article class="card">
     <div class="card-header">
       <span class="vs-rank" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>

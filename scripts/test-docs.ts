@@ -278,6 +278,13 @@ try {
   });
   assert.equal(gold.text, "Gold");
   assert.ok(gold.gap < 40, `gold badge ${gold.gap}px from the header's end`);
+  // A translation's badge keeps its secondary fill; only the ring around it is gold.
+  const translations = await page.$$eval('#results .vs-hit[data-gold="translation"]', (list) => list.map((hit) => {
+    const badge = hit.querySelector(".aura-gold > .badge");
+    return { text: badge?.textContent, variant: badge?.getAttribute("data-variant") };
+  }));
+  assert.ok(translations.length > 0, "an English bench query ranks a translation of its gold passage");
+  for (const badge of translations) assert.deepEqual(badge, { text: "Gold · translation", variant: "secondary" });
   assert.equal(await page.locator("#results .vs-hit > .aura").count(), 1);
   assert.equal(await page.locator("#results .vs-hit:first-child > .aura .card").count(), 1);
   await page.screenshot({ path: "output/docs-demo.png", fullPage: true });
