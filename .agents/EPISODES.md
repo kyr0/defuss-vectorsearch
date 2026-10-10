@@ -11,22 +11,12 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run (Harrier load fails otherwise); no unit-level check without a browser
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:1 learn=none: one-off rename slip
 2026-10-07T11:20:27Z s=93cfeaa7 FINDING README.md:186 learn=none: documentation precision
-2026-10-07T15:03:12Z s=93cfeaa7 DONE fp=a5727c81a418 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+28)
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=none: documentation precision; not mechanically checkable
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=none: documentation precision
-2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Findings caveats learn=verifier: gate prose B01 enforces it
 2026-10-07T15:03:12Z s=93cfeaa7 FINDING README.md:Benchmark environments learn=none: documentation precision
-2026-10-07T15:06:18Z s=93cfeaa7 DONE fp=011af169e013 cov=65.0% paths=CHANGELOG.md,Makefile,README.md,bench.json(+28)
 2026-10-07T15:06:18Z s=93cfeaa7 FINDING README.md:Download size learn=none: documentation precision; persistence in a regular browser profile is untested
-2026-10-07T15:32:53Z s=93cfeaa7 DONE fp=82c1fd6f3143 cov=66.7% paths=CHANGELOG.md,Makefile,README.md,bench.json(+42)
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-cache.browser.ts:getProvider learn=test: scripts/test-browser-bundle.ts browser-bundle fixture times out when the lazy import is restored (mutation run)
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-cache.ts:loadCachedModelFile|src/core.ts:getExtractor|src/model-cache-management.ts learn=test: isomorphic-tla fixture times out when core.ts's lazy import('./onnx.js') is restored (mutation run)
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING package.json:exports learn=test: scripts/test-browser-bundle.ts asserts no forbidden module ids and no externalization warnings
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING README.md:Download size learn=none: documentation precision
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING .gitignore:29 learn=verifier: .agents/VERIFY.py gitignore.bench-sources-tracked
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING scripts/bench/run.ts:rendererRss learn=memory: inline VERIFIED comment at rendererRss
-2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-prefetch.test.ts:25 learn=verifier: gate tests.no-mocks rule
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-cache-management.test.ts:17 learn=verifier: gate tests.no-mocks rule
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING src/model-prefetch.ts:buildFetchHeaders learn=verifier: gate env.example rule
 2026-10-07T15:43:06Z s=93cfeaa7 DONE fp=8f471973a819 cov=66.7% paths=CHANGELOG.md,README.md,scripts/bench/bench.test.ts,scripts/bench/dataset.ts(+1)
@@ -105,3 +95,13 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T15:44:55Z s=542d48d6 FINDING scripts/test-docs.ts:copy assertions learn=test: copy belongs to the author; numbers stay verified
 2026-10-08T15:58:37Z s=542d48d6 DONE fp=0107b9143104 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
 2026-10-10T12:42:05Z s=48639839 DONE fp=b67282cf12c4 cov=66.7% paths=docs/assets/render.js,scripts/test-docs.ts
+2026-10-10T16:23:33Z s=53696323 DONE fp=eb7f08ce7fc4 cov=? paths=README.md
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:14-23 B03 (old README.md:8-11) learn=none: hand-picked TL;DR copy; a README-vs-bench.json check would be new test scope, offered to the user instead
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:352 B01 (old README.md:6) learn=none: one-off measurement of fixed pinned files; no recurring mechanism
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:58 B01 learn=none: publication state, not code
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:410 T04 learn=none: single wrong reference, fixed
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:376 P07 learn=none: copy precision
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:392-394 B01 learn=none: copy precision
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:426 A01 learn=none: structure
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:27,403 T07 learn=none: checker is line-based; <br/> is the working form
+2026-10-10T16:23:33Z s=53696323 FINDING README.md:379 B01 learn=none: needs the author's answer, not a mechanism
