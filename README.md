@@ -1,25 +1,65 @@
 # defuss-vectorsearch
 
-Isomorphic (browser and Node.js) JavaScript library for vector search using Winzling Embedding model and TurboQuant. 
+[![License: MIT](https://img.shields.io/badge/license-MIT-informational)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%E2%89%A522.18-success)](package.json)
+[![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](tsconfig.json)
+[![Live demo](https://img.shields.io/badge/demo-vectorsearch.defuss.org-success)](https://vectorsearch.defuss.org)
 
-- Model download size (from HF): ~30.5 MB weights + 9.29 MB tokenizer
-  - can be reduced further with compression (Zstd) when model is served from a CDN (~32 MB all-in is possible) 
-- Index size: 4-bit over padded dimensions (TurboQuant) - **211 KiB** _gzipped_ for 1,000 documents indexed
-- Single embedding speed (**CPU/WASM**, p95): ~123 ms (needle vector)
-- Memory (RAM) footprint (runtime): ~200 MB
-- Model loading time (p95): ~375 ms
-- Search in TurboQuant index (p95): ~206 ms (needle against haystack)
-- Recall (R@5): **~97%** for the top 3 languages (German, Russian, English) in [tiny-embedding-bench](https://github.com/kyr0/tiny-embedding-bench)
+**Vector** search for JavaScript: a 39.76 MB (all-in) multilingual embedding model and a 4-bit index, in the browser and in Node.js.
 
-## Use case
+The Winzling embedding model runs on ONNX Runtime Web (WASM, experimental WebGPU) in the browser and on ONNX Runtime (WASM or native CPU) in Node.js, behind the same API. TurboQuant stores each vector as 4-bit codes, so 2,000 passages take 0.49 MiB instead of 2.93 MiB in float32.
 
-Generate an index over documents server-side; store the index publicly.
-Client downloads the index; if the user searches, embed the query as needle vector, run the search against the TurboQuant index downloaded to the client. 
-Because the user types longer than the embedding model takes for downloading and loading, the perceived latency is reduced to < 0.5s (perceived as _instant_).
+## TL;DR
 
-Combined with `defuss-search`, which offers classic exact search, phonetic and fuzzy search, as well as rank fusion with vector search, you get a comprehensive isomorphic (in-browser + Node.js) search solution for both structured and unstructured data.
+Build the index server-side and publish it. The browser downloads the index, embeds the search query locally and searches the TurboQuant index locally. Once the model is cached, a reload loads it in ~0.4 s; embedding a query then takes 29.7 ms and searching 2,000 passages 0.46 ms (headless Chromium, see [Quick start](#quick-start) and [Benchmark](#benchmark)).
 
-## Quick start: browser, Winzling + TurboQuant
+- 🔁 **Isomorphic:** one embedder API in browsers and in Node.js; both produce the same Winzling vectors (minimum cosine 1 over 40 passages)
+- 🪶 **Small model:** 39.76 MB to download (30.46 MB ONNX graph, 9.29 MB tokenizer) instead of 304.68 MB for Harrier, and 206 MiB of memory at runtime in Chromium
+- 🗜️ **4-bit index:** TurboQuant keeps 256 B per vector instead of 1,536 B in float32; the live demo's 2,000 passages are 431 kB gzipped
+- 🎯 **Multilingual recall:** R@5 of 92.2% over nine languages, 94 to 100% for German, Russian and English, against a 2,000-passage haystack in 20 languages
+- ⚡ **Fast queries:** 29.7 ms to embed a query, 0.46 ms to search 2,000 passages (means, Chromium, WASM, 1 thread)
+- 🔒 **Pinned and checked:** one pinned model revision; every file is SHA-256 checked, cache hits included, and cached in the Cache API and IndexedDB (browser) or on the filesystem (Node.js)
+- 📦 **Lean browser bundle:** `browser.js` builds to 340 KB of JavaScript plus the 26.78 MB ONNX Runtime Web WASM, with no Transformers.js or Node.js code
+- 🧪 **Oracle-tested:** exact token IDs, and embeddings within `2e-5` of Rust tokenizers and Python ONNX Runtime, on 24 multilingual and adversarial cases
+
+## How it works
+
+```mermaid
+flowchart LR
+    D(["📄 documents"]) --> E1
+
+    subgraph build ["🏗️ ahead of time, Node.js"]
+        E1["embedDocuments<br/>Winzling, native CPU"] --> B["buildTurboQuantIndex<br/>4-bit codes"]
+    end
+
+    B -->|"your format + gzip"| H[("static host")]
+
+    subgraph browser ["🌐 per query, browser"]
+        Q(["🙋 query"]) --> E2["embedQuery<br/>ONNX Runtime Web"]
+        E2 --> S["searchTurboQuantIndex<br/>top k"]
+    end
+
+    H -->|"download once"| S
+    S --> R(["hits"])
+```
+
+The package does not serialize indexes; the live demo writes its own format (`scripts/docs/index-format.ts`, see [Patterns](#patterns)).
+
+| Entry point | When you reach for it | What it does |
+|---|---|---|
+| **`browser.js`** | a browser app | Winzling embedder cached in the Cache API and IndexedDB, TurboQuant, `normalizeVector(s)`. ESM-only. A Vite production build contains no Transformers.js, `defuss-multicore`, `onnxruntime-node` or Node built-in code. |
+| **`onnx.js`** | Node.js or isomorphic code | The same Winzling embedder, with a filesystem cache in Node.js and the browser cache in browsers. Does not import Transformers.js. ESM + CJS. |
+| **`server.js` / `client.js`** | Harrier, OpenAI-compatible endpoints, or one factory for several models | `createEmbeddingServer` / `createEmbeddingClient`. The no-argument factory defaults to Harrier; known model IDs select their profile. |
+| **`turboquant.js`** | a small index | `buildTurboQuantIndex`, `searchTurboQuantIndex`, `searchTurboQuantIndexRerank`, `scoreTurboQuantIndex`, `rerankSearchHits`, `selfCheckTurboQuant`. |
+| **`vector-search.js`** | exact (bruteforce) search | `searchTopK`, `searchTopKMulticore`, `dotProduct`, `normalizeVector(s)`, `topKFromScores`, `attachRecords`. |
+
+## Install
+
+0.1.0 is not on the npm registry. Use it from a checkout of [the repository](https://github.com/kyr0/defuss-vectorsearch); see [From a checkout](#from-a-checkout).
+
+## Quick start
+
+### Browser: Winzling + TurboQuant
 
 ```ts
 import { buildTurboQuantIndex, createWinzlingEmbedder, searchTurboQuantIndex } from "defuss-vectorsearch/browser.js";
@@ -40,80 +80,7 @@ VERIFIED by `scripts/test-browser-bundle.ts` (part of `make e2e`) and one run ag
 
 This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.8× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. It retrieves less well than Harrier in the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish). R@3 is 83.8% against 98.9%, and R@25 is 98.9% against 100% (Node.js, bruteforce). Its weakest target languages are Portuguese and Spanish, at 76% and 74% R@3. When the top 3 must be right, use Harrier through `client.js`.
 
-## Start from this download
-
-Bun installs dependencies and runs scripts. Node **22.18+** executes the TypeScript
-(native type stripping) and the native ONNX Runtime; tested with Node 24.19.0 on Linux x64.
-
-```sh
-make setup                      # bun install, Playwright Chromium, build, model assets
-node examples/node.ts           # CPU via ONNX Runtime Web/WASM
-node examples/node.ts --cpu     # native Node CPU
-bun run demo                    # open the printed localhost URL
-```
-
-`make setup` skips the optional CUDA download; the native CPU binaries ship in the
-`onnxruntime-node` package, so Bun's blocked postinstall for it is harmless.
-
-The ZIP includes the exact model graph and tokenizer under
-`public/models/winzling/`. `models:download` validates their SHA-256 hashes;
-when absent, it downloads the pinned release. It also copies the installed
-ORT WASM/JavaScript assets into `public/ort/` for the local browser demo.
-The model and runtime assets are ignored by Git and excluded from the npm tarball.
-After dependency installation and asset preparation, the examples need no network.
-
-Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUDA='skip'`,
-then run `bun install`, `bunx playwright install chromium`, `bun run build` and
-`bun run models:download`. A minimal Linux host needs `make setup PLAYWRIGHT_FLAGS=--with-deps`.
-
-## Static demo page
-
-`docs/index.html` is a standalone page built with defuss-shadcn from its CDN. On page load it fetches
-a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model
-with byte progress, and later searches run as you type. The ⌘K palette lists the 1,000 benchmark
-questions by language; for those, the results mark the gold passage and its translations. A second
-tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms
-after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it.
-The "Use it" section gives a prompt that points a coding agent at this repository.
-
-```sh
-python3 -m http.server -d docs 8080   # serves docs/ at http://localhost:8080/
-make docs                            # rebuilds docs/data/ (~9 min) and docs/assets/search-worker.js
-```
-
-VERIFIED by `scripts/test-docs.ts` (part of `make e2e`), which serves the model and ONNX Runtime
-from the local mirrors:
-
-- **Prebuilt index.** In Chromium, Winzling embeds a passage in 123 ms on average and a query in
-  21 ms (p50, `bench.json`). Indexing 2,000 passages in the browser would take about 4 minutes, so
-  `make docs` embeds them once in Node.js. `docs/data/vectors.bin.gz` holds the 4-bit TurboQuant
-  index (0.51 MB raw, 431 kB gzipped); `docs/data/documents.json.gz` the passages and questions
-  (438 kB gzipped). They are gzipped at build time, so every host sends the same bytes, and the
-  worker unpacks them with the browser's `DecompressionStream`.
-- **No bundler on the page.** `examples/search-worker.ts` becomes one 294 KB file,
-  `docs/assets/search-worker.js`. ONNX Runtime's `onnxruntime-web-use-extern-wasm` export condition
-  keeps its WASM out of the bundle; the worker fetches it from jsDelivr at the installed version,
-  and the model from Hugging Face. Both answer cross-origin requests.
-- **Downloads on request.** Typing alone downloads nothing; the model downloads with the first search
-  (the Search button, an example query) or "Load the model". The worker keeps the three files in the
-  Cache API, and a reload loads them from there with no model request.
-- **Steady scroll.** Picking an example query keeps the scroll position, so the re-ranked results
-  stay in view.
-
-## Supported models
-
-| Model | Runtime | Pooling / queries |
-|---|---|---|
-| `kyr0/Winzling-Embed-a8m-64k` | Direct ONNX + `@huggingface/tokenizers` | Masked mean; unchanged, unprefixed input |
-| `tss-deposium/harrier-oss-v1-270m-onnx-int8` | Existing Transformers.js pipeline | Existing last-token pooling and instruction formatting |
-| `onnx-community/harrier-oss-v1-270m-ONNX` | Existing Transformers.js pipeline, `dtype: "q4"` | Existing Harrier behavior |
-
-The no-argument client/server factory still defaults to Harrier. Explicit
-OpenAI-compatible endpoints and existing vector-search exports are retained.
-See [the preserved upstream README](docs/UPSTREAM_README.md) for those APIs and
-historical benchmarks; those benchmark results were not reproduced for this release.
-
-## Narrow Winzling entry point
+### Node.js: Winzling only
 
 ```ts
 import { createWinzlingEmbedder } from "defuss-vectorsearch/onnx.js";
@@ -132,24 +99,92 @@ try {
 }
 ```
 
-`onnx.js` does not import Transformers.js. The retained legacy dependencies
-remain in the package's installation footprint. This release does not split
-or remove them.
+`onnx.js` does not import Transformers.js. The retained legacy dependencies remain in the package's installation footprint. This release does not split or remove them.
 
-Methods: `load()`, `embed()`, `embedOne()`, `embedDocuments()`, `embedQuery()`,
-`embedQueries()`, `dispose()`. `load()` is optional; inference initializes lazily.
-Embeddings are `Float32Array`s. Empty batches return `[]`; empty strings are
-encoded with the model's special tokens. Query whitespace is preserved.
-Nonempty `instruction` or `preset` options are rejected for Winzling.
+### From a checkout
 
-The provider fingerprint identifies the preset. Include `maxLength`, `truncate`,
-and per-call normalization overrides in application embedding-cache keys.
+Bun installs dependencies and runs scripts. Node **22.18+** executes the TypeScript (native type stripping) and the native ONNX Runtime; tested with Node 24.19.0 on Linux x64.
 
-Concurrent calls are serialized per instance. `dispose()` waits for accepted
-work, releases the session, is idempotent, and rejects subsequent inference.
-Initialization failures can be retried. There is no hosted-inference fallback.
+```sh
+make setup                      # bun install, Playwright Chromium, build, model assets
+node examples/node.ts           # CPU via ONNX Runtime Web/WASM
+node examples/node.ts --cpu     # native Node CPU
+bun run demo                    # open the printed localhost URL
+```
 
-## Existing client/server API
+`make setup` skips the optional CUDA download; the native CPU binaries ship in the `onnxruntime-node` package, so Bun's blocked postinstall for it is harmless.
+
+The ZIP includes the exact model graph and tokenizer under `public/models/winzling/`. `models:download` validates their SHA-256 hashes; when absent, it downloads the pinned release. It also copies the installed ORT WASM/JavaScript assets into `public/ort/` for the local browser demo. The model and runtime assets are ignored by Git and excluded from the npm tarball. After dependency installation and asset preparation, the examples need no network.
+
+Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUDA='skip'`, then run `bun install`, `bunx playwright install chromium`, `bun run build` and `bun run models:download`. A minimal Linux host needs `make setup PLAYWRIGHT_FLAGS=--with-deps`.
+
+## Live demo
+
+[vectorsearch.defuss.org](https://vectorsearch.defuss.org) serves `docs/index.html`, a standalone page built with defuss-shadcn from its CDN. On page load it fetches a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model with byte progress, and later searches run as you type. The ⌘K palette lists the 1,000 benchmark questions by language; for those, the results mark the gold passage and its translations. A second tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it. The "Use it" section gives a prompt that points a coding agent at this repository.
+
+```sh
+python3 -m http.server -d docs 8080   # serves docs/ at http://localhost:8080/
+make docs                            # rebuilds docs/data/ (~9 min) and docs/assets/search-worker.js
+```
+
+VERIFIED by `scripts/test-docs.ts` (part of `make e2e`), which serves the model and ONNX Runtime from the local mirrors:
+
+- **Prebuilt index.** In Chromium, Winzling embeds a passage in 123 ms on average and a query in 21 ms (p50, `bench.json`). Indexing 2,000 passages in the browser would take about 4 minutes, so `make docs` embeds them once in Node.js. `docs/data/vectors.bin.gz` holds the 4-bit TurboQuant index (0.51 MB raw, 431 kB gzipped); `docs/data/documents.json.gz` the passages and questions (438 kB gzipped). They are gzipped at build time, so every host sends the same bytes, and the worker unpacks them with the browser's `DecompressionStream`.
+- **No bundler on the page.** `examples/search-worker.ts` becomes one 294 KB file, `docs/assets/search-worker.js`. ONNX Runtime's `onnxruntime-web-use-extern-wasm` export condition keeps its WASM out of the bundle; the worker fetches it from jsDelivr at the installed version, and the model from Hugging Face. Both answer cross-origin requests.
+- **Downloads on request.** Typing alone downloads nothing; the model downloads with the first search (the Search button, an example query) or "Load the model". The worker keeps the three files in the Cache API, and a reload loads them from there with no model request.
+- **Steady scroll.** Picking an example query keeps the scroll position, so the re-ranked results stay in view.
+
+## API
+
+### `createWinzlingEmbedder(options?)`
+
+From `browser.js` (browser cache, `device: "wasm" | "webgpu"`) or `onnx.js` (isomorphic, adds `device: "cpu"` and `cacheDir` in Node.js).
+
+```ts
+const embedder = createWinzlingEmbedder(options?);
+const vectors = await embedder.embedDocuments(texts); // Float32Array[], 384 dims
+const query   = await embedder.embedQuery(text);      // Float32Array
+await embedder.dispose();
+```
+
+Methods: `load()`, `embed()`, `embedOne()`, `embedDocuments()`, `embedQuery()`, `embedQueries()`, `dispose()`. `load()` is optional; inference initializes lazily. Embeddings are `Float32Array`s. Empty batches return `[]`; empty strings are encoded with the model's special tokens. Query whitespace is preserved. Nonempty `instruction` or `preset` options are rejected for Winzling.
+
+| Option | Default / behavior |
+|---|---|
+| `device` | `"wasm"`; `"cpu"` is Node-only; `"webgpu"` is experimental |
+| `batchSize` | 8; bounded microbatches with right padding |
+| `maxLength` | 8192 tokens including BOS/EOS; valid range 2–8192 |
+| `truncate` | `false`; excess length throws. `true` preserves terminal EOS |
+| `normalize` | `true`; per-call `normalize: false` returns the mean vector |
+| `modelBaseUrl` | Optional HTTP(S) mirror of the pinned release |
+| `loadFile` | Optional `(relativePath) => Promise<Uint8Array>` overriding all asset I/O |
+| `cache` | `true`; filesystem in Node; Cache API + IndexedDB in browsers |
+| `cacheDir` | Node OS temporary directory / `defuss-vectorsearch` |
+| `allowRemoteModels` | `true`; `false` requires cached files unless `loadFile` is supplied |
+| `wasmPaths` | ORT default; self-hosting example: `"/ort/"` |
+| `numThreads` | 1; avoids a cross-origin-isolation requirement for WASM |
+
+**Concurrency and lifecycle:** concurrent calls are serialized per instance. `dispose()` waits for accepted work, releases the session, is idempotent, and rejects subsequent inference. Initialization failures can be retried. There is no hosted-inference fallback.
+
+**Cache keys:** the provider fingerprint identifies the preset. Include `maxLength`, `truncate`, and per-call normalization overrides in application embedding-cache keys.
+
+### TurboQuant
+
+```ts
+import { buildTurboQuantIndex, searchTurboQuantIndex, searchTurboQuantIndexRerank } from "defuss-vectorsearch/turboquant.js";
+
+const index = buildTurboQuantIndex(vectors);                // options: { clip = 3.0, seed = 0x12345678 }
+const hits  = searchTurboQuantIndex(index, query, 10);      // SearchHit[]: { index, score }, best first
+const { rerankedTopK } = searchTurboQuantIndexRerank(index, vectors, query, 100, 10);
+```
+
+- `buildTurboQuantIndex(vectors, options?)` pads the dimensions to the next power of two (384 → 512, 640 → 1024) and packs two 4-bit codes per byte. All vectors must share one dimensionality.
+- `searchTurboQuantIndex(index, query, k)` scores every code against the query without reconstructing dense vectors, then returns the top `k`.
+- `searchTurboQuantIndexRerank(index, vectors, query, approximateK, rerankK)` re-scores the approximate top `approximateK` with exact dot products against the float32 `vectors` and keeps `rerankK`. It needs those vectors in memory.
+
+`searchTopK(haystack, needle, k)` from `vector-search.js` is the exact baseline: a dot product against every vector.
+
+### `createEmbeddingServer(options?)` / `createEmbeddingClient(options?)`
 
 ```ts
 import { createEmbeddingServer, WINZLING_MODEL_ID } from "defuss-vectorsearch/server.js";
@@ -167,66 +202,33 @@ try {
 }
 ```
 
-The browser equivalent is `createEmbeddingClient` from `client.js`.
-Known model IDs select their profile automatically. A Winzling mirror can use
-`{ model: "https://example.com/models/winzling", modelProfile: "winzling" }`.
-The folder must contain the unchanged pinned files at their original paths.
-Use `WINZLING_MODEL_ID`, `WINZLING_PROFILE`, and `SUPPORTED_MODELS` for discovery.
+The browser equivalent is `createEmbeddingClient` from `client.js`. Known model IDs select their profile automatically. A Winzling mirror can use `{ model: "https://example.com/models/winzling", modelProfile: "winzling" }`. The folder must contain the unchanged pinned files at their original paths. Use `WINZLING_MODEL_ID`, `WINZLING_PROFILE`, and `SUPPORTED_MODELS` for discovery.
 
-Winzling's `dtype: "q4"` is selected automatically; its exact graph filename is
-`onnx/model_uint4.onnx`. There is no external `.onnx_data` file. Arbitrary model
-revisions, other dtypes, and non-mean pooling are not supported by this preset.
+Winzling's `dtype: "q4"` is selected automatically; its exact graph filename is `onnx/model_uint4.onnx`. There is no external `.onnx_data` file. Arbitrary model revisions, other dtypes, and non-mean pooling are not supported by this preset.
 
-Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know the
-Winzling asset manifest. Actual inference verifies all three asset hashes,
-including cache hits. `loadFile` bypasses this cache, so cache-management methods
-do not inspect an application's custom loader/storage.
+The wrapper APIs take the `createWinzlingEmbedder` options inside `winzling: { ... }`; their existing top-level `device`, `normalize`, `cacheDir`, and `allowRemoteModels` settings are also supported. Prefer the top-level settings when using the wrapper APIs. For filesystem assets, use `winzling.loadFile`, not the legacy Transformers.js `localModelPath` option.
 
-## Options and deployment
+Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know the Winzling asset manifest. Actual inference verifies all three asset hashes, including cache hits. `loadFile` bypasses this cache, so cache-management methods do not inspect an application's custom loader/storage.
 
-| `createWinzlingEmbedder` option | Default / behavior |
-|---|---|
-| `device` | `"wasm"`; `"cpu"` is Node-only; `"webgpu"` is experimental |
-| `batchSize` | 8; bounded microbatches with right padding |
-| `maxLength` | 8192 tokens including BOS/EOS; valid range 2–8192 |
-| `truncate` | `false`; excess length throws. `true` preserves terminal EOS |
-| `normalize` | `true`; per-call `normalize: false` returns the mean vector |
-| `modelBaseUrl` | Optional HTTP(S) mirror of the pinned release |
-| `loadFile` | Optional `(relativePath) => Promise<Uint8Array>` overriding all asset I/O |
-| `cache` | `true`; filesystem in Node; Cache API + IndexedDB in browsers |
-| `cacheDir` | Node OS temporary directory / `defuss-vectorsearch` |
-| `allowRemoteModels` | `true`; `false` requires cached files unless `loadFile` is supplied |
-| `wasmPaths` | ORT default; self-hosting example: `"/ort/"` |
-| `numThreads` | 1; avoids a cross-origin-isolation requirement for WASM |
+### Supported models
 
-The wrapper APIs take these provider settings inside `winzling: { ... }`;
-their existing top-level `device`, `normalize`, `cacheDir`, and
-`allowRemoteModels` settings are also supported. Prefer the top-level settings
-when using the wrapper APIs. For filesystem assets, use `winzling.loadFile`,
-not the legacy Transformers.js `localModelPath` option.
+| Model | Runtime | Pooling / queries |
+|---|---|---|
+| `kyr0/Winzling-Embed-a8m-64k` | Direct ONNX + `@huggingface/tokenizers` | Masked mean; unchanged, unprefixed input |
+| `tss-deposium/harrier-oss-v1-270m-onnx-int8` | Existing Transformers.js pipeline | Existing last-token pooling and instruction formatting |
+| `onnx-community/harrier-oss-v1-270m-ONNX` | Existing Transformers.js pipeline, `dtype: "q4"` | Existing Harrier behavior |
 
-Native Node CPU uses `onnxruntime-node@1.21.0`, matching the retained
-Transformers.js dependency so two incompatible native ORT libraries are not
-loaded into one process. The native peer is optional; the development checkout
-installs it. ORT Web is pinned independently to `1.30.0` and the tokenizer to
-`0.2.0`.
+The no-argument client/server factory defaults to Harrier. Explicit OpenAI-compatible endpoints and the vector-search exports are retained. See [the preserved upstream README](docs/UPSTREAM_README.md) for those APIs and historical benchmarks; those benchmark results were not reproduced for this release.
 
-The included demo runs tokenization and inference in a dedicated module Worker,
-serves all assets from localhost, and uses exact cosine similarity for display.
-Do not enable ORT's proxy-worker mode for WebGPU. The provider sets it to false.
-WASM paths and thread settings are global ORT configuration: use consistent
-settings across instances and configure other users of ORT before initialization.
-HTTPS or localhost is needed for browser cryptography, storage, and WebGPU APIs.
+### Runtime and deployment
 
-WebGPU requests require a usable adapter; absence throws instead of quietly
-selecting CPU. When an adapter is available, the session requests WebGPU with
-WASM for unsupported operators. Hardware WebGPU inference was **not verified**
-in this environment. CPU paths are the validated defaults. GPU token states are
-currently read back for pooling in TypeScript; GPU graph pooling is deferred.
+Native Node CPU uses `onnxruntime-node@1.21.0`, matching the retained Transformers.js dependency so two incompatible native ORT libraries are not loaded into one process. The native peer is optional; the development checkout installs it. ORT Web is pinned independently to `1.30.0` and the tokenizer to `0.2.0`.
 
-8192 is the model's context limit, not a promise of low memory use at that length.
-Long inputs can create large attention tensors. For retrieval, chunk upstream
-or choose a smaller explicit `maxLength`; automatic chunking is outside this package.
+The included demo runs tokenization and inference in a dedicated module Worker, serves all assets from localhost, and uses exact cosine similarity for display. Do not enable ORT's proxy-worker mode for WebGPU. The provider sets it to false. WASM paths and thread settings are global ORT configuration: use consistent settings across instances and configure other users of ORT before initialization. HTTPS or localhost is needed for browser cryptography, storage, and WebGPU APIs.
+
+WebGPU requests require a usable adapter; absence throws instead of quietly selecting CPU. When an adapter is available, the session requests WebGPU with WASM for unsupported operators. Hardware WebGPU inference was **not verified** in this environment. CPU paths are the validated defaults. GPU token states are currently read back for pooling in TypeScript; GPU graph pooling is deferred.
+
+8192 is the model's context limit, not a promise of low memory use at that length. Long inputs can create large attention tensors. For retrieval, chunk upstream or choose a smaller explicit `maxLength`; automatic chunking is outside this package.
 
 ## Benchmark
 
@@ -347,6 +349,7 @@ VERIFIED: measured from the cached model files and from the Chromium page's netw
 | Harrier | 304.68 MB (290.56 MiB) | 270.14 MB | 34.54 MB | 21.60 MB, the ONNX Runtime Web build bundled with Transformers.js 3.8.1, loaded from jsDelivr |
 
 - Hugging Face sends the model files uncompressed: no `Content-Encoding` header, and `Content-Length` equals the file size.
+- A server that compresses them saves little on the graph and most of the tokenizer. Winzling's three files total 28.37 MB with `brotli -q 11`, 28.59 MB with `zstd -19` and 29.02 MB with `gzip -9` (graph 27.50 MB, tokenizer 0.86 MB with brotli).
 - jsDelivr sends Harrier's runtime WASM brotli-compressed, 4.11 MB on the wire. A self-hosted `/ort/` gets the same saving only if its server compresses `.wasm` files.
 - Node.js downloads only the model files. Its ONNX Runtime ships as a native npm binary.
 - Winzling's sizes are fixed by its pinned revision. Harrier loads its repository's `main` branch, so its files can change.
@@ -364,25 +367,77 @@ VERIFIED: measured from the cached model files and from the Chromium page's netw
 - VERIFIED: the evidence base is small. Overall recall rests on 450 target-language queries against 2,000 passages, so a 0.9-point gap is 4 queries, on one dataset.
 - VERIFIED: nothing here covers corpora larger than 2,000 passages. [docs/BENCHMARK.md](docs/BENCHMARK.md) lists the open questions for larger corpora and how to test them.
 
-## Verify
+## When to use it
+
+Winzling gives up top-3 precision (R@3 83.8% against Harrier's 98.9%) for a download 7.7 times smaller (39.76 MB against 304.68 MB), and TurboQuant shrinks its index 6 times.
+
+### Use it for
+
+- **Search on the visitor's device:** the browser embeds and searches the query itself; the live demo makes no network request during a search
+- **Corpora you can index ahead of time:** the demo embeds its 2,000 passages once at build time (`make docs`) instead of in each visitor's browser, where that would take about 4 minutes, and ships them as a 431 kB index
+- **German, Russian and English:** R@5 of 96, 94 and 100% (Node.js, bruteforce); the other six target languages reach 84 to 94%
+- **Hybrid search:** combined with `defuss-search`, which offers exact, phonetic and fuzzy search plus rank fusion with vector search, it covers structured and unstructured data in the browser and in Node.js
+
+### Use something else for
+
+- **Top-3 precision in all nine languages:** Harrier reaches R@3 98.9% against Winzling's 83.8%; use it through `client.js` or `server.js`
+- **Faster search than bruteforce:** TurboQuant saves memory and download, not time, at 2,000 passages
+- **Exact reranking at TurboQuant's footprint:** `searchTurboQuantIndexRerank` needs the float32 vectors in memory
+- **Long documents as one vector:** the 8192-token context limit is no promise of low memory use; chunk upstream
+- **Corpora beyond 2,000 passages:** recall, speed and memory there are not measured
+- **GPU inference you rely on:** WebGPU on real hardware is not verified
+
+### Key principles
+
+1. **Embed documents and queries with the same model.** The demo's index records the model ID, revision and fingerprint its passages were embedded with, and its queries use that model.
+2. **Load the model before the first query when 39.8 MB is acceptable.** `load()` starts the download and session; otherwise the first `embedQuery` pays for it. The live demo waits for the first search, so typing alone downloads nothing.
+3. **Run the model in a Worker.** Both demos run tokenization and inference in a dedicated module Worker and post results to the page. The live demo's worker keeps only the newest pending query instead of queueing every keystroke.
+4. **Reuse one embedder.** Each instance holds one ONNX Runtime session and serializes its calls; `dispose()` releases it.
+
+## Patterns
+
+### Prebuilt index, browser search
+
+The live demo indexes in Node.js and searches in the browser:
+
+```mermaid
+flowchart LR
+    A["scripts/docs/build-index.ts<br/>Node.js, native CPU"] -->|"encodeDemoIndex + gzip"| B[("docs/data/<br/>documents.json.gz<br/>vectors.bin.gz")]
+    B -->|"fetch + DecompressionStream"| C["examples/search-worker.ts<br/>decodeDemoIndex"]
+    C --> D["searchTurboQuantIndex"]
+```
+
+`scripts/docs/index-format.ts` stores the passages and the TurboQuant header as JSON, and the signs and code bytes as one binary file. Binary instead of base64 in JSON keeps the vectors at 431 kB gzipped instead of 475 kB. `scripts/docs/index-format.test.ts` checks the round trip.
+
+### Model files from disk
+
+```ts
+import { readFile } from "node:fs/promises";
+import { createWinzlingEmbedder } from "defuss-vectorsearch/onnx.js";
+
+const embedder = createWinzlingEmbedder({
+  device: "cpu",
+  loadFile: async (file) => new Uint8Array(await readFile(`public/models/winzling/${file}`)),
+});
+```
+
+`loadFile` replaces all asset I/O, and the embedder still checks every file's SHA-256. `scripts/test-package.ts` runs this against both the ESM and the CJS build. In the browser, `modelBaseUrl` and `wasmPaths` serve the same purpose for a self-hosted mirror (`examples/browser-worker.ts`).
+
+## What "verified" means
 
 ```sh
 make verify   # lint → test → coverage → e2e; CI runs the same after `make setup`
 ```
 
-`lint` runs oxlint. `test` runs the Node and Chromium regression suites and real
-Winzling CPU/browser inference. `coverage` prints the Node suite's line coverage.
-`e2e` builds ESM/CJS/declarations, typechecks the examples and scripts against them,
-exercises the built package exports, tests the Worker demo (report in `output/`),
-builds the demo, rebuilds the static demo's worker and drives `docs/` in Chromium. Individual commands are listed in `Makefile` and `package.json`.
+- `make lint`: oxlint with `--deny-warnings`
+- `make test`: the Node and Chromium regression suites, and real Winzling inference on native CPU and in the browser
+- `make coverage`: the Node suite's line coverage
+- `make e2e`: builds ESM/CJS/declarations, typechecks the examples and scripts against them, exercises the built package exports, builds the `browser.js` bundle and runs it in Chromium, tests the Worker demo (report in `output/`), builds the demo, rebuilds the static demo's worker and drives `docs/` in Chromium
+- `make bench`: regenerates `bench.json` and the [benchmark](#benchmark) tables
 
-The checked-in oracle contains **24 multilingual and adversarial cases** made
-with Rust tokenizers and Python native ONNX Runtime. Tests require exact token-ID
-agreement and compare normalized embeddings within `2e-5` maximum absolute error,
-including padded batches against independently generated singleton vectors.
-Fixtures cover Unicode, whitespace, special tokens, empty text, and byte fallback.
-Other tests cover pooling, normalization, explicit truncation, corruption,
-initialization retry, concurrent calls, disposal, and offline browser-cache reuse.
+Individual commands are listed in `Makefile` and `package.json`.
+
+The checked-in oracle contains **24 multilingual and adversarial cases** made with Rust tokenizers and Python native ONNX Runtime. Tests require exact token-ID agreement and compare normalized embeddings within `2e-5` maximum absolute error, including padded batches against independently generated singleton vectors. Fixtures cover Unicode, whitespace, special tokens, empty text, and byte fallback. Other tests cover pooling, normalization, explicit truncation, corruption, initialization retry, concurrent calls, disposal, and offline browser-cache reuse.
 
 To regenerate the independent oracle:
 
@@ -391,10 +446,35 @@ python -m pip install -r scripts/reference-requirements.txt
 python scripts/generate-reference.py
 ```
 
-See [source provenance](docs/SOURCE_PROVENANCE.json) and
-[model details and licensing](docs/MODEL.md). This verifies runtime behavior,
-not retrieval quality on your application's corpus.
+See [source provenance](docs/SOURCE_PROVENANCE.json) and [model details and licensing](docs/MODEL.md). This verifies runtime behavior, not retrieval quality on your application's corpus.
+
+### Deliberate limits
+
+No automatic chunking, no hosted-inference fallback, no index serialization format in the package. The Winzling preset loads one pinned revision with `dtype: "q4"` and mean pooling only. `browser.js` is ESM-only, and Vite is the only tested bundler. WebGPU was not verified on hardware, and GPU token states are read back for pooling in TypeScript. The retained legacy dependencies stay in the installation footprint, although `onnx.js` and `browser.js` do not import Transformers.js. Implementation history lives in [CHANGELOG.md](CHANGELOG.md).
+
+## Requirements
+
+- **Node.js** 22.18 or later (`engines`), which runs the TypeScript examples through native type stripping; tested with Node 24.19.0 on Linux x64 and Node 24.14.0 on macOS arm64
+- **Bun** 1.4.2 (`packageManager`) installs dependencies and runs the scripts
+- **Native CPU in Node.js:** the optional peer `onnxruntime-node@1.21.0`
+- **Browser:** tested in headless Chromium 140 (Playwright); HTTPS or localhost for browser cryptography, storage and WebGPU
+
+## Citation
+
+If you use defuss-vectorsearch in research or want to reference it, cite it as:
+
+```bibtex
+@misc{homberg2026defussvectorsearch,
+  author       = {Homberg, Aron},
+  affiliation  = {Independent Researcher},
+  title        = {defuss-vectorsearch: Isomorphic Multilingual Embeddings and 4-Bit TurboQuant Vector Search for JavaScript},
+  year         = {2026},
+  version      = {0.1.0},
+  howpublished = {\url{https://github.com/kyr0/defuss-vectorsearch}},
+  note         = {MIT License}
+}
+```
 
 ## License
 
-MIT
+MIT, see [LICENSE](LICENSE).
