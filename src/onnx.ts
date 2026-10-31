@@ -14,16 +14,23 @@ export {
   type WinzlingOptions,
 } from "./winzling-embedder.js";
 export {
+  fuseRanks,
   maxSim,
   rankEncoded,
   type ColbertEncodeOptions,
   type ColbertModel,
   type ColbertPrecision,
   type ColbertRerankerOptions,
+  type FuseOptions,
+  type FusedHit,
   type RerankedHit,
   type TokenMatrix,
 } from "./colbert-reranker.js";
 export { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
+// The public classes extend these; exporting their types keeps consumers' declaration emit portable (TS2742).
+// VERIFIED: with these exports pkgroll no longer warns about private types in the .d.ts entries.
+export type { ColbertRerankerCore } from "./colbert-reranker.js";
+export type { WinzlingEmbedderCore } from "./winzling-embedder.js";
 
 /** Filesystem cache in Node.js, Cache API + IndexedDB in browsers. */
 const isomorphicCache: WinzlingAssetCache = {

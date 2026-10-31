@@ -4,8 +4,8 @@
 // Why plain ES modules driving component State APIs instead of a framework app: the page is served as static files
 // (docs/, no build step), and every visual state is a documented component state, so the e2e can read it back.
 // VERIFIED: scripts/test-docs.ts reads progress/ring states through el.api.getState() and passes.
-// The index loads on page load (868 kB gzipped, it carries the 1,000 example queries); the 39.8 MB model only when the user
-// searches, writes a note or asks for it, unless it is already in the browser cache.
+// The index loads on page load (868 kB gzipped, it carries the 1,000 example queries); the models (Winzling and the
+// MoEdernColBERT reranker, 43.7 MB) only when the user searches, writes a note or asks for them, unless they are cached.
 import { createNotesBoard } from "./notes.js";
 import { formatMs, renderExampleButtons, renderHits, renderLogLine, renderNoteHits, renderQueryGroups } from "./render.js";
 import { createSearchView } from "./search-view.js";
@@ -91,8 +91,8 @@ const needModel = () => { if (state.phase !== "ready") boot(); };
 // ---- the two search panels and the notes board ------------------------------------------------------------------------
 const setStat = (name, text) => { document.querySelector(`[data-stat="${name}"]`).textContent = text; };
 const showTiming = (data) => {
-  setStat("query", formatMs(data.embedMs + data.scanMs));
-  setStat("scan", `embed ${formatMs(data.embedMs)} + scan ${formatMs(data.scanMs)}`);
+  setStat("query", formatMs(data.embedMs + data.scanMs + (data.rerankMs ?? 0)));
+  setStat("scan", `embed ${formatMs(data.embedMs)} + scan ${formatMs(data.scanMs)}${data.rerankMs === undefined ? "" : ` + rerank ${formatMs(data.rerankMs)}`}`);
 };
 
 const goldNote = (hits) => {
@@ -158,7 +158,7 @@ const languageOrder = (languages) => {
 const handlers = {
   probe: ({ cached }) => {
     if (cached) { log("success", "model found in the browser cache · loading it"); boot(); }
-    else log("info", "model not cached yet · it downloads (39.8 MB) with the first search");
+    else log("info", "models not cached yet · they download (43.7 MB) with the first search");
   },
   progress: ({ phase, loaded, total }) => { state.progress[phase] = [loaded, total]; schedule(); },
   phase: ({ phase, done }) => {
@@ -232,7 +232,7 @@ const handlers = {
     }
     log("destructive", message);
   },
-  cleared: () => log("success", "model cache cleared · the next load downloads 39.8 MB"),
+  cleared: () => log("success", "model cache cleared · the next load downloads 43.7 MB"),
 };
 worker.onmessage = ({ data }) => handlers[data.type]?.(data);
 worker.onerror = (event) => handlers.error({ message: event.message || "The worker failed to start" });
@@ -268,7 +268,7 @@ for (const trigger of document.querySelectorAll("[data-boot]")) {
   trigger.addEventListener("click", () => { if (trigger.tagName === "BUTTON" || state.phase !== "ready") boot(); });
 }
 el.backend.addEventListener("change", () => { if (state.phase === "ready") boot(el.backend.value); });
-// Retry repeats what failed: a failed index alone must not start the 39.8 MB model download.
+// Retry repeats what failed: a failed index alone must not start the 43.7 MB model download.
 $("boot-retry").addEventListener("click", () => {
   el.error.hidden = true;
   if (!state.queries.length) worker.postMessage({ type: "index", manifestUrl });

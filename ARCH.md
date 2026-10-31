@@ -10,6 +10,8 @@ The package embeds text, indexes the vectors as 4-bit codes and reranks candidat
 
 **Reranking as a second stage.** The reranker produces 128-dimensional vectors per token and scores them with ColBERT MaxSim. That space is unrelated to Winzling's 384-dimensional sentence vectors, so the reranker reorders dense hits rather than replacing the index. A single-vector index cannot store per-token vectors; a separate stage leaves TurboQuant unchanged.
 
+**Fusion instead of the ColBERT order.** `rerankHits` fuses the dense rank and the ColBERT rank of each candidate (reciprocal rank fusion, k = 60) rather than sorting by MaxSim alone. VERIFIED on the bench's target languages over Winzling's top 25: fusion reached R@1 76.2 where the ColBERT order reached 70.9 and Winzling 66.4. Over 100 candidates the ColBERT order fell to 64.7 while fusion held 76.0. The 1.5M reranker is weaker than Winzling in Japanese and Chinese, and fusion keeps most of Winzling's order there.
+
 **Precision contracts carried into fingerprints.** The `fp32`, `q8` and `q4` graphs give the same vectors in every runtime. `fp16` and `int8` round differently per runtime, so their fingerprint names the runtime as well, and `maxSim` refuses to compare matrices with different fingerprints. VERIFIED: `src/colbert-reranker.live.test.ts` checks both rules in native Node.js CPU and WASM, and `src/colbert-reranker.live.browser.test.ts` checks them in Chromium WASM.
 
 ## How it works
@@ -39,12 +41,14 @@ flowchart LR
 - `browser.ts` binds the browser cache (`model-cache.browser.ts`: Cache API first, IndexedDB `defuss-vectorsearch-cache` as the durable copy) and allows the `wasm` device only for the reranker. `onnx.ts` binds a cache that picks the filesystem in Node.js and the browser cache in browsers.
 - `ort-runtime.ts` loads `onnxruntime-node` for `device: "cpu"` and `onnxruntime-web` otherwise. ORT Web keeps `wasmPaths` and `numThreads` in one global object, so this module records the first setting and rejects a different one from any model in the package.
 - `winzling-embedder.ts` and `colbert-reranker.ts` each keep one session per instance and run calls through a serial queue. `dispose()` waits for accepted work. A failed load can be retried.
+- `colbert-reranker.ts:rerankHits` takes the dense hits best first, encodes the query and the first 25 candidates' texts in one queued operation, scores them with MaxSim and orders them with `fuseRanks`, a pure function.
 - `turboquant.ts` pads vectors to a power-of-two dimension, rotates them and packs two 4-bit codes per byte. It searches the codes without rebuilding dense vectors.
 - `server.ts` and `client.ts` pick a profile from the model ID: Winzling uses `winzling-embedder.ts`, Harrier uses the Transformers.js runtime in `core.ts`, and `core.ts` sends explicit endpoint requests through `openai-compatible.ts`.
 
 ## Operations
 
 - **Configuration and policy:** all settings are constructor options. The Winzling embedder and the reranker check them in their constructors, so invalid values throw before any download. The package's own code reads two environment variables, `HF_TOKEN` and `HF_ACCESS_TOKEN`, in Node.js, in `prefetchModel` for huggingface.co requests.
+- **Runtimes:** Node.js 22.18 or later and Bun 1.4. VERIFIED: Bun 1.4.0, 1.4.3 and 1.4.4 run the packed tarball on native CPU and WASM (`scripts/test-bun-consumer.ts`); Bun reports `process.release.name` "node", so `device: "cpu"` loads onnxruntime-node there too.
 - **Third-party integrations:** models download from `https://huggingface.co/<id>/resolve/<commit>/<file>` or from a mirror given as `modelBaseUrl`. ONNX Runtime Node is pinned to 1.21.0, the version Transformers.js loads, so one process never loads two native ORT libraries; ORT Web is pinned to 1.30.0.
 - **Complexity and resources:** MaxSim costs query tokens times passage tokens times 128 multiply-adds per passage; a query always takes 32 positions and a passage at most 512. Winzling accepts up to 8,192 tokens, and attention memory grows with input length, so callers chunk long texts.
 - **Reliability:** downloads and cache reads fail closed on an HTTP error or a hash mismatch. `allowRemoteModels: false` turns a cache miss into an error instead of a download. There is no fallback to hosted inference.

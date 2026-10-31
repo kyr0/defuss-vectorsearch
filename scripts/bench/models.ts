@@ -9,6 +9,13 @@ export const MODELS = {
 export type ModelKey = keyof typeof MODELS;
 export const MODEL_KEYS = Object.keys(MODELS) as ModelKey[];
 
+/**
+ * The fused strategy's reranker: MoEdernColBERT 1.5M at its default precision (q8) and default 25 candidates.
+ * VERIFIED: the human chose 1.5M q8 as the default reranker (2026-10-31); 27M was not better overall
+ * in the probe (R@1 up 0.7 points, R@3 down 0.9) at 18 times the latency.
+ */
+export const RERANKER_MODEL = "1.5m";
+
 /** VERIFIED: Node downloads into this cache, hash-checking Winzling; Chromium then loads the same bytes over HTTP. (make bench) */
 export const BENCH_CACHE_DIR = "bench/cache";
 

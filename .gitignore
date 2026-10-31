@@ -18,6 +18,7 @@ var/*
 tmp/*
 output/*
 input/*
+!input/rerank-pipeline.json
 .DS_Store
 coverage/
 .venv/

@@ -1,6 +1,6 @@
 /** Pure retrieval and timing metrics for the benchmark; no I/O, identical in Node and Chromium. */
 
-export const KS = [3, 5, 25, 100] as const;
+export const KS = [1, 3, 5, 25, 100] as const;
 export type K = (typeof KS)[number];
 export type RecallAtK = Record<`@${K}`, number>;
 

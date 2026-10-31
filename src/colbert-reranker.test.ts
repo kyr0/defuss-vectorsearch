@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { maxSim, rankEncoded, type TokenMatrix } from "./colbert-reranker.js";
+import { fuseRanks, maxSim, rankEncoded, type TokenMatrix } from "./colbert-reranker.js";
 import { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
 import { createColbertReranker } from "./onnx.js";
 import { describeOrt, loadOrtNode, loadOrtWeb } from "./ort-runtime.js";
@@ -24,6 +24,32 @@ describe("MaxSim scoring", () => {
     expect(() => maxSim(query, { ...matrix([1, 0, 0]), dimensions: 3, tokenCount: 1 })).toThrow(/dimensions/);
     expect(() => maxSim(query, matrix([]))).toThrow(/Invalid token matrix/);
     expect(() => maxSim(query, matrix([Number.NaN, 0]))).toThrow(/Invalid token matrix/);
+  });
+});
+
+describe("reciprocal rank fusion", () => {
+  it("fuses the dense order with the ColBERT order and breaks ties by dense rank", () => {
+    // Dense ranks 1, 2, 3; ColBERT ranks 3, 1, 2: rank pair (2, 1) beats (1, 3), which beats (3, 2).
+    expect(fuseRanks([0.1, 0.9, 0.5]).map(hit => hit.position)).toEqual([1, 0, 2]);
+    const [first, second] = fuseRanks([0.1, 0.9]); // rank pairs (1, 2) and (2, 1): equal fused scores
+    expect(first!.score).toBe(second!.score);
+    expect([first!.position, second!.position]).toEqual([0, 1]);
+    expect(fuseRanks([0.4, 0.4]).map(hit => hit.position)).toEqual([0, 1]);
+    expect(fuseRanks([0.7])).toEqual([{ position: 0, score: 2 / 61 }]);
+    expect(fuseRanks([])).toEqual([]);
+    expect(() => fuseRanks([1, Number.NaN])).toThrow(/finite/);
+  });
+
+  it("validates dense hits before loading anything", async () => {
+    let loads = 0;
+    const reranker = createColbertReranker({ model: "1.5m", loadFile: async () => { loads++; return new Uint8Array(); } });
+    await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { candidates: 0 })).rejects.toThrow(/candidates/);
+    await expect(reranker.rerankHits("q", [{ index: 2, score: 1 }], ["a"])).rejects.toThrow(/Hit index 2 has no document/);
+    await expect(reranker.rerankHits("q", [{ index: 0.5, score: 1 }], ["a"])).rejects.toThrow(/no document/);
+    await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { topK: -1 })).rejects.toThrow(/topK/);
+    expect(await reranker.rerankHits("q", [], ["a"])).toEqual([]);
+    expect(loads).toBe(0);
+    await reranker.dispose();
   });
 });
 

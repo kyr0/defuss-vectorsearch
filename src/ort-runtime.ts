@@ -13,6 +13,7 @@ export interface OrtWebOptions {
 
 let webConfiguration: string | undefined;
 
+/** VERIFIED: Bun 1.4.0 to 1.4.4 report `process.release.name` "node" and load onnxruntime-node (scripts/test-bun-consumer.ts). */
 export const loadOrtNode = async (): Promise<Ort> => {
   if (typeof process === "undefined" || process.release?.name !== "node") throw new Error("device: cpu is Node-only; use wasm for browser CPU inference");
   // Runtime-only optional import keeps native .node binaries out of browser bundles.

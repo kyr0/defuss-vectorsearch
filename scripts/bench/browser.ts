@@ -2,10 +2,11 @@
  * Chromium entry for one model, loaded as /scripts/bench/browser.html?model=<key>.
  * The Playwright driver exposes `__benchMemory` and `__benchLog` and polls `__benchDone`.
  */
+import { createColbertReranker, MOEDERNCOLBERT_MODELS } from "../../dist/browser.mjs";
 import { createEmbeddingClient } from "../../dist/client.mjs";
 import { buildBenchTasks, loadDataset } from "./dataset.ts";
-import { BENCH_CACHE_DIR, isModelKey, MODELS } from "./models.ts";
-import { runModelBench, type BenchEmbedder, type ModelResult } from "./runner.ts";
+import { BENCH_CACHE_DIR, isModelKey, MODELS, RERANKER_MODEL } from "./models.ts";
+import { runModelBench, type BenchEmbedder, type BenchReranker, type ModelResult } from "./runner.ts";
 
 interface BenchWindow {
   __benchMemory(): Promise<number>;
@@ -33,15 +34,25 @@ const run = async (): Promise<ModelResult> => {
     embedQuery: (text) => runtime.embedQuery(text),
     dispose: () => runtime.dispose(),
   };
+  // The reranker files the Node run cached, served by the same dev server; same ORT Web settings as Winzling, which
+  // ORT Web keeps global. VERIFIED: make bench (2026-10-31) ran Winzling and Harrier with this reranker in Chromium.
+  const profile = MOEDERNCOLBERT_MODELS[RERANKER_MODEL];
+  const colbert = createColbertReranker({ model: RERANKER_MODEL, wasmPaths: "/ort/",
+    modelBaseUrl: new URL(`/${BENCH_CACHE_DIR}/${profile.id}/${profile.revision}`, location.href).href });
+  const reranker: BenchReranker = {
+    load: () => colbert.load(),
+    rerankHits: (query, hits, documents) => colbert.rerankHits(query, hits, documents, { truncate: true }),
+  };
   // VERIFIED: the page logs crossOriginIsolated=false; without SharedArrayBuffer ONNX Runtime Web runs single-threaded.
   void page.__benchLog(`crossOriginIsolated=${String(crossOriginIsolated)}`);
   try {
     return await runModelBench(tasks, embedder, {
       memoryBytes: () => page.__benchMemory(),
       log: (message) => void page.__benchLog(message),
-    });
+    }, reranker);
   } finally {
     await embedder.dispose();
+    await colbert.dispose();
   }
 };
 

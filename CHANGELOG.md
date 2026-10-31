@@ -1,9 +1,13 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-31)
 
 ### Added
 
+- `rerankHits(query, hits, documents)` on the MoEdernColBERT reranker reranks the first 25 hits of a dense search and fuses the ColBERT order with the dense order (reciprocal rank fusion, k = 60). `fuseRanks` does the same for callers with cached token vectors. On Winzling's top 25 in the bench's nine target languages, this lifted R@1 from 66.4 to 76.2 and R@3 from 83.8 to 91.1. The ColBERT order alone fell below Winzling's own order at 100 candidates.
+- `make bench` reports R@1 and a third strategy, TurboQuant + MoEdernColBERT (`rerankHits` over TurboQuant's top 25 with the 1.5M q8 reranker), for both dense models in Node.js and Chromium.
+- The live demo loads MoEdernColBERT 1.5M next to Winzling (43.7 MB together) and shows every search's TurboQuant hits at once, then their fused order.
+- Bun 1.4 runs the package: `make e2e` installs the packed tarball with `bun add` into a clean app and runs it under Bun on native CPU and WASM; CI repeats this with Bun 1.4.0 and the newest 1.4 release. `package.json` declares `engines.bun >= 1.4.0`.
 - `createColbertReranker` in `browser.js` and `onnx.js` reranks the hits of a dense search with SauerkrautLM-MoEdernColBERT (`"1.5m"` or `"27m"`, `q8` by default). It downloads the pinned `kyr0/SauerkrautLM-MoEdernColBERT-*-ONNX` commit, checks every file's SHA-256 and caches the files like the Winzling assets. `maxSim` and `rankEncoded` score token vectors that callers cached themselves. `make test` checks every pinned 1.5M graph and the 27M `q8` graph against the exporter's Python scores in Node.js and Chromium.
 - `docs/index.html`: a static demo page built with defuss-shadcn. It loads a prebuilt TurboQuant index of the 2,000 benchmark passages on page load and the model, with byte progress, on the first search; then it searches as you type. The 1,000 benchmark questions sit in a ⌘K palette with gold-passage marks; a second tab embeds notes you write into an in-browser TurboQuant index and searches them; a coding-agent prompt links this repository. `make docs` rebuilds its index and worker bundle; `make e2e` drives it in Chromium.
 - `defuss-vectorsearch/browser.js`: a browser-only ESM entry with the Winzling embedder and TurboQuant search. It downloads the pinned model on first use and caches it in the Cache API and IndexedDB. Its Vite bundle contains no Transformers.js, `defuss-multicore` or Node code; `make e2e` checks this.

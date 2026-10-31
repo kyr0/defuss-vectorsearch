@@ -91,13 +91,16 @@ export const createSearchView = ({ index, root, worker, isReady, needModel, rend
     const update = () => {
       if (data.id !== searchId) return; // cleared, or a newer query was sent while this one waited
       globalThis.df$(results).morph(render(data));
-      results.removeAttribute("aria-busy");
+      // The TurboQuant hits arrive first; the panel stays busy until the reranker's fused order (`final`) replaces them.
+      // VERIFIED: scripts/test-docs.ts waits for the busy flag to clear and then reads the fused strategy.
+      if (data.final) results.removeAttribute("aria-busy");
       summary.querySelector(".vs-summary-count").textContent = count(data);
       summary.querySelector(".vs-summary-query").textContent = data.query;
       const extra = note(data);
       badge.hidden = !extra;
       badge.textContent = extra;
-      summary.querySelector(".mk-search-summary-time").textContent = `embed ${formatMs(data.embedMs)} · scan ${formatMs(data.scanMs)} | strategy: ${data.strategy}`;
+      const rerank = data.rerankMs === undefined ? "" : ` · rerank ${formatMs(data.rerankMs)}`;
+      summary.querySelector(".mk-search-summary-time").textContent = `embed ${formatMs(data.embedMs)} · scan ${formatMs(data.scanMs)}${rerank} | strategy: ${data.strategy}`;
       summary.hidden = false;
       empty.hidden = true;
       onShown(data);

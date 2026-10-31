@@ -1,7 +1,7 @@
 /**
  * e2e for the static demo in docs/ (part of `make e2e`): serves docs/ as GitHub Pages would and drives it in Chromium.
- * The pinned model (huggingface.co) and ONNX Runtime's WASM (jsDelivr) are answered from the local mirrors that
- * `make setup` fills (public/models/winzling, node_modules/onnxruntime-web/dist), byte-identical to the remote files,
+ * The pinned models (huggingface.co) and ONNX Runtime's WASM (jsDelivr) are answered from the local mirrors that
+ * `make setup` fills (public/models/winzling, public/models/<reranker repo>, node_modules/onnxruntime-web/dist), byte-identical to the remote files,
  * so the run is fast and deterministic; defuss-shadcn still comes from its CDN.
  * VERIFIED: the model mirror is hash-checked against the pinned SHA-256s (download-model.ts, then the worker); the ORT
  * files are the installed onnxruntime-web, the same npm version the worker requests from jsDelivr.
@@ -19,7 +19,7 @@ import { createGzip, gunzipSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright";
-import { WINZLING_PROFILE, WINZLING_REVISION } from "../dist/shared.mjs";
+import { MOEDERNCOLBERT_MODELS, WINZLING_PROFILE, WINZLING_REVISION } from "../dist/shared.mjs";
 import { DATASET_SHA256, TARGET_LANGUAGES } from "./bench/dataset.ts";
 import { decodeDemoIndex } from "./docs/index-format.ts";
 
@@ -27,8 +27,11 @@ const DOCS = path.resolve("docs");
 const TYPES: Record<string, string> = {
   ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".json": "application/json", ".wasm": "application/wasm",
 };
+const RERANKER = MOEDERNCOLBERT_MODELS["1.5m"];
+const RERANKER_DIR = path.resolve(`public/models/${RERANKER.id.split("/")[1]}`);
 const MIRRORS = [
   { prefix: `https://huggingface.co/kyr0/Winzling-Embed-a8m-64k/resolve/${WINZLING_REVISION}/`, dir: path.resolve("public/models/winzling") },
+  { prefix: `https://huggingface.co/${RERANKER.id}/resolve/${RERANKER.revision}/`, dir: RERANKER_DIR },
   { prefix: "https://cdn.jsdelivr.net/npm/onnxruntime-web@", dir: path.resolve("node_modules/onnxruntime-web/dist"), strip: /^[^/]+\/dist\// },
 ];
 
@@ -47,12 +50,14 @@ await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
 const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
 const modelRequests: string[] = [];
+const rerankerRequests: string[] = [];
 const problems: string[] = [];
 const prepare = async (context: BrowserContext) => {
   for (const mirror of MIRRORS) {
     await context.route(`${mirror.prefix}**`, async (route) => {
       const rest = route.request().url().slice(mirror.prefix.length).replace(mirror.strip ?? /^/, "");
       if (mirror.dir.endsWith("winzling")) modelRequests.push(rest);
+      if (mirror.dir === RERANKER_DIR) rerankerRequests.push(rest);
       await route.fulfill({ path: path.join(mirror.dir, rest), contentType: TYPES[path.extname(rest)] ?? "application/octet-stream" });
     });
   }
@@ -118,7 +123,7 @@ try {
   assert.doesNotMatch(bodyText, /(?<![\d.])40 MB|MiB/, "a 40 MB or MiB figure is left");
   assert.equal(await page.textContent('[data-stat="languages"]'), "documents · 20 languages");
   assert.equal(await page.textContent(".statistic:has([data-stat=passages]) .statistic-title"), "Vector Database Index");
-  assert.equal(modelRequests.length, 0, "the model must not download before the user asks");
+  assert.equal(modelRequests.length + rerankerRequests.length, 0, "the models must not download before the user asks");
   assert.ok(await page.locator("#empty").isVisible(), "the search CTA shows first");
   assert.equal(await page.locator("#results .vs-hit").count(), 0, "no skeletons before a search");
   assert.equal(await page.locator("#empty-examples [data-query]").count(), 3);
@@ -126,7 +131,7 @@ try {
   assert.deepEqual(await page.$$eval(".mk-hero-actions .btn", (nodes) => nodes.map((node) => node.textContent?.trim())), ["Try it now! (Live)", "Benchmark results"]);
   await page.click("#try-live");
   await page.waitForTimeout(300);
-  assert.equal(modelRequests.length, 0, "Try it now does not download the model");
+  assert.equal(modelRequests.length + rerankerRequests.length, 0, "Try it now does not download the models");
   assert.deepEqual(await page.$$eval("#demo-tabs .vs-tab-title", (nodes) => nodes.map((node) => node.textContent)), ["Benchmark data", "My data (custom)"]);
   await page.click("#empty [data-command-trigger]");
   assert.ok(await paletteOpen(page), "the CTA opens the palette");
@@ -230,7 +235,7 @@ try {
   const giza = "How tall are the pyramids of Giza?";
   await page.fill("#q", giza);
   await page.waitForTimeout(300);
-  assert.equal(modelRequests.length, 0, "typing must not start the download");
+  assert.equal(modelRequests.length + rerankerRequests.length, 0, "typing must not start the download");
   const started = Date.now();
   await page.click("#search-submit");
   await page.waitForSelector("#results .vs-skeleton");
@@ -241,10 +246,16 @@ try {
   assert.equal(await page.textContent('[data-stat="passages"]'), "2,000");
   assert.equal(await page.locator('#boot-start use[href="#i-reload"]').count(), 1, "Reload the model carries a reload icon");
   assert.deepEqual(modelRequests.sort(), ["onnx/model_uint4.onnx", "tokenizer.json", "tokenizer_config.json"]);
+  assert.deepEqual(rerankerRequests.sort(), ["model_q8.onnx", "runtime.json", "tokenizer.json", "tokenizer_config.json"]);
+  // The model bar counts both models' bytes against the manifest, which names every file the worker loads.
+  const modelBytes = [...Object.values(manifest.modelFiles), ...Object.values(manifest.rerankerFiles)].reduce((a: number, b) => a + (b as number), 0);
+  assert.equal(await page.textContent('output[for="p-model"]'), `100% of ${(modelBytes / 1e6).toFixed(1)} MB`);
   await summaryFor(page, giza);
   let top = await hits(page);
   assert.equal(top.length, 12);
-  assert.deepEqual(top.map((hit) => hit.score), top.map((hit) => hit.score).sort((a, b) => b - a), "results are ordered by score");
+  assert.equal(new Set(top.map((hit) => hit.id)).size, 12, "twelve different passages");
+  // Busy ends with the fused order, which replaces the TurboQuant hits; cards keep their dense similarity.
+  assert.match(await page.textContent("#summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT$/);
   assert.ok(top.slice(0, 3).some((hit) => hit.group === 1), `the Giza passage (1) in the top 3: ${JSON.stringify(top.slice(0, 3))}`);
 
   // Palette picks keep the scroll position, so the re-ranked results stay in sight. Enter runs the highlighted query.
@@ -266,11 +277,13 @@ try {
   assert.equal(await paletteOpen(page), false);
   assert.ok(Math.abs((await scrollY(page)) - before) < 2, `scroll moved from ${before} to ${await scrollY(page)}`);
   top = await hits(page);
-  // VERIFIED (bench.json): English R@5 is 100% for Winzling + TurboQuant in Chromium, so the gold passage is in the top 5.
+  // bench.json: English R@5 is 100% for Winzling + TurboQuant + MoEdernColBERT in Chromium, so the gold passage is in the top 5.
+  assert.equal(bench.strategies.fused.recall.byLanguage.eng_Latn["@5"], 100, "bench.json precondition");
   const exact = top.findIndex((hit) => hit.gold === "exact");
   assert.ok(exact >= 0 && exact < 5, `gold passage rank ${exact + 1}`);
   assert.match(await page.textContent("#summary-gold") ?? "", /Gold answer at #\d/);
-  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms · scan [\d.]+ ms \| strategy: TurboQuant$/);
+  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms · scan [\d.]+ ms · rerank [\d.]+ ms \| strategy: TurboQuant \+ MoEdernColBERT$/);
+  assert.match(await page.textContent('[data-stat="scan"]') ?? "", /^embed [\d.]+ ms \+ scan [\d.]+ ms \+ rerank [\d.]+ ms$/);
   // The gold badge sits in a gold aura at the end of its card header; the first card alone wears an aura frame.
   const gold = await page.$eval('#results .vs-hit[data-gold="exact"]', (hit) => {
     const badge = hit.querySelector(".aura-gold .badge")!.getBoundingClientRect();
@@ -329,7 +342,7 @@ try {
   const noteTitles = () => page.$$eval("#notes-results .card-title", (nodes) => nodes.map((node) => node.textContent));
   assert.deepEqual((await noteTitles()).slice(0, 2).sort(), ["Note 1", "Note 3"], "both cat notes, across languages, rank first");
   assert.equal(await page.locator("#notes-results .vs-hit:first-child > .aura").count(), 1);
-  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", /\| strategy: TurboQuant$/);
+  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT$/);
   // Emptying a note takes it out of the index; the open search refreshes by itself.
   await page.fill("#note-2-text", "");
   await page.locator("#note-2-text").blur();
@@ -439,11 +452,12 @@ try {
   report.webgpu = { device: await page.textContent('[data-stat="device"]'), notice: await page.locator("#boot-notice").isVisible() };
   assert.ok(report.webgpu && ((report.webgpu as { device: string }).device === "WebGPU" || (report.webgpu as { notice: boolean }).notice));
   assert.equal(modelRequests.length, 3, "a backend switch reads the model from the Cache API");
+  assert.equal(rerankerRequests.length, 4, "and the reranker too");
 
   // Reload: the cached model loads by itself.
   await page.reload();
   await ready(page);
-  assert.equal(modelRequests.length, 3, "a reload reads the model from the Cache API");
+  assert.equal(modelRequests.length + rerankerRequests.length, 7, "a reload reads both models from the Cache API");
   assert.match(await page.textContent('[data-stat="source"]') ?? "", /cache/);
 
   // Clearing the cache: the next load would download again.
@@ -529,7 +543,7 @@ try {
   await mobile.screenshot({ path: "output/docs-demo-mobile.png", fullPage: true });
   await phone.close();
 
-  Object.assign(report, { modelRequests, problems });
+  Object.assign(report, { modelRequests, rerankerRequests, problems });
   assert.deepEqual(problems, []);
   console.log(`${new Date().toISOString()} INFO docs demo passed boot_ms=${report.bootMs} webgpu=${JSON.stringify(report.webgpu)}`);
 } finally {

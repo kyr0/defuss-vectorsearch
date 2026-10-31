@@ -56,9 +56,11 @@ test:     ; bunx vitest run --config vitest.config.ts && bunx vitest run --confi
 coverage: ; @mkdir -p tmp; bunx vitest run --config vitest.config.ts --coverage --coverage.reporter=text >tmp/coverage.txt 2>&1; s=$$?; grep -E "^All files" tmp/coverage.txt; exit $$s
 lint:     ; bunx oxlint --deny-warnings
 # Builds dist/ (prebuild cleans it); typechecks examples/scripts against its declarations, imports it through the
-# package exports map (ESM+CJS), then drives the Worker demo in Chromium and builds it.
+# package exports map (ESM+CJS) in Node and Bun, installs the packed tarball into a clean Bun 1.4 app and runs it, then
+# drives the Worker demo in Chromium and builds it.
 # Then rebuilds docs/assets/search-worker.js from source, so a commit after e2e never ships a stale bundle, and drives docs/ in Chromium.
-e2e:      ; bun run build && bunx tsc --noEmit && node scripts/test-package.ts && node scripts/test-browser-bundle.ts && node scripts/test-demo.ts && bun run demo:build \
+e2e:      ; bun run build && bunx tsc --noEmit && node scripts/test-package.ts && bun scripts/test-package.ts && node scripts/test-bun-consumer.ts \
+	&& node scripts/test-browser-bundle.ts && node scripts/test-demo.ts && bun run demo:build \
 	&& node scripts/docs/build-worker.ts && node scripts/test-docs.ts
 
 # What CI runs; the gate runs the same verbs one by one and fails while verify skips any. Fail-fast order: cheapest first.

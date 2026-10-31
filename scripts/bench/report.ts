@@ -33,8 +33,8 @@ export interface BenchReport {
 
 const ENV_LABEL: Record<EnvironmentKey, string> = { node: "Node.js", chromium: "Chromium" };
 const MODEL_LABEL: Record<ModelKey, string> = { winzling: "Winzling", harrier: "Harrier" };
-const STRATEGY_LABEL = { bruteforce: "bruteforce", turboquant: "TurboQuant" } as const;
-const STRATEGIES = ["bruteforce", "turboquant"] as const;
+const STRATEGY_LABEL = { bruteforce: "bruteforce", turboquant: "TurboQuant", fused: "TurboQuant + MoEdernColBERT" } as const;
+const STRATEGIES = ["bruteforce", "turboquant", "fused"] as const;
 
 const ms = (summary: Summary) => `${summary.mean.toFixed(1)} (p95 ${summary.p95.toFixed(1)})`;
 const row = (cells: readonly (string | number)[]) => `| ${cells.join(" | ")} |`;
@@ -62,7 +62,7 @@ export const targetRecall = (recall: RecallMatrix, targets: readonly string[]): 
 export const targetReproduction = (reproduction: Reproduction, targets: readonly string[]): number =>
   round(targets.reduce((sum, language) => sum + at(reproduction.byLanguage, language), 0) / targets.length, 1);
 
-/** Best first: compares R@3, then R@5, R@25 and R@100; ties keep the target list's order. */
+/** Best first: compares R@1, then R@3, R@5, R@25 and R@100; ties keep the target list's order. */
 export const byRecallDescending = (recall: RecallMatrix) => (a: string, b: string): number => {
   for (const k of KS) {
     const delta = at(recall.byLanguage, b)[`@${k}`] - at(recall.byLanguage, a)[`@${k}`];
@@ -97,6 +97,8 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
     "",
     `The ${targets.length} target languages: ${targets.map((code) => `\`${code}\``).join(", ")}; their ${report.dataset.queries / report.dataset.languages.length * targets.length} queries against all ${report.dataset.haystack} passages in ${report.dataset.languages.length} languages; R@k = % of queries whose gold passage ranks in the top k:`,
     "",
+    "TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with SauerkrautLM-MoEdernColBERT 1.5M (q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's.",
+    "",
     header(["Environment", "Model", "Strategy", ...KS.map((k) => `R@${k}`), "Rank ±10%"], KS.length + 1),
   );
   for (const { env, model, strategy, s, result } of perStrategy) {
@@ -108,7 +110,7 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
     "",
     "### Cost per Method",
     "",
-    "Passage = embed + share of the index build; query = embed + top-100 search; runtime = model runtime + index:",
+    "Passage = embed + share of the index build; query = embed + top-100 search, plus reranking 25 candidates for TurboQuant + MoEdernColBERT; runtime = model runtime + index, plus the reranker's memory growth:",
     "",
     header(["Environment", "Model", "Strategy", "Passage ms", "Query ms", "Search ms mean", "Index build ms", "Runtime MiB", "Index MiB"], 6),
   );

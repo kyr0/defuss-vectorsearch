@@ -1,4 +1,4 @@
-// The README quick start: dense search, then MoEdernColBERT reranking of the hits. Optional `?mirror=` and
+// The README quick start: dense search, then MoEdernColBERT fused with the dense hits. Optional `?mirror=` and
 // `?colbert=` let the e2e test serve both models locally. VERIFIED: scripts/test-browser-bundle.ts builds this file
 // with Vite and runs it in Chromium.
 import { buildTurboQuantIndex, createColbertReranker, createWinzlingEmbedder, searchTurboQuantIndex } from "defuss-vectorsearch/browser.js";
@@ -14,11 +14,8 @@ try {
   const query = "A sleeping cat on a couch.";
   const index = buildTurboQuantIndex(await embedder.embedDocuments(documents));
   const hits = searchTurboQuantIndex(index, await embedder.embedQuery(query), 2);
-  const reranked = await reranker.rerank(query, hits.map((hit) => documents[hit.index]!));
-  result.textContent = JSON.stringify({
-    top: hits.map((hit) => documents[hit.index]),
-    reranked: reranked.map((hit) => documents[hits[hit.index]!.index]),
-  });
+  const fused = await reranker.rerankHits(query, hits, documents);
+  result.textContent = JSON.stringify({ top: hits.map((hit) => documents[hit.index]), reranked: fused.map((hit) => documents[hit.index]) });
 } catch (error) {
   result.textContent = `failed: ${error instanceof Error ? error.message : String(error)}`;
 }

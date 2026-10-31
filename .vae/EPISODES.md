@@ -34,19 +34,7 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/assets/render.js:renderNoteStatus learn=none: no markup-vocabulary checker runs in this repo's gate
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:footer ad portrait learn=none: content decision for the user
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:closing CTA copy learn=none: no cross-browser runs in this repo
-2026-10-08T13:44:32Z s=542d48d6 DONE fp=184237afc329 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
-2026-10-08T13:44:32Z s=542d48d6 FINDING scripts/test-docs.ts:pruned filter (tsc TS2532) learn=verifier: make e2e already typechecks scripts; run it, not node alone, before the gate
-2026-10-08T13:52:26Z s=542d48d6 DONE fp=1ddc78950483 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
-2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:[data-bench=index-gzip] (requested '522 kB') learn=test: test-docs.ts recomputes the gzip size from docs/data/index.json
-2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:external links learn=test: test-docs.ts checks every a[href^=http] against the rule
-2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.vs-flip text-rotate learn=test: test-docs.ts compares the six items with the data
-2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:#intro rewrite learn=test: test-docs.ts checks 256 bytes and 8,192 tokens against the data
 2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc (user edit) learn=none: author's copy decision
-2026-10-08T14:08:26Z s=542d48d6 DONE fp=b79951a2c5ff cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
-2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#try-live learn=test: test-docs.ts clicks it before and after loading and sees no model request / no second load
-2026-10-08T14:08:26Z s=542d48d6 FINDING docs/assets/demo.css:.vs-consult learn=test: test-docs.ts checks portrait/heading on one row and the text in its own column
-2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#intro-5 privacy block learn=test: test-docs.ts records zero network requests during a search
-2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#intro-6 quality block learn=test: test-docs.ts recomputes the R@25 mean from bench.json
 2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#add-note learn=test: test-docs.ts asserts it sits above the notes list
 2026-10-08T14:14:33Z s=542d48d6 FAIL tests.e2e.1
 2026-10-08T14:17:13Z s=542d48d6 DONE fp=d4c93af53bf9 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
@@ -105,3 +93,15 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-31T00:34:03Z s=8e62adc6 FINDING CHANGELOG.md:Fixed learn=none: evidence judgement, not mechanically checkable
 2026-10-31T00:34:03Z s=8e62adc6 FINDING src/colbert-reranker.live.test.ts:1-3 learn=none: style; oxlint does not flag duplicate module imports in this config
 2026-10-31T00:34:25Z s=8e62adc6 DONE fp=64bc2aedaf2a cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)
+2026-10-31T01:30:06Z s=8e62adc6 FAIL env.example,tests.e2e.1
+2026-10-31T02:10:31Z s=8e62adc6 DONE fp=142a1d6a7a7b cov=67.6% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+45)
+2026-10-31T02:10:31Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerank vs rerankHits learn=test: make bench now reports the fused strategy; colbert-reranker tests pin fuseRanks' order and ties
+2026-10-31T02:10:31Z s=8e62adc6 FINDING README.md:Rerank dense hits (Harrier) learn=none: a product recommendation backed by bench.json, which make bench regenerates
+2026-10-31T02:10:31Z s=8e62adc6 FINDING examples/search-worker.ts:modelLoader learn=test: scripts/test-docs.ts asserts the model bar's total equals both manifests' sums
+2026-10-31T02:10:31Z s=8e62adc6 FINDING examples/search-worker.ts:modelLoader log learn=none: log wording, not mechanically checked
+2026-10-31T02:10:31Z s=8e62adc6 FINDING scripts/test-package.ts:rerankHits assertion learn=test: the assertion itself encodes the tie rule
+2026-10-31T02:10:31Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerankHits signature learn=test: scripts/test-package.ts passes literal SearchHit objects and runs under tsc in make e2e
+2026-10-31T02:10:31Z s=8e62adc6 FINDING src/onnx.ts, src/browser.ts: Core types learn=none: a build warning, not a gate rule; worth a verifier rule only if it recurs
+2026-10-31T02:10:31Z s=8e62adc6 FINDING bench.json run 1 learn=memory: agent memory stop-hook-runs-gate: keep the turn open while make bench runs
+2026-10-31T02:10:31Z s=8e62adc6 FINDING README.md:Findings memory learn=none: environment-dependent measurement; documented, not pinned
+2026-10-31T02:10:31Z s=8e62adc6 FINDING .github/workflows/verify.yml:setup-bun learn=none: falsifier: the CI run's setup-bun step log names the installed Bun version

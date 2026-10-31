@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { createColbertReranker, maxSim, MOEDERNCOLBERT_MODELS, type ColbertModel, type ColbertPrecision, type TokenMatrix } from "./browser.js";
+import { createColbertReranker, buildTurboQuantIndex, createWinzlingEmbedder, maxSim, MOEDERNCOLBERT_MODELS, searchTurboQuantIndex, type ColbertModel, type ColbertPrecision, type TokenMatrix } from "./browser.js";
 
 // Vite serves public/, which `make setup` (scripts/download-model.ts) fills with the pinned test graphs.
 const base = (model: ColbertModel) => new URL(`/models/${MOEDERNCOLBERT_MODELS[model].id.split("/")[1]}/`, location.href).href;
@@ -61,3 +61,19 @@ it("reranks from the browser cache with remote loading disabled", async () => {
   try { expect(await offline.rerank("Wie hoch ist die Zugspitze?", passages)).toEqual(expected); }
   finally { await offline.dispose(); }
 });
+
+it("fuses Winzling's TurboQuant hits with the reranker in Chromium", async () => {
+  const fixture = await (await fetch("/fixtures/moederncolbert-1.5m-reference.json")).json();
+  const embedder = createWinzlingEmbedder({ modelBaseUrl: new URL("/models/winzling", location.href).href, wasmPaths: "/ort/" });
+  const reranker = createColbertReranker({ model: "1.5m", modelBaseUrl: base("1.5m"), wasmPaths: "/ort/" });
+  try {
+    const index = buildTurboQuantIndex(await embedder.embedDocuments(fixture.documents));
+    for (const [q, query] of (fixture.queries as string[]).entries()) {
+      const hits = searchTurboQuantIndex(index, await embedder.embedQuery(query), 5);
+      const fused = await reranker.rerankHits(query, hits, fixture.documents, { truncate: true });
+      expect(fused.map(hit => hit.index).sort()).toEqual(hits.map(hit => hit.index).sort());
+      expect(fused.map(hit => hit.denseRank).sort()).toEqual([1, 2, 3, 4, 5]);
+      expect(fixture.relevant[q], `query ${q}`).toContain(fused[0]!.index);
+    }
+  } finally { await embedder.dispose(); await reranker.dispose(); }
+}, 120_000);

@@ -45,8 +45,8 @@ describe("benchmark metrics", () => {
 
   it("computes recall@k per query language", () => {
     const matrix = recallMatrix([1, 4, 30, 200], [0, 0, 1, 1], ["eng_Latn", "deu_Latn"]);
-    expect(matrix.overall).toEqual({ "@3": 25, "@5": 50, "@25": 50, "@100": 75 });
-    expect(matrix.byLanguage.deu_Latn).toEqual({ "@3": 0, "@5": 0, "@25": 0, "@100": 50 });
+    expect(matrix.overall).toEqual({ "@1": 25, "@3": 25, "@5": 50, "@25": 50, "@100": 75 });
+    expect(matrix.byLanguage.deu_Latn).toEqual({ "@1": 0, "@3": 0, "@5": 0, "@25": 0, "@100": 50 });
   });
 
   it("accepts approximate ranks within ±10% of the exact rank only", () => {
@@ -68,8 +68,8 @@ describe("benchmark metrics", () => {
 });
 
 describe("benchmark report", () => {
-  const recall = { "@3": 50, "@5": 60, "@25": 80, "@100": 100 };
-  const byLanguage = { eng_Latn: recall, deu_Latn: { "@3": 70, "@5": 80, "@25": 90, "@100": 100 }, tha_Thai: { "@3": 0, "@5": 0, "@25": 10, "@100": 50 } };
+  const recall = { "@1": 40, "@3": 50, "@5": 60, "@25": 80, "@100": 100 };
+  const byLanguage = { eng_Latn: recall, deu_Latn: { "@1": 60, "@3": 70, "@5": 80, "@25": 90, "@100": 100 }, tha_Thai: { "@1": 0, "@3": 0, "@5": 0, "@25": 10, "@100": 50 } };
   const targets = ["eng_Latn", "deu_Latn"];
   const timing = { mean: 2.4, p50: 2.4, p95: 3.5 };
   const strategy = {
@@ -79,21 +79,26 @@ describe("benchmark report", () => {
   const model = {
     modelId: "m", device: "cpu", dims: 2, loadMs: 10, modelRuntimeMiB: 5,
     embedMs: { passage: { mean: 2, p50: 2, p95: 3 }, query: { mean: 1, p50: 1, p95: 1 } },
-    strategies: { bruteforce: strategy, turboquant: { ...strategy, rankReproduced10pct: { overall: 53.3, byLanguage: { eng_Latn: 90, deu_Latn: 70, tha_Thai: 0 } } } },
+    strategies: {
+      bruteforce: strategy,
+      turboquant: { ...strategy, rankReproduced10pct: { overall: 53.3, byLanguage: { eng_Latn: 90, deu_Latn: 70, tha_Thai: 0 } } },
+      fused: { ...strategy, searchMs: { mean: 160, p50: 150, p95: 210 }, runtimeMiB: 9 },
+    },
   };
   const env = { runtime: "v24", models: { winzling: model, harrier: model } };
   const report: BenchReport = {
     schema: "defuss-vectorsearch-bench.v1", generatedAt: "2026-10-07T00:00:00.000Z",
     host: { cpu: "cpu", cores: 8, platform: "darwin arm64" },
     dataset: { name: "unit", sha256: "x", languages: ["eng_Latn", "deu_Latn", "tha_Thai"], haystack: 6, queries: 3 },
-    ks: [3, 5, 25, 100], environments: { node: env, chromium: env },
+    ks: [1, 3, 5, 25, 100], environments: { node: env, chromium: env },
     crossEnvironment: { winzling: { samples: 2, minCosine: 1, meanCosine: 1 }, harrier: { samples: 2, minCosine: 1, meanCosine: 1 } },
   };
 
   it("renders quality and cost rows per environment, model and strategy plus a per-language matrix", () => {
     const section = renderReadmeSection(report, targets);
-    expect(section.match(/^\| (Node\.js|Chromium) \| (Winzling|Harrier) \| (bruteforce|TurboQuant) \|/gm)).toHaveLength(16);
+    expect(section.match(/^\| (Node\.js|Chromium) \| (Winzling|Harrier) \| (bruteforce|TurboQuant|TurboQuant \+ MoEdernColBERT) \|/gm)).toHaveLength(24);
     expect(section).toContain("| Node.js | Winzling | TurboQuant | 2.4 (p95 3.5) | 2.4 (p95 3.5) | 0.400 | 1.3 | 6 | 1 |");
+    expect(section).toContain("| Node.js | Winzling | TurboQuant + MoEdernColBERT | 2.4 (p95 3.5) | 2.4 (p95 3.5) | 160.000 | 1.3 | 9 | 1 |");
     for (const heading of ["Embedding", "Retrieval Quality", "Cost per Method", "Per Language, Node.js"]) {
       expect(section).toContain(`\n### ${heading}\n\n`);
     }
@@ -101,16 +106,17 @@ describe("benchmark report", () => {
 
   it("averages overall recall and rank reproduction over the target languages only", () => {
     const section = renderReadmeSection(report, targets);
-    expect(section).toContain("| Node.js | Winzling | bruteforce | 60 | 70 | 85 | 100 | n/a |");
-    expect(section).toContain("| Node.js | Winzling | TurboQuant | 60 | 70 | 85 | 100 | 80% |");
+    expect(section).toContain("| Node.js | Winzling | bruteforce | 50 | 60 | 70 | 85 | 100 | n/a |");
+    expect(section).toContain("| Node.js | Winzling | TurboQuant | 50 | 60 | 70 | 85 | 100 | 80% |");
+    expect(section).toContain("| Node.js | Winzling | TurboQuant + MoEdernColBERT | 50 | 60 | 70 | 85 | 100 | n/a |");
     expect(section).toContain("their 2 queries against all 6 passages in 3 languages");
     expect(() => renderReadmeSection(report, ["eng_Latn", "jpn_Jpan"])).toThrow(/jpn_Jpan/);
   });
 
-  it("lists only target languages, best first, breaking R@3 ties by R@5", () => {
+  it("lists only target languages, best first, breaking R@1 and R@3 ties by R@5", () => {
     const rows = renderReadmeSection(report, targets).split("\n").filter((line) => line.startsWith("| `"));
     expect(rows.map((line) => line.slice(2, 12))).toEqual(["`deu_Latn`", "`eng_Latn`"]);
-    const tied = { overall: recall, byLanguage: { a: { "@3": 50, "@5": 60, "@25": 0, "@100": 0 }, b: { "@3": 50, "@5": 70, "@25": 0, "@100": 0 } } };
+    const tied = { overall: recall, byLanguage: { a: { "@1": 10, "@3": 50, "@5": 60, "@25": 0, "@100": 0 }, b: { "@1": 10, "@3": 50, "@5": 70, "@25": 0, "@100": 0 } } };
     expect(["a", "b"].sort(byRecallDescending(tied))).toEqual(["b", "a"]);
   });
 

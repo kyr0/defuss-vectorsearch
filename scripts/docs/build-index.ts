@@ -4,11 +4,12 @@
  * the browser; a query takes 21 ms (p50). Node embeds here with native ONNX Runtime; README "Benchmark" records min
  * cosine 1 between Node and Chromium vectors for the same passages, so browser queries match these vectors.
  * Output (write-index.ts): docs/data/documents.json.gz (passages, queries), docs/data/vectors.bin.gz (the TurboQuant
- * index) and docs/data/manifest.json (their exact sizes, for the page's progress and transfer figures).
+ * index) and docs/data/manifest.json (their exact sizes and the model files' sizes, for the page's progress and transfer
+ * figures).
  */
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { createWinzlingEmbedder, WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "../../dist/onnx.mjs";
+import { createWinzlingEmbedder, MOEDERNCOLBERT_MODELS, WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "../../dist/onnx.mjs";
 import { buildTurboQuantIndex } from "../../dist/turboquant.mjs";
 import { buildBenchTasks, DATASET_SHA256, loadDataset } from "../bench/dataset.ts";
 import { logLine } from "../bench/models.ts";
@@ -16,6 +17,9 @@ import { DEMO_INDEX_SCHEMA } from "./index-format.ts";
 import { writeDemoIndex } from "./write-index.ts";
 
 const MODEL_DIR = "public/models/winzling";
+// The demo worker's reranker (examples/search-worker.ts): MoEdernColBERT 1.5M at its default q8 precision.
+const RERANKER_DIR = `public/models/${MOEDERNCOLBERT_MODELS["1.5m"].id.split("/")[1]}`;
+const RERANKER_FILES = ["tokenizer.json", "tokenizer_config.json", "runtime.json", "model_q8.onnx"];
 
 const bytes = new Uint8Array(await readFile("bench/dataset.json"));
 const dataset = await loadDataset(bytes);
@@ -51,5 +55,7 @@ const demo = {
 
 const modelFiles = Object.fromEntries(await Promise.all(Object.keys(WINZLING_FILES).map(async (file) =>
   [file, (await stat(path.join(MODEL_DIR, file))).size] as const)));
-const manifest = await writeDemoIndex(demo, modelFiles);
+const rerankerFiles = Object.fromEntries(await Promise.all(RERANKER_FILES.map(async (file) =>
+  [file, (await stat(path.join(RERANKER_DIR, file))).size] as const)));
+const manifest = await writeDemoIndex(demo, modelFiles, rerankerFiles);
 console.error(logLine("INFO", "wrote demo index", { documents: String(manifest.documents.bytes), vectors: String(manifest.vectors.bytes) }));

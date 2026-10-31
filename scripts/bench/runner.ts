@@ -4,6 +4,7 @@
  * so the benchmark measures the published artifact, not the source tree.
  */
 import { buildTurboQuantIndex, scoreTurboQuantIndex, searchTurboQuantIndex } from "../../dist/turboquant.mjs";
+import type { SearchHit } from "../../dist/shared.mjs";
 import { dotProduct, normalizeVector, searchTopK } from "../../dist/vector-search.mjs";
 import type { BenchTasks } from "./dataset.ts";
 import {
@@ -28,6 +29,12 @@ export interface BenchEmbedder {
   embedPassage(text: string): Promise<Float32Array>;
   embedQuery(text: string): Promise<Float32Array>;
   dispose(): Promise<void>;
+}
+
+/** The fused strategy's second stage; each environment binds `rerankHits` of its own reranker build. */
+export interface BenchReranker {
+  load(): Promise<void>;
+  rerankHits(query: string, hits: readonly SearchHit[], documents: readonly string[]): Promise<readonly { index: number }[]>;
 }
 
 export interface BenchProbes {
@@ -61,6 +68,8 @@ export interface ModelResult {
   readonly strategies: {
     readonly bruteforce: StrategyResult;
     readonly turboquant: StrategyResult & { readonly rankReproduced10pct: Reproduction };
+    /** TurboQuant's top 25 fused with MoEdernColBERT 1.5M; runtime adds the reranker's memory growth. */
+    readonly fused: StrategyResult;
   };
   /** First passages' vectors, compared across environments and then dropped from bench.json. */
   readonly sample: number[][];
@@ -138,6 +147,7 @@ export const runModelBench = async (
   tasks: BenchTasks,
   embedder: BenchEmbedder,
   probes: BenchProbes,
+  reranker: BenchReranker,
 ): Promise<ModelResult> => {
   const { log } = probes;
   const memoryBefore = await probes.memoryBytes();
@@ -176,6 +186,26 @@ export const runModelBench = async (
   );
   log(`searched ${queries.length} queries with bruteforce and turboquant`);
 
+  // Fused: the reranker encodes each query's candidates at query time, as an app without cached token vectors does.
+  const rerankerMemoryBefore = await probes.memoryBytes();
+  await reranker.load();
+  const passageTexts = tasks.passages.map((passage) => passage.text);
+  const fuse = (i: number) => reranker.rerankHits(tasks.queries[i]!.text, searchTurboQuantIndex(index, queries[i]!, MAX_K), passageTexts);
+  for (let i = 0; i < WARMUP_QUERIES; i++) await fuse(i);
+  const fused = { ranks: [] as number[], ms: [] as number[] };
+  for (let i = 0; i < queries.length; i++) {
+    const start = performance.now();
+    const hits = await fuse(i);
+    fused.ms.push(performance.now() - start);
+    const position = hits.findIndex((hit) => hit.index === targets[i]);
+    // Fusion reorders only the candidates, so a target outside them keeps its TurboQuant rank. VERIFIED: the check
+    // below never fired in make bench (2026-10-31), 4,000 queries over both models and environments.
+    if (position < 0 && turbo.ranks[i]! <= hits.length) throw new Error(`query ${i}: TurboQuant rank ${turbo.ranks[i]} missing from the fused candidates`);
+    fused.ranks.push(position < 0 ? turbo.ranks[i]! : position + 1);
+    if ((i + 1) % 250 === 0 || i + 1 === queries.length) log(`fused ${i + 1}/${queries.length}`);
+  }
+  const rerankerRuntimeBytes = (await probes.memoryBytes()) - rerankerMemoryBefore;
+
   return {
     modelId: embedder.modelId,
     device: embedder.device,
@@ -192,6 +222,10 @@ export const runModelBench = async (
         ...strategyCost(turboIndexMs, index.codes.byteLength + index.signs.byteLength + index.codebook.byteLength, turbo.ms, passageMs, queryMs, modelRuntimeBytes),
         recall: recallMatrix(turbo.ranks, queryLanguages, tasks.languages),
         rankReproduced10pct: rankReproduction(exact.ranks, turbo.ranks, queryLanguages, tasks.languages),
+      },
+      fused: {
+        ...strategyCost(turboIndexMs, index.codes.byteLength + index.signs.byteLength + index.codebook.byteLength, fused.ms, passageMs, queryMs, modelRuntimeBytes + rerankerRuntimeBytes),
+        recall: recallMatrix(fused.ranks, queryLanguages, tasks.languages),
       },
     },
     sample: haystack.slice(0, SAMPLE_SIZE).map((vector) => Array.from(vector)),

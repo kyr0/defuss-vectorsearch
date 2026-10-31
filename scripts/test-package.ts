@@ -23,7 +23,12 @@ for (const module of [esm, cjs]) {
   const reranker = module.createColbertReranker({ model: '1.5m', device: 'cpu',
     loadFile: async file => new Uint8Array(await readFile(new URL(file, colbertDir))) });
   try {
-    ranked.push(await reranker.rerank('Wie hoch ist die Zugspitze?', ['Paris is the capital of France.', 'Die Zugspitze ist 2962 Meter hoch.']));
+    const passages = ['Paris is the capital of France.', 'Die Zugspitze ist 2962 Meter hoch.'];
+    ranked.push(await reranker.rerank('Wie hoch ist die Zugspitze?', passages));
+    const fused = await reranker.rerankHits('Wie hoch ist die Zugspitze?', [{ index: 0, score: 0.5 }, { index: 1, score: 0.4 }], passages);
+    // VERIFIED: two candidates in opposite orders tie under rank fusion, and ties keep the dense order (fuseRanks unit test).
+    assert.deepEqual(fused.map(hit => [hit.index, hit.denseRank]), [[0, 1], [1, 2]]);
+    assert.ok(fused[1]!.colbertScore > fused[0]!.colbertScore);
   } finally {
     await reranker.dispose();
   }

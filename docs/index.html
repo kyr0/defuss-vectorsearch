@@ -120,7 +120,7 @@
     <div class="parallax-content">
       <section class="mk-hero" style="width:100%">
         <div class="mk-hero-copy">
-          <a class="mk-hero-pill" href="#bench"><span class="badge" data-variant="default" data-size="sm">v0.1.0</span>No server, no API key, nothing leaves your browser <svg class="vs-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="mk-hero-pill" href="#bench"><span class="badge" data-variant="default" data-size="sm">v0.2.0</span>No server, no API key, nothing leaves your browser <svg class="vs-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
           <h1 class="mk-hero-title"><strong>Semantic</strong> search is <i>now</i> open, fast, free and available for everyone</h1>
           <p class="vs-flip"><span class="text-rotate"><span>
               <span class="vs-accent">in your browser &amp; Node.js</span>
@@ -216,10 +216,10 @@
             </div>
             <div class="progress-field">
               <div class="progress-header">
-                <span class="progress-label" id="p-model-label"><svg class="vs-icon" aria-hidden="true"><use href="#i-cpu"/></svg>Model · Winzling uint4</span>
-                <output class="progress-value" for="p-model" data-template="{percent} of 39.8 MB"></output>
+                <span class="progress-label" id="p-model-label"><svg class="vs-icon" aria-hidden="true"><use href="#i-cpu"/></svg>Models · Winzling uint4 + MoEdernColBERT 1.5M q8</span>
+                <output class="progress-value" for="p-model" data-template="{percent} of 43.7 MB"></output>
               </div>
-              <progress class="progress" id="p-model" value="0" max="39759598" aria-labelledby="p-model-label"></progress>
+              <progress class="progress" id="p-model" value="0" max="43734139" aria-labelledby="p-model-label"></progress>
             </div>
             <div class="progress-field">
               <div class="progress-header">
@@ -227,7 +227,7 @@
                 <output class="progress-value" for="p-runtime" data-template="{percent}" data-indeterminate="compiling…"></output>
               </div>
               <progress class="progress" id="p-runtime" value="0" max="100" aria-labelledby="p-runtime-label"></progress>
-              <span class="progress-hint" id="p-runtime-hint">~216 MB RAM reserved for model, runtime and index (measured in Chromium)</span>
+              <span class="progress-hint" id="p-runtime-hint">~627 MB RAM reserved for model, runtime and index (measured in Chromium)</span>
             </div>
             <div class="vs-boot-actions">
               <label class="sr-only" for="backend">Backend</label>
@@ -235,7 +235,7 @@
                 <option value="wasm" selected>WASM · CPU</option>
                 <option value="webgpu">WebGPU · experimental</option>
               </select>
-              <button type="button" class="btn" data-size="sm" id="boot-start" data-boot>Load the model · 39.8 MB</button>
+              <button type="button" class="btn" data-size="sm" id="boot-start" data-boot>Load the models · 43.7 MB</button>
               <button type="button" class="btn" data-variant="ghost" data-size="sm" id="clear-cache">Clear cached model</button>
             </div>
           </div>
@@ -243,7 +243,7 @@
             <div class="statistic"><p class="statistic-title">Backend</p><p class="statistic-value" data-stat="device">–</p><p class="statistic-description">ONNX Runtime Web, 1 thread</p></div>
             <div class="statistic"><p class="statistic-title">Ready in</p><p class="statistic-value" data-stat="ready">–</p><p class="statistic-description" data-stat="source">download, compile, warm-up</p></div>
             <div class="statistic"><p class="statistic-title">Vector Database Index</p><p class="statistic-value" data-stat="passages">–</p><p class="statistic-description" data-stat="languages">documents</p></div>
-            <div class="statistic"><p class="statistic-title">Last query</p><p class="statistic-value" data-stat="query">–</p><p class="statistic-description" data-stat="scan">embed + TurboQuant scan</p></div>
+            <div class="statistic"><p class="statistic-title">Last query</p><p class="statistic-value" data-stat="query">–</p><p class="statistic-description" data-stat="scan">embed + TurboQuant scan + rerank</p></div>
           </div>
         </div>
         <div class="card-footer vs-boot-foot">
@@ -303,7 +303,7 @@
           <section class="mk-empty-state vs-cta" aria-labelledby="empty-title" id="empty">
             <span class="mk-empty-state-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-sparkles"/></svg></span>
             <h2 class="mk-empty-state-title" id="empty-title">Search 2,000 passages in 20 languages</h2>
-            <p class="mk-empty-state-text">Enter a question above and press Search, or pick one of the 1,000 example queries. The first search downloads the 39.8 MB model once; every search after that runs on this device as you type.</p>
+            <p class="mk-empty-state-text">Enter a question above and press Search, or pick one of the 1,000 example queries. The first search downloads the models once: Winzling (39.8 MB) and the MoEdernColBERT reranker (3.97 MB). Every search after that runs on this device as you type.</p>
             <div class="mk-empty-state-actions">
               <button type="button" class="btn" data-size="lg" data-command-trigger="cmd"><svg class="vs-icon" aria-hidden="true"><use href="#i-search"/></svg>Browse 1,000 example queries</button>
             </div>
@@ -379,7 +379,7 @@
       <div class="mk-features-head">
         <span class="mk-features-eyebrow">How it works</span>
         <h2 class="mk-features-title" id="how-title">💡 One query, three steps, all on your device</h2>
-        <p class="mk-features-desc">Documents are embedded once, ahead of search: this demo's passages in Node.js, your own notes right in the browser. A search embeds only the query and compares it with the compressed vectors.</p>
+        <p class="mk-features-desc">Documents are embedded once, ahead of search: this demo's passages in Node.js, your own notes right in the browser. A search embeds only the query, compares it with the compressed vectors, and lets the 1.5M-parameter MoEdernColBERT reranker reorder the best 25.</p>
       </div>
       <figure class="diagram vs-pipeline" id="pipeline" data-type="data-flow" data-steps data-autoplay="400" aria-label="How a query is answered on your device">
         <div class="diagram-canvas" style="grid-template-columns:6.5rem repeat(4,minmax(9rem,1fr));--diagram-node-w:11rem">
@@ -423,9 +423,9 @@
             <span class="diagram-node-name">Scan 2,000 codes</span>
             <span class="diagram-node-meta">0.4 ms</span>
           </div>
-          <div class="diagram-node" data-node="results" data-shape="pill" data-step="8" data-step-label="Search: ranked results" style="--col:5;--row:3">
-            <span class="diagram-node-name">Top 12, ranked</span>
-            <span class="diagram-node-meta">by meaning</span>
+          <div class="diagram-node" data-node="results" data-shape="pill" data-step="8" data-step-label="Search: reranked results" style="--col:5;--row:3">
+            <span class="diagram-node-name">Top 12, reranked</span>
+            <span class="diagram-node-meta">top 25 fused with MoEdernColBERT 1.5M</span>
           </div>
         </div>
         <ol class="diagram-edges">
@@ -435,7 +435,7 @@
           <li class="diagram-edge" data-from="files" data-to="scan" data-line="dashed">431 kB · once</li>
           <li class="diagram-edge" data-from="query" data-to="embed" data-flow="2400" data-flow-delay="0">text</li>
           <li class="diagram-edge" data-from="embed" data-to="scan" data-tone="accent" data-flow="2400" data-flow-delay="700">384-d</li>
-          <li class="diagram-edge" data-from="scan" data-to="results" data-flow="2400" data-flow-delay="1400">top k</li>
+          <li class="diagram-edge" data-from="scan" data-to="results" data-flow="2400" data-flow-delay="1400">top 25</li>
         </ol>
       </figure>
     </section>
@@ -451,7 +451,7 @@
             <p class="mk-stats-desc">Winzling in headless Chromium (WASM, 1 thread) on the same 2,000-passage haystack, from <code>make bench</code>. <a href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener">Winzling-Embed-a8m-64k<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> is a pruned model that is further pruned for a few select languages, and then custom quantized to extremely shrink it in size. Therefore, low performance in non-target languages is by design.</p>
           </div>
           <div class="mk-stats-grid">
-            <div class="mk-stat" data-bench="query-p50"><span class="mk-stat-value">21.3 ms</span><span class="mk-stat-label">to embed a query (p50)</span></div>
+            <div class="mk-stat" data-bench="query-p50"><span class="mk-stat-value">21.2 ms</span><span class="mk-stat-label">to embed a query (p50)</span></div>
             <div class="mk-stat" data-bench="scan-p50"><span class="mk-stat-value">0.4 ms</span><span class="mk-stat-label">to scan the TurboQuant index (p50)</span></div>
             <div class="mk-stat" data-bench="index-gzip"><span class="mk-stat-value">431 kB <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">TurboQuant index for 2,000 passages; 0.51 MB raw, 6× smaller than float32</span></div>
             <div class="mk-stat" data-bench="recall-eng"><span class="mk-stat-value">100%</span><span class="mk-stat-label">R@5 for English queries</span><a href="https://github.com/kyr0/defuss-vectorsearch#benchmark" class="btn mk-stat-link" data-variant="link" data-size="default" target="_blank" rel="noopener">All languages<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></div>
@@ -596,6 +596,7 @@
           <pre data-prefix=""><code>Read its README first and follow the browser quick start: import from "defuss-vectorsearch/browser.js", embed with createWinzlingEmbedder() inside a Web Worker, index with buildTurboQuantIndex() and search with searchTurboQuantIndex().</code></pre>
           <pre data-prefix=""><code>Embed the documents once ahead of time, in Node.js or in the browser, and keep the index as a static file or in memory; a search then embeds only the query.</code></pre>
           <pre data-prefix=""><code>The first use downloads the pinned Winzling model (39.8 MB) and caches it in the browser, so start it when the user first searches.</code></pre>
+          <pre data-prefix=""><code>For a better top 3, rerank the top 25 hits with createColbertReranker({ model: "1.5m" }).rerankHits(query, hits, texts); it adds a 3.97 MB download.</code></pre>
             <pre data-prefix="" data-tone="muted" data-cursor><code>⏎ send</code></pre>
           </div>
           <button type="button" class="btn vs-prompt-copy" data-variant="secondary" data-size="sm" id="copy-prompt"><svg class="vs-icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy prompt</span></button>

@@ -11,6 +11,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # The Bun release package.json pins (packageManager); `make verify` runs the package under it.
       - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: package.json
       - run: make setup PLAYWRIGHT_FLAGS=--with-deps
       - run: make verify
+      # Bun 1.4.x support: the lowest and the newest 1.4 release, next to the pinned one above.
+      - run: BUN_VERSION=1.4.0 node scripts/test-bun-consumer.ts
+      - run: BUN_VERSION=1.4 node scripts/test-bun-consumer.ts

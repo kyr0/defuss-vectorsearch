@@ -3,10 +3,11 @@
  * One process per model keeps RSS deltas from mixing two runtimes.
  */
 import { readFile, writeFile } from "node:fs/promises";
+import { createColbertReranker } from "../../dist/onnx.mjs";
 import { createEmbeddingServer } from "../../dist/server.mjs";
 import { buildBenchTasks, loadDataset } from "./dataset.ts";
-import { BENCH_CACHE_DIR, isModelKey, logLine, MODELS } from "./models.ts";
-import { runModelBench, type BenchEmbedder } from "./runner.ts";
+import { BENCH_CACHE_DIR, isModelKey, logLine, MODELS, RERANKER_MODEL } from "./models.ts";
+import { runModelBench, type BenchEmbedder, type BenchReranker } from "./runner.ts";
 
 const [key, out] = process.argv.slice(2);
 if (!isModelKey(key) || !out) throw new Error("usage: node --expose-gc scripts/bench/node.ts <winzling|harrier> <out.json>");
@@ -25,6 +26,13 @@ const embedder: BenchEmbedder = {
   embedQuery: (text) => runtime.embedQuery(text),
   dispose: () => runtime.dispose(),
 };
+// Native CPU like the embedder; downloads the pinned q8 graph into the bench cache, hash-checked.
+// VERIFIED: bench/cache/kyr0/<repo>/<commit>/ is the layout the Chromium run then serves (make bench, 2026-10-31).
+const colbert = createColbertReranker({ model: RERANKER_MODEL, device: "cpu", cacheDir: BENCH_CACHE_DIR });
+const reranker: BenchReranker = {
+  load: () => colbert.load(),
+  rerankHits: (query, hits, documents) => colbert.rerankHits(query, hits, documents, { truncate: true }),
+};
 
 try {
   const result = await runModelBench(tasks, embedder, {
@@ -33,8 +41,9 @@ try {
       return process.memoryUsage().rss;
     },
     log: (message) => console.error(logLine("INFO", message, { env: "node", model: key })),
-  });
+  }, reranker);
   await writeFile(out, JSON.stringify(result));
 } finally {
   await embedder.dispose();
+  await colbert.dispose();
 }

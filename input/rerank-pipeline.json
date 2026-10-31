@@ -1,0 +1,11 @@
+{
+  "documents": [
+    "Die Zugspitze ist mit 2962 Metern der höchste Berg Deutschlands.",
+    "Paris is the capital and largest city of France.",
+    "The cat sleeps on the sofa all afternoon.",
+    "Кошка спит на диване.",
+    "Die Börse schloss heute im Plus.",
+    "A bicycle has two wheels and is powered by pedals."
+  ],
+  "queries": ["Wie hoch ist die Zugspitze?", "What is the capital of France?", "A sleeping cat on a couch"]
+}

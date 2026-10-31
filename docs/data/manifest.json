@@ -13,5 +13,11 @@
     "tokenizer.json": 9292544,
     "tokenizer_config.json": 2448,
     "onnx/model_uint4.onnx": 30464606
+  },
+  "rerankerFiles": {
+    "tokenizer.json": 1955903,
+    "tokenizer_config.json": 730,
+    "runtime.json": 946,
+    "model_q8.onnx": 2016962
   }
 }

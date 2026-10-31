@@ -15,9 +15,13 @@ export interface DemoManifest {
   documents: { file: string; bytes: number; rawBytes: number };
   vectors: { file: string; bytes: number; rawBytes: number };
   modelFiles: Record<string, number>;
+  /** The reranker files the worker loads (tokenizer, runtime contract, q8 graph), by name. */
+  rerankerFiles: Record<string, number>;
 }
 
-export const writeDemoIndex = async (demo: DemoIndex, modelFiles: Record<string, number>, outDir = "docs/data"): Promise<DemoManifest> => {
+export const writeDemoIndex = async (
+  demo: DemoIndex, modelFiles: Record<string, number>, rerankerFiles: Record<string, number>, outDir = "docs/data",
+): Promise<DemoManifest> => {
   const { documents, vectors } = encodeDemoIndex(demo);
   await mkdir(outDir, { recursive: true });
   const write = async (file: string, raw: Uint8Array) => {
@@ -29,6 +33,7 @@ export const writeDemoIndex = async (demo: DemoIndex, modelFiles: Record<string,
     documents: await write("documents.json.gz", new TextEncoder().encode(documents)),
     vectors: await write("vectors.bin.gz", vectors),
     modelFiles,
+    rerankerFiles,
   };
   await writeFile(path.join(outDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
