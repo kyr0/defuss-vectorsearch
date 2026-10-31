@@ -27,3 +27,6 @@ __pycache__/
 .ruff_cache/
 .coverage
 /bench/
+feat-moederncolbert-onnx/
+# ONNX Runtime writes this telemetry session file into the CWD when it cannot persist its device ID
+:memory:.ses

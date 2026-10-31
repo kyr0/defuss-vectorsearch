@@ -50,7 +50,7 @@ docs: bench/dataset.json
 	bun run build
 	node scripts/docs/build-index.ts
 	node scripts/docs/build-worker.ts
-# Node + Chromium suites; the winzling configs run real inference on the assets from `make setup`.
+# Node + Chromium suites; the winzling configs run real Winzling and MoEdernColBERT inference on the assets from `make setup`.
 test:     ; bunx vitest run --config vitest.config.ts && bunx vitest run --config vitest.winzling.config.ts \
 	&& bunx vitest run --config vitest.browser.config.ts && bunx vitest run --config vitest.winzling.browser.config.ts
 coverage: ; @mkdir -p tmp; bunx vitest run --config vitest.config.ts --coverage --coverage.reporter=text >tmp/coverage.txt 2>&1; s=$$?; grep -E "^All files" tmp/coverage.txt; exit $$s

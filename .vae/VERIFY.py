@@ -24,7 +24,7 @@ CONFIG = {
     "arch": {"exclude": []},       # folder globs exempt from ARCH.md coverage; False drops it
     # Changed package.json: packageManager, description, license, author; new packages also type, linter, library build.
     "package": {"manager": "bun", "type": "module", "lint": "oxlint", "library_build": "pkgroll"},  # False disables
-    "prose": {"allow": {}, "phrases": []},
+    "prose": {"allow": {"AGENTS.md": "\u2192", "README.md": "\U0001F501\U0001FAB6\U0001F5DC\U0001F3AF\u26A1\U0001F512\U0001F4E6\U0001F9EA"}, "phrases": []},  # AGENTS.md: the vae block's dialect operator; README: the TL;DR icons of the human's layout (commit 2138771)
 }
 
 # Deterministic invariants only; no semantic guesses.

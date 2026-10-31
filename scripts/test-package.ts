@@ -17,8 +17,21 @@ for (const module of [esm, cjs]) {
 }
 assert.equal(outputs[0]!.length, 384);
 assert.deepEqual(outputs[0], outputs[1]);
+const colbertDir = new URL(`../public/models/${esm.MOEDERNCOLBERT_MODELS['1.5m'].id.split('/')[1]}/`, import.meta.url);
+const ranked: { index: number; score: number }[][] = [];
+for (const module of [esm, cjs]) {
+  const reranker = module.createColbertReranker({ model: '1.5m', device: 'cpu',
+    loadFile: async file => new Uint8Array(await readFile(new URL(file, colbertDir))) });
+  try {
+    ranked.push(await reranker.rerank('Wie hoch ist die Zugspitze?', ['Paris is the capital of France.', 'Die Zugspitze ist 2962 Meter hoch.']));
+  } finally {
+    await reranker.dispose();
+  }
+}
+assert.equal(ranked[0]![0]!.index, 1);
+assert.deepEqual(ranked[0], ranked[1]);
 for (const entry of ['client.js', 'server.js', 'vector-search.js', 'turboquant.js']) {
   assert.ok(Object.keys(await import(`defuss-vectorsearch/${entry}`)).length);
   assert.ok(Object.keys(createRequire(import.meta.url)(`defuss-vectorsearch/${entry}`)).length);
 }
-console.log('Built ESM/CJS exports: passed. Native inference coexists with Transformers.js.');
+console.log('Built ESM/CJS exports: passed. Native Winzling and MoEdernColBERT inference coexist with Transformers.js.');

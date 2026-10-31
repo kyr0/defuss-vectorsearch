@@ -1,6 +1,7 @@
 import { loadCachedModelFile, resolveModelCacheDir, storeCachedModelFile } from "./model-cache.js";
 import type { EmbedOptions, FeatureExtractorLike } from "./types.js";
 import { WinzlingEmbedderCore, type WinzlingAssetCache, type WinzlingOptions } from "./winzling-embedder.js";
+import { ColbertRerankerCore, type ColbertRerankerOptions } from "./colbert-reranker.js";
 
 export {
   poolWinzling,
@@ -12,6 +13,17 @@ export {
   type WinzlingAssetLocation,
   type WinzlingOptions,
 } from "./winzling-embedder.js";
+export {
+  maxSim,
+  rankEncoded,
+  type ColbertEncodeOptions,
+  type ColbertModel,
+  type ColbertPrecision,
+  type ColbertRerankerOptions,
+  type RerankedHit,
+  type TokenMatrix,
+} from "./colbert-reranker.js";
+export { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
 
 /** Filesystem cache in Node.js, Cache API + IndexedDB in browsers. */
 const isomorphicCache: WinzlingAssetCache = {
@@ -29,6 +41,18 @@ export class WinzlingEmbedder extends WinzlingEmbedderCore {
 }
 
 export const createWinzlingEmbedder = (options: WinzlingOptions = {}): WinzlingEmbedder => new WinzlingEmbedder(options);
+
+export class ColbertReranker extends ColbertRerankerCore {
+  constructor(options: ColbertRerankerOptions) {
+    super(options, isomorphicCache);
+  }
+}
+
+/**
+ * MoEdernColBERT reranker with the same filesystem/browser cache and SHA-256 pins as Winzling. VERIFIED:
+ * src/colbert-reranker.live.test.ts reloads it from a filesystem cache with remote loading disabled.
+ */
+export const createColbertReranker = (options: ColbertRerankerOptions): ColbertReranker => new ColbertReranker(options);
 
 /** Bridge to the existing client/server API without changing the Harrier pipeline. */
 export const createWinzlingExtractor = async (options: WinzlingOptions): Promise<FeatureExtractorLike> => {

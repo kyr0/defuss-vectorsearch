@@ -1,14 +1,24 @@
-// The README quick start, plus an optional `?mirror=` so the e2e test can serve the model locally.
-import { buildTurboQuantIndex, createWinzlingEmbedder, searchTurboQuantIndex } from "defuss-vectorsearch/browser.js";
+// The README quick start: dense search, then MoEdernColBERT reranking of the hits. Optional `?mirror=` and
+// `?colbert=` let the e2e test serve both models locally. VERIFIED: scripts/test-browser-bundle.ts builds this file
+// with Vite and runs it in Chromium.
+import { buildTurboQuantIndex, createColbertReranker, createWinzlingEmbedder, searchTurboQuantIndex } from "defuss-vectorsearch/browser.js";
 
-const mirror = new URLSearchParams(location.search).get("mirror");
+const params = new URLSearchParams(location.search);
+const mirror = params.get("mirror");
+const colbert = params.get("colbert");
 const embedder = createWinzlingEmbedder(mirror ? { modelBaseUrl: new URL(mirror, location.href).href } : {});
+const reranker = createColbertReranker({ model: "1.5m", ...(colbert ? { modelBaseUrl: new URL(colbert, location.href).href } : {}) });
 const result = document.querySelector("#result")!;
 try {
   const documents = ["The cat sleeps on the sofa.", "Die Börse schloss heute im Plus.", "Кошка спит на диване."];
+  const query = "A sleeping cat on a couch.";
   const index = buildTurboQuantIndex(await embedder.embedDocuments(documents));
-  const hits = searchTurboQuantIndex(index, await embedder.embedQuery("A sleeping cat on a couch."), 2);
-  result.textContent = JSON.stringify({ top: hits.map((hit) => documents[hit.index]) });
+  const hits = searchTurboQuantIndex(index, await embedder.embedQuery(query), 2);
+  const reranked = await reranker.rerank(query, hits.map((hit) => documents[hit.index]!));
+  result.textContent = JSON.stringify({
+    top: hits.map((hit) => documents[hit.index]),
+    reranked: reranked.map((hit) => documents[hits[hit.index]!.index]),
+  });
 } catch (error) {
   result.textContent = `failed: ${error instanceof Error ? error.message : String(error)}`;
 }

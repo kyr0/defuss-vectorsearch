@@ -19,44 +19,21 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-07T15:32:53Z s=93cfeaa7 FINDING scripts/bench/run.ts:runChromium learn=none: covered by every make bench run
 2026-10-07T15:43:06Z s=93cfeaa7 FINDING README.md:Benchmark scope (P precision) learn=none: documentation precision; not mechanically checkable
 2026-10-07T15:43:06Z s=93cfeaa7 FINDING README.md:28,295,302 learn=none: hand-written analysis outside the generated block; it cites the 2026-10-07 run by date
-2026-10-07T16:18:01Z s=93cfeaa7 DONE fp=7484b0ccd875 cov=66.7% paths=CHANGELOG.md,README.md,scripts/bench/bench.test.ts,scripts/bench/dataset.ts(+1)
-2026-10-07T16:18:01Z s=93cfeaa7 FINDING scripts/bench/report.ts:renderReadmeSection learn=test: bench.test.ts asserts the four ### headings render
-2026-10-08T10:04:31Z s=542d48d6 FAIL tests.e2e.1
-2026-10-08T10:16:18Z s=542d48d6 DONE fp=225aa76adb63 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
-2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:<head> CDN links learn=test: test-docs.ts fails on any blocked resource/console error, so a wrong or removed hash is caught
 2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:showResults/showEmpty learn=none: timing-dependent (needs a transition in flight at the moment of clearing); not deterministically reproducible in e2e
-2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:[data-boot] listeners learn=test: test-docs.ts asserts no second 'load · device=' log line after clicking the hero link once ready
 2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:handlers.error learn=none: a search error needs a worker failure after a successful load; no deterministic trigger without altering the worker
 2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/render.js:renderHits rank learn=none: ARIA semantics; no accessibility tree assertion in the suite
 2026-10-08T10:16:18Z s=542d48d6 FINDING docs/assets/demo.js:state.device learn=none: dead state; lint does not flag object properties
 2026-10-08T10:16:18Z s=542d48d6 FINDING README.md:Static demo page (P precision) learn=none: prose precision; not mechanically checkable
-2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts coverage learn=test: test-docs.ts now covers both
-2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts:375 px check learn=test: test-docs.ts overflowing() assertion
-2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/test-docs.ts:#vs-menu wait learn=test: the e2e itself
 2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:#cmd State API (upstream defuss-shadcn 0.9.7) learn=none: defect lives in defuss-shadcn command.ts (bindGlobalKeys handler); reported to the user, not fixable in this repo
 2026-10-08T10:16:18Z s=542d48d6 FINDING scripts/docs/build-index.ts:batchSize learn=none: performance on one host; pinning timings in a test would be flaky
 2026-10-08T10:16:18Z s=542d48d6 FINDING .oxlintrc.json learn=none: lint itself enforces it
-2026-10-08T10:16:18Z s=542d48d6 FINDING docs/index.html:hero copy (B evidence) learn=test: test-docs.ts compares every figure and the 20 recall bars with bench.json
-2026-10-08T12:49:35Z s=542d48d6 DONE fp=5d3979cec624 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
-2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.js:palette click + Enter handlers (reported scroll jump) learn=test: test-docs.ts asserts |scrollY delta| < 2 for Enter and click picks
-2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.js:boot-retry learn=test: test-docs.ts index-failure context
-2026-10-08T12:49:35Z s=542d48d6 FINDING docs/index.html:<header> wrapper learn=test: test-docs.ts asserts the header top stays within 0..40 px at #use
-2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-cta example buttons learn=test: test-docs.ts overflowing() after the examples render
 2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-query .mk-search-box learn=none: visual layout; no width assertion beyond overflow
 2026-10-08T12:49:35Z s=542d48d6 FINDING docs/assets/demo.css:.vs-way code spans learn=none: visual layout
 2026-10-08T12:49:35Z s=542d48d6 FINDING docs/index.html:Use it 'NPM package' heading learn=none: registry state changes outside the repo
-2026-10-08T12:56:13Z s=542d48d6 DONE fp=dfe0b6e79bd4 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+13)
-2026-10-08T12:56:13Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc + #intro learn=test: test-docs.ts recomputes the R@5 mean, the index ratio and the p95 bound from bench.json
 2026-10-08T12:56:13Z s=542d48d6 FINDING docs/index.html:#intro claims without evidence learn=none: needs measurements on such hardware / a reproduction; outside this change
-2026-10-08T13:38:01Z s=542d48d6 DONE fp=a4eb598d6279 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
-2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:#notes-region pane width learn=test: test-docs.ts clicks the FAB and checks the divider moves the board by 10 px
-2026-10-08T13:38:01Z s=542d48d6 FINDING scripts/test-docs.ts:scroll stability check learn=test: the round-2 mutation run still applies: the old scrollIntoView call fails the check
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/assets/render.js:renderNoteStatus learn=none: no markup-vocabulary checker runs in this repo's gate
-2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:phone split learn=test: test-docs.ts asserts border-layout-north and no overflow on 375 px
-2026-10-08T13:38:01Z s=542d48d6 FINDING docs/assets/search-view.js + notes.js (structure) learn=test: test-docs.ts drives both tabs through the same view code
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:footer ad portrait learn=none: content decision for the user
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:closing CTA copy learn=none: no cross-browser runs in this repo
-2026-10-08T13:43:03Z s=542d48d6 FAIL tests.e2e.1
 2026-10-08T13:44:32Z s=542d48d6 DONE fp=184237afc329 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
 2026-10-08T13:44:32Z s=542d48d6 FINDING scripts/test-docs.ts:pruned filter (tsc TS2532) learn=verifier: make e2e already typechecks scripts; run it, not node alone, before the gate
 2026-10-08T13:52:26Z s=542d48d6 DONE fp=1ddc78950483 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
@@ -105,3 +82,26 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:29:58Z s=53696323 DONE fp=a5ecb4c37f27 cov=66.7% paths=bun.lock,package.json
 2026-10-10T16:29:58Z s=53696323 FINDING package.json:135 devDependencies.playwright learn=none: Dependabot already watches the manifest; a repo rule would duplicate it
 2026-10-10T17:14:50Z s=53696323 DONE fp=8c28876fae9b cov=66.7% paths=README.md,bun.lock,package.json
+2026-10-30T22:39:51Z s=8e62adc6 FAIL prose
+2026-10-30T22:41:04Z s=8e62adc6 DONE fp=b44d0dd9f6bb cov=? paths=plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:73 T06 learn=none: rewritten as 'below 1e-4'; one-off wording, static T06 does not cover '<'
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:74,77 T06 learn=none: rewritten with 'is'; one-off wording
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:78 T06 learn=none: rewritten as '0.956, below 0.98'; one-off wording
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:125,141,143,170 T06 learn=none: rewritten in words; 3x512 batch-shape notation kept as content
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:32 P08 learn=none: named FEAT Node and ROOT Node/WASM runtimes and the Python fixture
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:22 P08 learn=none: named FEAT's Node runtime
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:49 P08 learn=none: named token outputs
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:24-26 L01 learn=none: stated that graphs, manifest, fixture and card must come from one build
+2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:111 B01 learn=none: claim removed; file name stays as a plan choice
+2026-10-30T23:49:22Z s=8e62adc6 DONE fp=0b7ccc7bf34e cov=? paths=plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md
+2026-10-30T23:49:22Z s=8e62adc6 FINDING .gitignore:30 learn=none: split back onto its own line; git check-ignore confirms the folder is ignored again
+2026-10-31T00:22:31Z s=8e62adc6 FAIL prose
+2026-10-31T00:34:03Z s=8e62adc6 DONE fp=335ecdd14b2e cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)
+2026-10-31T00:34:03Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerank learn=test: src/colbert-reranker.live.test.ts asserts two pending reranks complete across dispose()
+2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:109 B01 learn=verifier: prose gate B01 already rejects it
+2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:240,393-398 T06 learn=verifier: prose gate T06 already rejects it
+2026-10-31T00:34:03Z s=8e62adc6 FINDING ARCH.md:How it works learn=none: a wiring claim in prose is not mechanically checkable; caught by reading imports
+2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:Auto-download and cache learn=none: network-dependent; the gate must not depend on huggingface.co
+2026-10-31T00:34:03Z s=8e62adc6 FINDING CHANGELOG.md:Fixed learn=none: evidence judgement, not mechanically checkable
+2026-10-31T00:34:03Z s=8e62adc6 FINDING src/colbert-reranker.live.test.ts:1-3 learn=none: style; oxlint does not flag duplicate module imports in this config
+2026-10-31T00:34:25Z s=8e62adc6 DONE fp=64bc2aedaf2a cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)

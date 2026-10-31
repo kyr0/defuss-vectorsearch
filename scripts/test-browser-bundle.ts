@@ -1,7 +1,8 @@
 /**
  * e2e for the browser bundles, built with Vite against dist/ like a consumer app:
  * 1. `browser.js` (fixtures/browser-bundle): fails if the bundle contains Node, Transformers.js or multicore code,
- *    runs it in Chromium twice and checks that the second load serves the model from the browser cache.
+ *    runs it in Chromium twice and checks that the second load serves both models (Winzling and the MoEdernColBERT
+ *    reranker) from the browser cache.
  * 2. `client.js` under top-level await (fixtures/isomorphic-tla): must finish. VERIFIED: restoring a
  *    lazy import of a browser-path module makes this fixture time out (mutation run).
  * Report: output/browser-bundle.json.
@@ -17,7 +18,12 @@ import { build, createLogger, type Rollup } from "vite";
 
 const FORBIDDEN = [/@huggingface\/transformers/, /defuss-multicore/, /onnxruntime-node/, /model-cache\.node/, /^node:/, /__vite-browser-external/];
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".json": "application/json" };
-const modelDir = path.resolve("public/models/winzling");
+const COLBERT_REPO = "SauerkrautLM-MoEdernColBERT-1.5M-ONNX";
+/** URL prefix to local mirror directory. VERIFIED: `make setup` (scripts/download-model.ts) fills both directories. */
+const MIRRORS: Record<string, string> = {
+  "/models/winzling/": path.resolve("public/models/winzling"),
+  [`/models/${COLBERT_REPO}/`]: path.resolve(`public/models/${COLBERT_REPO}`),
+};
 
 const buildFixture = async (fixture: string, entry: string) => {
   const warnings: string[] = [];
@@ -37,14 +43,14 @@ const buildFixture = async (fixture: string, entry: string) => {
   return { outDir, warnings, chunks, assets, modules: chunks.flatMap((chunk) => Object.keys(chunk.modules)) };
 };
 
-/** Serves one built app at / and the local Winzling mirror at /models/winzling/. */
+/** Serves one built app at / and the local model mirrors under /models/. */
 const serve = async (outDir: string) => {
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
-    const file = url.pathname.startsWith("/models/winzling/")
-      ? path.join(modelDir, url.pathname.slice("/models/winzling/".length))
-      : path.join(outDir, url.pathname === "/" ? "index.html" : url.pathname);
-    const insideRoot = file.startsWith(modelDir + path.sep) || file.startsWith(outDir + path.sep);
+    const prefix = Object.keys(MIRRORS).find((mount) => url.pathname.startsWith(mount));
+    const root = prefix ? MIRRORS[prefix]! : outDir;
+    const file = prefix ? path.join(root, url.pathname.slice(prefix.length)) : path.join(outDir, url.pathname === "/" ? "index.html" : url.pathname);
+    const insideRoot = file.startsWith(root + path.sep);
     if (!insideRoot || !(await stat(file).then((s) => s.isFile(), () => false))) return void response.writeHead(404).end();
     response.writeHead(200, { "Content-Type": TYPES[path.extname(file)] ?? "application/octet-stream" });
     createReadStream(file).pipe(response);
@@ -56,12 +62,16 @@ const serve = async (outDir: string) => {
 const watch = (page: Page) => {
   const problems: string[] = [];
   const modelRequests: string[] = [];
+  const colbertRequests: string[] = [];
   page.on("pageerror", (error) => problems.push(`pageerror: ${error.message}`));
   page.on("console", (message) => { if (message.type() === "error") problems.push(`console: ${message.text()}`); });
   page.on("requestfailed", (request) => problems.push(`requestfailed: ${request.url()}`));
   page.on("response", (response) => { if (response.status() >= 400) problems.push(`HTTP ${response.status()}: ${response.url()}`); });
-  page.on("request", (request) => { if (request.url().includes("/models/winzling/")) modelRequests.push(request.url()); });
-  return { problems, modelRequests };
+  page.on("request", (request) => {
+    if (request.url().includes("/models/winzling/")) modelRequests.push(request.url());
+    if (request.url().includes(`/models/${COLBERT_REPO}/`)) colbertRequests.push(request.url());
+  });
+  return { problems, modelRequests, colbertRequests };
 };
 
 const readResult = async <T>(page: Page, url: string, problems: string[]): Promise<T> => {
@@ -89,12 +99,15 @@ try {
   const bundleServer = await serve(bundle.outDir);
   servers.push(bundleServer);
   const page = await (await browser.newContext()).newPage();
-  const { problems, modelRequests } = watch(page);
-  const url = `${bundleServer.origin}/?mirror=/models/winzling`;
-  const first = await readResult<{ top: string[] }>(page, url, problems);
+  const { problems, modelRequests, colbertRequests } = watch(page);
+  const url = `${bundleServer.origin}/?mirror=/models/winzling&colbert=/models/${COLBERT_REPO}`;
+  type Result = { top: string[]; reranked: string[] };
+  const first = await readResult<Result>(page, url, problems);
   const firstLoadRequests = modelRequests.length;
-  const second = await readResult<{ top: string[] }>(page, url, problems);
+  const firstColbertRequests = colbertRequests.length;
+  const second = await readResult<Result>(page, url, problems);
   const secondLoadRequests = modelRequests.length - firstLoadRequests;
+  const secondColbertRequests = colbertRequests.length - firstColbertRequests;
 
   const isoServer = await serve(isomorphic.outDir);
   servers.push(isoServer);
@@ -109,7 +122,10 @@ try {
       moduleCount: bundle.modules.length,
       firstLoadModelRequests: firstLoadRequests,
       secondLoadModelRequests: secondLoadRequests,
+      firstLoadRerankerRequests: firstColbertRequests,
+      secondLoadRerankerRequests: secondColbertRequests,
       top: first.top,
+      reranked: first.reranked,
       problems,
     },
     isomorphicTopLevelAwait: { dims: isoResult.dims, problems: iso.problems },
@@ -120,10 +136,14 @@ try {
   assert.deepEqual(iso.problems, []);
   assert.deepEqual(first.top.slice().sort(), ["The cat sleeps on the sofa.", "Кошка спит на диване."].sort());
   assert.deepEqual(second.top, first.top);
+  assert.deepEqual(first.reranked.slice().sort(), first.top.slice().sort(), "the reranker reorders the dense hits");
+  assert.deepEqual(second.reranked, first.reranked);
   assert.equal(firstLoadRequests, 3, "first load fetches tokenizer.json, tokenizer_config.json and the ONNX graph");
   assert.equal(secondLoadRequests, 0, "second load must come from the Cache API / IndexedDB");
+  assert.equal(firstColbertRequests, 4, "first load fetches tokenizer.json, tokenizer_config.json, runtime.json and model_q8.onnx");
+  assert.equal(secondColbertRequests, 0, "second reranker load must come from the Cache API / IndexedDB");
   assert.equal(isoResult.dims, 384);
-  console.log(`${new Date().toISOString()} INFO browser bundles passed js_bytes=${jsBytes} model_requests=${firstLoadRequests}/${secondLoadRequests} isomorphic_tla=ok`);
+  console.log(`${new Date().toISOString()} INFO browser bundles passed js_bytes=${jsBytes} model_requests=${firstLoadRequests}/${secondLoadRequests} reranker_requests=${firstColbertRequests}/${secondColbertRequests} isomorphic_tla=ok`);
 } finally {
   await browser.close();
   for (const server of servers) server.close();

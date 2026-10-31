@@ -5,29 +5,16 @@
  */
 import { Tokenizer } from "@huggingface/tokenizers";
 import type { InferenceSession, Tensor } from "onnxruntime-web";
-import { buildNodeCacheKey, buildRemoteModelFileUrl, resolveModelSource } from "./model-source.js";
 import { WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./model-profiles.js";
+import { loadOrtNode, loadOrtWeb, type Ort } from "./ort-runtime.js";
+import { readPinnedAsset, type PinnedAssetCache, type PinnedAssetLocation } from "./pinned-asset.js";
 import type { EmbedOptions, QueryEmbedOptions } from "./types.js";
 
 export { WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./model-profiles.js";
 
-/** Where a verified asset is cached; `cacheDir` matters only to the filesystem cache. */
-export interface WinzlingAssetLocation {
-  readonly cacheDir: string | null | undefined;
-  readonly cacheKey: string;
-  readonly remoteUrl: string;
-}
-
-export interface WinzlingAssetCache {
-  load(location: WinzlingAssetLocation): Promise<Uint8Array | null>;
-  store(location: WinzlingAssetLocation, file: {
-    bytes: Uint8Array;
-    fileName: string;
-    modelId: string;
-    revision: string;
-    contentType: string;
-  }): Promise<void>;
-}
+/** Names kept for the public API; the pinned-asset reader owns these shapes. VERIFIED: the fields are unchanged. */
+export type WinzlingAssetLocation = PinnedAssetLocation;
+export type WinzlingAssetCache = PinnedAssetCache;
 
 export interface WinzlingOptions {
   /** Default: wasm (CPU), in both Node and browsers. cpu requires onnxruntime-node. */
@@ -50,9 +37,8 @@ export interface WinzlingOptions {
   numThreads?: number | undefined;
 }
 
-type Ort = Pick<typeof import("onnxruntime-web"), "Tensor" | "InferenceSession">;
 type Loaded = { ort: Ort; session: InferenceSession; tokenizer: Tokenizer };
-let webConfiguration: string | undefined;
+const RELEASE = { label: "Winzling", modelId: WINZLING_MODEL_ID, revision: WINZLING_REVISION, files: WINZLING_FILES };
 
 const positiveInteger = (value: number, name: string, maximum = Number.MAX_SAFE_INTEGER): number => {
   if (!Number.isSafeInteger(value) || value < 1 || value > maximum) {
@@ -99,39 +85,8 @@ export const poolWinzling = (
   return result;
 };
 
-const readAsset = async (
-  name: keyof typeof WINZLING_FILES,
-  options: WinzlingOptions,
-  cache: WinzlingAssetCache,
-): Promise<Uint8Array> => {
-  const source = resolveModelSource(options.modelBaseUrl ?? WINZLING_MODEL_ID, { revision: WINZLING_REVISION });
-  const remoteUrl = buildRemoteModelFileUrl(source, name);
-  const location = { cacheDir: options.cacheDir, cacheKey: buildNodeCacheKey(source, name), remoteUrl };
-  let bytes: Uint8Array;
-  let downloaded = false;
-  if (options.loadFile) {
-    bytes = await options.loadFile(name);
-  } else {
-    const cached = options.cache === false ? null : await cache.load(location);
-    if (cached) bytes = cached;
-    else {
-      if (options.allowRemoteModels === false) throw new Error(`Winzling asset missing from cache: ${name}; remote loading disabled`);
-      const response = await fetch(remoteUrl);
-      if (!response.ok) throw new Error(`Winzling download failed: ${name} (HTTP ${response.status})`);
-      bytes = new Uint8Array(await response.arrayBuffer());
-      downloaded = true;
-    }
-  }
-  // Hash both network and cached bytes: stale/corrupt caches must not change embeddings silently.
-  const hash = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes).buffer);
-  const actual = Array.from(new Uint8Array(hash), x => x.toString(16).padStart(2, "0")).join("");
-  if (actual !== WINZLING_FILES[name]) throw new Error(`Winzling SHA-256 mismatch: ${name}. Use the pinned release or clear its corrupt cache.`);
-  if (downloaded && options.cache !== false) {
-    await cache.store(location, { bytes, fileName: name, modelId: source.modelId,
-      revision: source.revision, contentType: name.endsWith(".json") ? "application/json" : "application/octet-stream" });
-  }
-  return bytes;
-};
+const readAsset = (name: keyof typeof WINZLING_FILES, options: WinzlingOptions, cache: WinzlingAssetCache): Promise<Uint8Array> =>
+  readPinnedAsset(RELEASE, name, options, cache);
 
 /** Standalone ONNX provider; it never imports Transformers.js. */
 export class WinzlingEmbedderCore {
@@ -178,33 +133,14 @@ export class WinzlingEmbedderCore {
   }
 
   private async createSession(): Promise<Loaded> {
-    let ort: Ort;
-    if (this.device === "cpu") {
-      if (typeof process === "undefined" || process.release?.name !== "node") throw new Error("device: cpu is Node-only; use wasm for browser CPU inference");
-      // Runtime-only optional import keeps native .node binaries out of browser bundles.
-      const nativeModule = "onnxruntime-node";
-      try { ort = await import(/* @vite-ignore */ /* webpackIgnore: true */ nativeModule); }
-      catch (cause) { throw new Error("Native CPU runtime unavailable. Install onnxruntime-node@1.21.0 or select device: wasm.", { cause }); }
-    } else {
-      if (this.device === "webgpu") {
-        const gpu = typeof navigator === "undefined" ? undefined
-          : (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
-        if (!gpu || !await gpu.requestAdapter()) {
-          throw new Error("WebGPU adapter is unavailable; select device: wasm for CPU inference");
-        }
+    if (this.device === "webgpu") {
+      const gpu = typeof navigator === "undefined" ? undefined
+        : (navigator as unknown as { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+      if (!gpu || !await gpu.requestAdapter()) {
+        throw new Error("WebGPU adapter is unavailable; select device: wasm for CPU inference");
       }
-      const web = await import("onnxruntime-web/webgpu");
-      const signature = JSON.stringify([this.options.wasmPaths ?? null, this.options.numThreads ?? 1]);
-      if (webConfiguration !== undefined && webConfiguration !== signature) {
-        throw new Error("ORT Web wasmPaths/numThreads are global; use the same configuration for all Winzling instances");
-      }
-      webConfiguration = signature;
-      web.env.wasm.numThreads = this.options.numThreads ?? 1;
-      web.env.wasm.proxy = false;
-      if (this.options.wasmPaths) web.env.wasm.wasmPaths = typeof location === "undefined"
-        ? this.options.wasmPaths : new URL(this.options.wasmPaths, location.href).href;
-      ort = web;
     }
+    const ort = this.device === "cpu" ? await loadOrtNode() : await loadOrtWeb(this.options);
     const [tokenizerBytes, configBytes, model] = await Promise.all([
       readAsset("tokenizer.json", this.options, this.cache), readAsset("tokenizer_config.json", this.options, this.cache),
       readAsset("onnx/model_uint4.onnx", this.options, this.cache),

@@ -47,8 +47,8 @@ The package does not serialize indexes; the live demo writes its own format (`sc
 
 | Entry point | When you reach for it | What it does |
 |---|---|---|
-| **`browser.js`** | a browser app | Winzling embedder cached in the Cache API and IndexedDB, TurboQuant, `normalizeVector(s)`. ESM-only. A Vite production build contains no Transformers.js, `defuss-multicore`, `onnxruntime-node` or Node built-in code. |
-| **`onnx.js`** | Node.js or isomorphic code | The same Winzling embedder, with a filesystem cache in Node.js and the browser cache in browsers. Does not import Transformers.js. ESM + CJS. |
+| **`browser.js`** | a browser app | Winzling embedder and MoEdernColBERT reranker cached in the Cache API and IndexedDB, TurboQuant, `normalizeVector(s)`. ESM-only. A Vite production build contains no Transformers.js, `defuss-multicore`, `onnxruntime-node` or Node built-in code. |
+| **`onnx.js`** | Node.js or isomorphic code | The same Winzling embedder and reranker, with a filesystem cache in Node.js and the browser cache in browsers. Does not import Transformers.js. ESM + CJS. |
 | **`server.js` / `client.js`** | Harrier, OpenAI-compatible endpoints, or one factory for several models | `createEmbeddingServer` / `createEmbeddingClient`. The no-argument factory defaults to Harrier; known model IDs select their profile. |
 | **`turboquant.js`** | a small index | `buildTurboQuantIndex`, `searchTurboQuantIndex`, `searchTurboQuantIndexRerank`, `scoreTurboQuantIndex`, `rerankSearchHits`, `selfCheckTurboQuant`. |
 | **`vector-search.js`** | exact (bruteforce) search | `searchTopK`, `searchTopKMulticore`, `dotProduct`, `normalizeVector(s)`, `topKFromScores`, `attachRecords`. |
@@ -79,6 +79,32 @@ VERIFIED by `scripts/test-browser-bundle.ts` (part of `make e2e`) and one run ag
 - **Format.** The entry is ESM-only and accepts `device: "wasm"` (default) or `"webgpu"`.
 
 This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.8× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. It retrieves less well than Harrier in the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish). R@3 is 83.8% against 98.9%, and R@25 is 98.9% against 100% (Node.js, bruteforce). Its weakest target languages are Portuguese and Spanish, at 76% and 74% R@3. When the top 3 must be right, use Harrier through `client.js`.
+
+### Rerank dense hits with MoEdernColBERT
+
+```ts
+import { createColbertReranker } from "defuss-vectorsearch/browser.js"; // or onnx.js in Node.js
+
+const reranker = createColbertReranker({ model: "1.5m" }); // precision defaults to "q8"
+const passages = hits.map((hit) => documents[hit.index]);
+const reranked = await reranker.rerank("A sleeping cat on a couch.", passages); // [{ index, score }], best first
+console.log(reranked.map((hit) => passages[hit.index]));
+```
+
+The reranker reorders the hits of a dense search; it does not replace it. It encodes the query and each passage into 128-dimensional token vectors and scores them with ColBERT MaxSim. Those vectors share no space with Winzling's, so you cannot put them in a TurboQuant index. The scores are not probabilities.
+
+| `model` | Hugging Face release | q8 download | Graphs |
+|---|---|---|---|
+| `"1.5m"` | [`kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX) | 3.97 MB | `fp32`, `fp16`, `q8`, `int8` |
+| `"27m"` | [`kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX) | 29.77 MB | `fp32`, `fp16`, `q8`, `int8`, `q4` |
+
+Use `q8`, the default, for both models. It stores INT8 weights and computes in FP32. Its scores match the exporter's Python ONNX Runtime within `1e-3` in native Node.js CPU, Node.js WASM and Chromium WASM. `int8` and `fp16` round differently on each runtime, and `int8` is larger than `q8`. The 1.5M release has no `q4` graph because it failed the exporter's quality gate (mean token cosine 0.954 to 0.961 against FP32, gate 0.98).
+
+VERIFIED by `src/colbert-reranker.live.test.ts`, `src/colbert-reranker.live.browser.test.ts` (`make test`), `scripts/test-browser-bundle.ts` (`make e2e`) and one run against huggingface.co:
+
+- **Reference scores.** Every 1.5M graph and the 27M `q8` graph run on 6 queries against 8 passages. `fp32` and `q8` stay within `1e-3` of the exporter's Python scores and keep its top-ranked passage. `fp16` and `int8` keep the top-ranked passage of the same runtime's `fp32` output. They also stay above their mean token cosine gate (0.999 for `fp16`, 0.98 for `int8`).
+- **Auto-download and cache.** The first call downloads 4 files and checks their SHA-256: from the pinned commit on huggingface.co (one Node.js run, both models) or from `modelBaseUrl`. A reload of the e2e page, which serves a local mirror, makes no reranker request.
+- **Bundle contents.** The Vite build of `browser.js` with the reranker still contains no Node.js, Transformers.js or `onnxruntime-node` code.
 
 ### Node.js: Winzling only
 
@@ -168,6 +194,37 @@ Methods: `load()`, `embed()`, `embedOne()`, `embedDocuments()`, `embedQuery()`, 
 
 **Cache keys:** the provider fingerprint identifies the preset. Include `maxLength`, `truncate`, and per-call normalization overrides in application embedding-cache keys.
 
+### `createColbertReranker(options)`
+
+From `browser.js` (WASM, browser cache) or `onnx.js` (adds `device: "cpu"` and `cacheDir` in Node.js).
+
+```ts
+const reranker = createColbertReranker({ model: "1.5m" });
+const ranked   = await reranker.rerank(query, passages, { topK: 5 }); // RerankedHit[]: { index, score }
+const [q]      = await reranker.encodeQueries([query]);              // TokenMatrix
+const docs     = await reranker.encodeDocuments(passages);           // TokenMatrix[], cache these per passage
+const same     = rankEncoded(q, docs);                                // what rerank() returns
+await reranker.dispose();
+```
+
+Methods: `load()`, `fingerprint()`, `encodeQueries()`, `encodeDocuments()`, `rerank()`, `dispose()`. The pure functions `maxSim(query, document)` and `rankEncoded(query, documents)` score `TokenMatrix` values. A query always takes 32 positions, its padding filled by `[MASK]` expansion; a passage takes up to 512. Punctuation is excluded from passage scoring.
+
+| Option | Default / behavior |
+|---|---|
+| `model` | Required: `"1.5m"` or `"27m"` |
+| `precision` | `"q8"`; a graph the release does not ship throws |
+| `device` | `"wasm"`; `"cpu"` is Node-only and needs `onnxruntime-node` |
+| `batchSize` | 4 |
+| `truncate` | `false`; excess length throws. `true` keeps the final `[SEP]` and sets `matrix.truncated` |
+| `modelBaseUrl`, `loadFile`, `cache`, `cacheDir`, `allowRemoteModels` | As for `createWinzlingEmbedder` |
+| `wasmPaths`, `numThreads` | As for `createWinzlingEmbedder`; ORT Web holds them globally, so a second, different setting throws |
+
+Per call, `encodeDocuments` and `rerank` accept `documentLength` (3 to 512) and `truncate`; `rerank` also accepts `topK`.
+
+**Cache keys:** each `TokenMatrix` carries `fingerprint`: model, commit and graph hash, plus the runtime for `fp16` and `int8`. `maxSim` refuses to compare matrices with different fingerprints. Key cached passage vectors by fingerprint, passage text and `documentLength`.
+
+**Concurrency and lifecycle:** as for `createWinzlingEmbedder`. Each `rerank()` call runs as one queued operation, so `dispose()` waits for it to finish.
+
 ### TurboQuant
 
 ```ts
@@ -178,7 +235,7 @@ const hits  = searchTurboQuantIndex(index, query, 10);      // SearchHit[]: { in
 const { rerankedTopK } = searchTurboQuantIndexRerank(index, vectors, query, 100, 10);
 ```
 
-- `buildTurboQuantIndex(vectors, options?)` pads the dimensions to the next power of two (384 → 512, 640 → 1024) and packs two 4-bit codes per byte. All vectors must share one dimensionality.
+- `buildTurboQuantIndex(vectors, options?)` pads the dimensions to the next power of two (from 384 to 512, from 640 to 1024) and packs two 4-bit codes per byte. All vectors must share one dimensionality.
 - `searchTurboQuantIndex(index, query, k)` scores every code against the query without reconstructing dense vectors, then returns the top `k`.
 - `searchTurboQuantIndexRerank(index, vectors, query, approximateK, rerankK)` re-scores the approximate top `approximateK` with exact dot products against the float32 `vectors` and keeps `rerankK`. It needs those vectors in memory.
 
@@ -217,6 +274,7 @@ Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know th
 | `kyr0/Winzling-Embed-a8m-64k` | Direct ONNX + `@huggingface/tokenizers` | Masked mean; unchanged, unprefixed input |
 | `tss-deposium/harrier-oss-v1-270m-onnx-int8` | Existing Transformers.js pipeline | Existing last-token pooling and instruction formatting |
 | `onnx-community/harrier-oss-v1-270m-ONNX` | Existing Transformers.js pipeline, `dtype: "q4"` | Existing Harrier behavior |
+| `kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`, `kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX` | Direct ONNX + `@huggingface/tokenizers`, through `createColbertReranker` only | Reranker: `[Q] ` and `[D] ` prefixes, MaxSim over token vectors |
 
 The no-argument client/server factory defaults to Harrier. Explicit OpenAI-compatible endpoints and the vector-search exports are retained. See [the preserved upstream README](docs/UPSTREAM_README.md) for those APIs and historical benchmarks; those benchmark results were not reproduced for this release.
 
@@ -330,12 +388,12 @@ Node.js vs Chromium vectors for the same passages: Winzling min cosine 1 over 40
 
 ### Index Size
 
-VERIFIED: TurboQuant stores 5 to 6 times less than bruteforce. Bruteforce keeps a float32 vector per passage. TurboQuant keeps 4-bit codes over the dimensions padded to a power of two (384 → 512, 640 → 1024). The index grows with the corpus while the model stays fixed, so the gap matters most in browsers. It decides the IndexedDB footprint, what must be downloaded or synced, and what stays resident.
+VERIFIED: TurboQuant stores 5 to 6 times less than bruteforce. Bruteforce keeps a float32 vector per passage. TurboQuant keeps 4-bit codes over the dimensions padded to a power of two (from 384 to 512, from 640 to 1024). The index grows with the corpus while the model stays fixed, so the gap matters most in browsers. It decides the IndexedDB footprint, what must be downloaded or synced, and what stays resident.
 
-| Model | Bruteforce per vector | TurboQuant per vector | 2,000 passages (measured) | 100,000 passages (projected) |
-|---|---:|---:|---:|---:|
-| Winzling (384 dims) | 1,536 B | 256 B | 2.93 → 0.49 MiB | 146.5 → 24.4 MiB |
-| Harrier (640 dims) | 2,560 B | 512 B | 4.88 → 0.98 MiB | 244.1 → 48.8 MiB |
+| Model | Per vector, bruteforce | Per vector, TurboQuant | 2,000 passages, bruteforce (measured) | 2,000 passages, TurboQuant (measured) | 100,000 passages, bruteforce (projected) | 100,000 passages, TurboQuant (projected) |
+|---|---:|---:|---:|---:|---:|---:|
+| Winzling (384 dims) | 1,536 B | 256 B | 2.93 MiB | 0.49 MiB | 146.5 MiB | 24.4 MiB |
+| Harrier (640 dims) | 2,560 B | 512 B | 4.88 MiB | 0.98 MiB | 244.1 MiB | 48.8 MiB |
 
 At 2,000 passages the model's 200 to 500 MiB runtime still dwarfs either index.
 

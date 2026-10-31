@@ -1,4 +1,4 @@
 import { defineConfig } from "vitest/config";
 export default defineConfig({
-  test: { environment: "node", include: ["src/winzling.live.test.ts"], testTimeout: 120_000, hookTimeout: 120_000, fileParallelism: false },
+  test: { environment: "node", include: ["src/winzling.live.test.ts", "src/colbert-reranker.live.test.ts"], testTimeout: 120_000, hookTimeout: 120_000, fileParallelism: false },
 });
