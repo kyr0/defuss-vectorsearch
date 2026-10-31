@@ -22,6 +22,7 @@ export {
   type ColbertPrecision,
   type ColbertRerankerOptions,
   type FuseOptions,
+  type FuseRanksOptions,
   type FusedHit,
   type RerankedHit,
   type TokenMatrix,

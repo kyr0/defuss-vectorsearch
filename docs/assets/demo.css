@@ -63,7 +63,9 @@
   .vs-hit .card { height: 100%; transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease, opacity .25s ease; }
   .vs-hit .card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
   .vs-hit > .aura { height: 100%; }
-  .vs-hit .card-header .vs-gold { margin-inline-start: auto; }
+  .vs-hit .card-header .vs-gold, .vs-hit .card-header .vs-moved { margin-inline-start: auto; }
+  .vs-hit .card-header .vs-moved + .vs-gold { margin-inline-start: 0; }
+  .vs-moved { font-variant-numeric: tabular-nums; }
   .vs-gold.aura { display: inline-grid; }
   .vs-hit .card-header { flex-direction: row; align-items: center; gap: .625rem; flex-wrap: wrap; }
   .vs-rank { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 700; line-height: 1; color: var(--muted-foreground); font-variant-numeric: tabular-nums; }
@@ -100,6 +102,8 @@
 
   .vs-recall { margin: 0; align-self: start; aspect-ratio: auto; overflow: visible; background: var(--card); }
   .vs-recall-list { display: grid; gap: .5rem 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
+  .vs-recall-list[hidden] { display: none; }
+  .vs-recall-tabs .tab-list { margin-block-end: .75rem; }
   .vs-recall-list .progress-label { display: inline-flex; align-items: center; gap: .375rem; }
   /* two ways in: side by side with a vertical separator, stacked with a horizontal one */
   .vs-ways { display: flex; gap: 2.5rem; margin-block-start: 2.5rem; }

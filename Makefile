@@ -44,6 +44,7 @@ bench/dataset.json:
 bench: bench/dataset.json
 	bun run build
 	node scripts/bench/run.ts
+	node scripts/docs/write-bench.ts
 # The static demo in docs/ (GitHub Pages): embeds the 2,000 bench passages in Node (~9 min on an Apple M4) into
 # docs/data/, then bundles the search worker into docs/assets/. Both outputs are committed.
 docs: bench/dataset.json

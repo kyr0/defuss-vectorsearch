@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.1 (2026-10-31)
+
+### Fixed
+
+- `rerankHits` and `fuseRanks` no longer let near-equal ColBERT scores outvote a clear dense winner. When the top dense hit's score leads the second's by `denseMargin` or more (default 0.1), the dense order stands; `denseMargin: Infinity` restores 0.2.0's behavior. In the demo's notes, "Bücher" had put the library note third behind unrelated Russian notes, although Winzling scored it 0.287 against 0.101. On the bench, fusion had never lifted a gold passage to rank 1 among the 87 queries above that margin, and had dropped one from rank 1. `fuseRanks` takes the dense scores as `{ denseScores }`.
+- Reranked demo results now explain their order. Cards keep Winzling's similarity, which no longer matches the order after fusion, so a badge with an arrow and a count shows how many places the reranker moved a card up or down, and the summary says "reranked order, Winzling scores".
+
+### Added
+
+- `make bench` reports R@10, and writes the website's recall card from `bench.json`: per-language R@1, R@5, R@10 and R@25 for the demo's default pipeline (Chromium, TurboQuant + MoEdernColBERT) in tabs.
+
 ## 0.2.0 (2026-10-31)
 
 ### Added

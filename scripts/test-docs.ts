@@ -83,6 +83,24 @@ const hits = (page: Page) => page.$$eval("#results .vs-hit", (items) => items.ma
   id: item.id, gold: item.getAttribute("data-gold"), score: Number(item.querySelector(".vs-score")?.textContent),
   group: Number(/passage (\d+)/.exec(item.querySelector(".card-description")?.textContent ?? "")?.[1]),
 })));
+/**
+ * Fused cards keep their dense score and carry a move badge when fusion moved them: "↑2" on card 1 means TurboQuant had
+ * it at #3. VERIFIED: reading the dense position back from every card shows the badges describe distinct dense positions.
+ */
+const assertMoves = async (page: Page, list: string) => {
+  const cards = await page.$$eval(`${list} .vs-hit`, (items) => items.map((item) => ({
+    badge: item.querySelector(".vs-moved [aria-hidden]")?.textContent ?? "", title: item.querySelector(".vs-moved")?.getAttribute("title") ?? "",
+  })));
+  const denseRanks = cards.map(({ badge, title }, i) => {
+    if (!badge) { assert.equal(title, ""); return i + 1; }
+    const match = /^([↑↓])(\d+)$/.exec(badge);
+    assert.ok(match, `badge ${badge}`);
+    const dense = i + 1 + (match[1] === "↑" ? 1 : -1) * Number(match[2]);
+    assert.equal(title, `Reranked from #${dense}`);
+    return dense;
+  });
+  assert.equal(new Set(denseRanks).size, denseRanks.length, `dense positions ${denseRanks}`);
+};
 /** VERIFIED: ⌘K opens the palette natively but its State API keeps reporting "default" (defuss-shadcn 0.9.7), so read `open`. */
 const paletteOpen = (page: Page) => page.$eval("#cmd", (dialog) => (dialog as HTMLDialogElement).open);
 const stateOf = (page: Page, selector: string) => page.$eval(selector, (node) => (node as HTMLElement & { api: { getState(): { name: string } } }).api.getState().name);
@@ -115,7 +133,8 @@ try {
   assert.equal(await page.textContent("#p-index-hint"),
     `vector index ${mb(manifest.vectors.rawBytes)} → ${kb(manifest.vectors.bytes)} gzip · passage text ${mb(manifest.documents.rawBytes)} → ${kb(manifest.documents.bytes)} gzip`);
   assert.equal(await page.textContent('output[for="p-index"]'), `100% of ${kb(manifest.vectors.bytes + manifest.documents.bytes)} (gzip)`);
-  const chromiumMiB = JSON.parse(await readFile("bench.json", "utf8")).environments.chromium.models.winzling.strategies.turboquant.runtimeMiB;
+  // VERIFIED: the demo loads both models, so its figure is the fused strategy's: Winzling, index and the reranker's growth.
+  const chromiumMiB = JSON.parse(await readFile("bench.json", "utf8")).environments.chromium.models.winzling.strategies.fused.runtimeMiB;
   const ramMb = Math.round(chromiumMiB * 1.048576); // MiB → MB: the page uses decimal units only
   assert.match(await page.textContent("#p-runtime-hint") ?? "", new RegExp(`~${ramMb} MB RAM reserved`));
   // No stray figure: every model size reads 39.8 MB, no MiB anywhere visible.
@@ -180,7 +199,9 @@ try {
   assert.ok(intro.includes(`top 5 for ~${Math.round(top3.reduce((a, b) => a + b) / 3)}% of German, English and Russian queries`), "R@5, three languages");
   assert.ok(intro.includes(`(${r5nine.toFixed(1)}% across all nine target languages)`), `R@5 nine languages ${r5nine}`);
   assert.ok(intro.includes(`top 25 for ${r25.toFixed(1)}%`), `R@25 ${r25}`);
-  assert.ok(intro.includes(`< ${100} ms`) && bench.strategies.turboquant.queryMs.p95 < 100, "end-to-end p95 under 100 ms");
+  assert.ok(intro.includes(`< ${100} ms to the first results`) && bench.strategies.turboquant.queryMs.p95 < 100, "first results: p95 under 100 ms");
+  assert.ok(intro.includes(`about ${Math.round(node.turboquant.runtimeMiB * 1.048576)} MB RAM in Node.js`), `Node.js RAM ${node.turboquant.runtimeMiB} MiB`);
+  assert.ok(intro.includes(`adds ~${Math.round(bench.strategies.fused.searchMs.p50)} ms in the browser`), `rerank p50 ${bench.strategies.fused.searchMs.p50}`);
   assert.equal(await page.locator('#intro a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   // The flip line's figures come from the data: model files (manifest), index bytes, bench R@5 and p95 latency.
   const flips = (await page.$$eval(".vs-flip .text-rotate > span > span", (nodes) => nodes.map((node) => node.textContent))).map((text) => text?.replace(/\u00a0/g, " "));
@@ -216,20 +237,34 @@ try {
   // Benchmark figures on the page are the ones in bench.json.
   const figures = await page.$$eval("[data-bench] .mk-stat-value", (nodes) => nodes.map((node) => node.textContent));
   // The index figure is the gzipped vector file the page itself downloads (docs/data/manifest.json).
-  assert.deepEqual(figures, [`${bench.embedMs.query.p50} ms`, `${bench.strategies.turboquant.searchMs.p50} ms`,
-    `${Math.round(manifest.vectors.bytes / 1000)} kB gzip`, `${bench.strategies.turboquant.recall.byLanguage.eng_Latn["@5"]}%`]);
+  // VERIFIED: R@1 over the nine target languages, with and without reranking, is the default pipeline's main gain.
+  const nineR1 = (strategy: string) => (TARGET_LANGUAGES.reduce((sum, code) => sum + bench.strategies[strategy].recall.byLanguage[code]["@1"], 0) / TARGET_LANGUAGES.length).toFixed(1);
+  assert.deepEqual(figures, [`${bench.embedMs.query.p50} ms`, `${bench.strategies.turboquant.searchMs.p50} ms`, `${bench.strategies.fused.searchMs.p50} ms`,
+    `${Math.round(manifest.vectors.bytes / 1000)} kB gzip`, `${nineR1("fused")}%`, `${bench.strategies.fused.recall.byLanguage.eng_Latn["@5"]}%`]);
+  assert.match(await page.textContent('[data-bench="recall-r1"] .mk-stat-label') ?? "", new RegExp(`${nineR1("turboquant").replace(".", "\\.")}% without`));
   assert.match(await page.textContent('[data-bench="index-gzip"] .mk-stat-label') ?? "", new RegExp(`${(manifest.vectors.rawBytes / 1e6).toFixed(2)} MB raw`));
   assert.equal(await page.textContent("#bench .vs-footnote"), "* measured on an Apple MacBook Air M4 in a Chromium-based browser.");
   // Low recall outside the target languages is framed as the design it is, with the model page linked.
   assert.match(await visibleText(page, "#bench .mk-stats-desc"), /Winzling-Embed-a8m-64k is a pruned model .* low performance in non-target languages is by design\./);
   assert.equal(await page.locator('#bench .mk-stats-desc a[href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k"]').count(), 1);
-  const recall = await page.$$eval("[data-recall] progress", (bars) => bars.map((bar) => [bar.id.replace("r5-bar-", ""), Number(bar.getAttribute("value"))]));
-  // "Pruned" marks exactly the languages below 70% R@5.
-  const pruned = await page.$$eval("[data-recall]", (rows) => rows.filter((row) => /Pruned/.test(row.querySelector(".progress-label")!.textContent ?? "")).map((row) => row.getAttribute("data-recall")));
-  assert.deepEqual(pruned.sort(), Object.entries(bench.strategies.turboquant.recall.byLanguage)
-    .filter(([, value]) => (value as Record<string, number>)["@5"]! < 70).map(([code]) => code).sort());
-  assert.deepEqual(Object.fromEntries(recall), Object.fromEntries(Object.entries(bench.strategies.turboquant.recall.byLanguage)
-    .map(([code, value]) => [code, (value as Record<string, number>)["@5"]])));
+  // VERIFIED: the recall card shows the demo's default pipeline (Chromium, TurboQuant + MoEdernColBERT): one tab per k,
+  // R@5 open first, every bar the figure in bench.json; switching tabs shows exactly one list.
+  const fusedRecall = bench.strategies.fused.recall.byLanguage as Record<string, Record<string, number>>;
+  assert.deepEqual(await page.$$eval("#recall-tabs [role=tab]", (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])),
+    [["R@1", "false"], ["R@5", "true"], ["R@10", "false"], ["R@25", "false"]]);
+  await page.locator("#recall-tabs").scrollIntoViewIfNeeded();
+  for (const k of [1, 5, 10, 25]) {
+    await page.click(`#recall-tab-${k}`);
+    await page.locator(`#recall-panel-${k}`).waitFor({ state: "visible" });
+    assert.equal(await page.locator("#bench .vs-recall-list:visible").count(), 1, `one visible list for R@${k}`);
+    const bars = await page.$$eval(`#recall-panel-${k} [data-recall] progress`, (nodes) => nodes.map((bar) => [bar.closest("[data-recall]")!.getAttribute("data-recall"), Number(bar.getAttribute("value"))]));
+    assert.deepEqual(Object.fromEntries(bars), Object.fromEntries(Object.entries(fusedRecall).map(([code, value]) => [code, value[`@${k}`]])), `R@${k} bars`);
+  }
+  await page.click("#recall-tab-5");
+  // "Pruned" marks exactly the non-target languages below 70% R@5.
+  const pruned = await page.$$eval("#recall-panel-5 [data-recall]", (rows) => rows.filter((row) => /Pruned/.test(row.querySelector(".progress-label")!.textContent ?? "")).map((row) => row.getAttribute("data-recall")));
+  assert.deepEqual(pruned.sort(), Object.entries(fusedRecall)
+    .filter(([code, value]) => !(TARGET_LANGUAGES as readonly string[]).includes(code) && value["@5"]! < 70).map(([code]) => code).sort());
 
   // Typing alone never starts the 39.8 MB download; the Search button does, and the query waits for the model.
   const giza = "How tall are the pyramids of Giza?";
@@ -255,7 +290,8 @@ try {
   assert.equal(top.length, 12);
   assert.equal(new Set(top.map((hit) => hit.id)).size, 12, "twelve different passages");
   // Busy ends with the fused order, which replaces the TurboQuant hits; cards keep their dense similarity.
-  assert.match(await page.textContent("#summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT$/);
+  assert.match(await page.textContent("#summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
+  await assertMoves(page, "#results");
   assert.ok(top.slice(0, 3).some((hit) => hit.group === 1), `the Giza passage (1) in the top 3: ${JSON.stringify(top.slice(0, 3))}`);
 
   // Palette picks keep the scroll position, so the re-ranked results stay in sight. Enter runs the highlighted query.
@@ -282,7 +318,7 @@ try {
   const exact = top.findIndex((hit) => hit.gold === "exact");
   assert.ok(exact >= 0 && exact < 5, `gold passage rank ${exact + 1}`);
   assert.match(await page.textContent("#summary-gold") ?? "", /Gold answer at #\d/);
-  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms · scan [\d.]+ ms · rerank [\d.]+ ms \| strategy: TurboQuant \+ MoEdernColBERT$/);
+  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms · scan [\d.]+ ms · rerank [\d.]+ ms \| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
   assert.match(await page.textContent('[data-stat="scan"]') ?? "", /^embed [\d.]+ ms \+ scan [\d.]+ ms \+ rerank [\d.]+ ms$/);
   // The gold badge sits in a gold aura at the end of its card header; the first card alone wears an aura frame.
   const gold = await page.$eval('#results .vs-hit[data-gold="exact"]', (hit) => {
@@ -342,7 +378,8 @@ try {
   const noteTitles = () => page.$$eval("#notes-results .card-title", (nodes) => nodes.map((node) => node.textContent));
   assert.deepEqual((await noteTitles()).slice(0, 2).sort(), ["Note 1", "Note 3"], "both cat notes, across languages, rank first");
   assert.equal(await page.locator("#notes-results .vs-hit:first-child > .aura").count(), 1);
-  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT$/);
+  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
+  await assertMoves(page, "#notes-results");
   // Emptying a note takes it out of the index; the open search refreshes by itself.
   await page.fill("#note-2-text", "");
   await page.locator("#note-2-text").blur();

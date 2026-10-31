@@ -62,7 +62,7 @@ export const targetRecall = (recall: RecallMatrix, targets: readonly string[]): 
 export const targetReproduction = (reproduction: Reproduction, targets: readonly string[]): number =>
   round(targets.reduce((sum, language) => sum + at(reproduction.byLanguage, language), 0) / targets.length, 1);
 
-/** Best first: compares R@1, then R@3, R@5, R@25 and R@100; ties keep the target list's order. */
+/** Best first: compares R@1, then R@3, R@5, R@10, R@25 and R@100; ties keep the target list's order. */
 export const byRecallDescending = (recall: RecallMatrix) => (a: string, b: string): number => {
   for (const k of KS) {
     const delta = at(recall.byLanguage, b)[`@${k}`] - at(recall.byLanguage, a)[`@${k}`];
@@ -145,10 +145,13 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
   return lines.join("\n");
 };
 
-/** Replaces the text between the bench markers; fails instead of appending when they are missing. */
-export const replaceReadmeSection = (readme: string, section: string): string => {
-  const start = readme.indexOf(README_START);
-  const end = readme.indexOf(README_END);
-  if (start < 0 || end < start) throw new Error(`README.md needs ${README_START} … ${README_END} markers`);
-  return `${readme.slice(0, start + README_START.length)}\n${section}\n${readme.slice(end)}`;
+/** Replaces the text between two markers; fails instead of appending when they are missing. VERIFIED: README.md and docs/index.html both use it. */
+export const replaceMarkedSection = (text: string, section: string, startMarker: string, endMarker: string, file: string): string => {
+  const start = text.indexOf(startMarker);
+  const end = text.indexOf(endMarker);
+  if (start < 0 || end < start) throw new Error(`${file} needs ${startMarker} … ${endMarker} markers`);
+  return `${text.slice(0, start + startMarker.length)}\n${section}\n${text.slice(end)}`;
 };
+
+export const replaceReadmeSection = (readme: string, section: string): string =>
+  replaceMarkedSection(readme, section, README_START, README_END, "README.md");

@@ -120,7 +120,7 @@
     <div class="parallax-content">
       <section class="mk-hero" style="width:100%">
         <div class="mk-hero-copy">
-          <a class="mk-hero-pill" href="#bench"><span class="badge" data-variant="default" data-size="sm">v0.2.0</span>No server, no API key, nothing leaves your browser <svg class="vs-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
+          <a class="mk-hero-pill" href="#bench"><span class="badge" data-variant="default" data-size="sm">v0.2.1</span>No server, no API key, nothing leaves your browser <svg class="vs-icon" aria-hidden="true"><use href="#i-arrow"/></svg></a>
           <h1 class="mk-hero-title"><strong>Semantic</strong> search is <i>now</i> open, fast, free and available for everyone</h1>
           <p class="vs-flip"><span class="text-rotate"><span>
               <span class="vs-accent">in your browser &amp; Node.js</span>
@@ -147,7 +147,7 @@
         <section class="vs-intro-item" aria-labelledby="intro-2">
           <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-cpu"/></svg></span>
           <h3 id="intro-2">Runs on modest hardware</h3>
-          <p>One codebase for Node.js and the browser, on CPU/WASM with <strong>no GPU</strong>: <strong>&lt;&nbsp;100&nbsp;ms</strong> end to end and about <strong>216&nbsp;MB</strong> RAM. Made for old phones, weak business laptops and embedded boards.</p>
+          <p>One codebase for Node.js and the browser, on CPU/WASM with <strong>no GPU</strong>: <strong>&lt;&nbsp;100&nbsp;ms</strong> to the first results and about <strong>251&nbsp;MB</strong> RAM in Node.js; reranking the top 25 adds ~157&nbsp;ms in the browser. Made for old phones, weak business laptops and embedded boards.</p>
         </section>
         <section class="vs-intro-item" aria-labelledby="intro-3">
           <span class="vs-intro-icon" aria-hidden="true"><svg class="vs-icon"><use href="#i-sparkles"/></svg></span>
@@ -227,7 +227,7 @@
                 <output class="progress-value" for="p-runtime" data-template="{percent}" data-indeterminate="compiling…"></output>
               </div>
               <progress class="progress" id="p-runtime" value="0" max="100" aria-labelledby="p-runtime-label"></progress>
-              <span class="progress-hint" id="p-runtime-hint">~627 MB RAM reserved for model, runtime and index (measured in Chromium)</span>
+              <span class="progress-hint" id="p-runtime-hint">~506 MB RAM reserved for models, runtime and index (measured in Chromium)</span>
             </div>
             <div class="vs-boot-actions">
               <label class="sr-only" for="backend">Backend</label>
@@ -448,101 +448,359 @@
         <div class="mk-stats-copy">
           <div class="mk-stats-head">
             <h2 class="mk-stats-title" id="bench-title">Measured, not promised<sup class="vs-footnote-mark">*</sup></h2>
-            <p class="mk-stats-desc">Winzling in headless Chromium (WASM, 1 thread) on the same 2,000-passage haystack, from <code>make bench</code>. <a href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener">Winzling-Embed-a8m-64k<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> is a pruned model that is further pruned for a few select languages, and then custom quantized to extremely shrink it in size. Therefore, low performance in non-target languages is by design.</p>
+            <p class="mk-stats-desc">Winzling with the MoEdernColBERT 1.5M reranker, the demo's default, in headless Chromium (WASM, 1 thread) on the same 2,000-passage haystack, from <code>make bench</code>. <a href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k" target="_blank" rel="noopener">Winzling-Embed-a8m-64k<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a> is a pruned model that is further pruned for a few select languages, and then custom quantized to extremely shrink it in size. Therefore, low performance in non-target languages is by design.</p>
           </div>
           <div class="mk-stats-grid">
-            <div class="mk-stat" data-bench="query-p50"><span class="mk-stat-value">21.2 ms</span><span class="mk-stat-label">to embed a query (p50)</span></div>
-            <div class="mk-stat" data-bench="scan-p50"><span class="mk-stat-value">0.4 ms</span><span class="mk-stat-label">to scan the TurboQuant index (p50)</span></div>
+            <div class="mk-stat" data-bench="query-p50"><span class="mk-stat-value">20.6 ms</span><span class="mk-stat-label">to embed a query (p50)</span></div>
+            <div class="mk-stat" data-bench="scan-p50"><span class="mk-stat-value">0.3 ms</span><span class="mk-stat-label">to scan the TurboQuant index (p50)</span></div>
+            <div class="mk-stat" data-bench="rerank-p50"><span class="mk-stat-value">156.8 ms</span><span class="mk-stat-label">to scan and rerank the top 25 with MoEdernColBERT 1.5M (p50)</span></div>
             <div class="mk-stat" data-bench="index-gzip"><span class="mk-stat-value">431 kB <span class="badge" data-variant="secondary" data-size="sm">gzip</span></span><span class="mk-stat-label">TurboQuant index for 2,000 passages; 0.51 MB raw, 6× smaller than float32</span></div>
+            <div class="mk-stat" data-bench="recall-r1"><span class="mk-stat-value">77.8%</span><span class="mk-stat-label">R@1 over the nine target languages, reranked; 65.8% without</span></div>
             <div class="mk-stat" data-bench="recall-eng"><span class="mk-stat-value">100%</span><span class="mk-stat-label">R@5 for English queries</span><a href="https://github.com/kyr0/defuss-vectorsearch#benchmark" class="btn mk-stat-link" data-variant="link" data-size="default" target="_blank" rel="noopener">All languages<svg class="vs-icon vs-ext" aria-hidden="true"><use href="#i-external"/></svg><span class="sr-only"> (opens in a new tab)</span></a></div>
           </div>
           <p class="vs-footnote">* measured on an Apple MacBook Air M4 in a Chromium-based browser.</p>
         </div>
+<!-- bench-card:start -->
         <figure class="mk-stats-media card vs-recall">
-          <figcaption class="card-header"><h3 class="card-title">R@5 by query language</h3><p class="card-description">Share of a language's 50 questions whose gold passage ranks in the top 5 of 2,000. Chromium, TurboQuant. Target: the nine languages Winzling is built for. Pruned: below 70% R@5.</p></figcaption>
-          <div class="card-content vs-recall-list">
-            <div class="progress-field" data-recall="eng_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-eng_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-eng_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r5-eng_Latn"></progress>
+          <figcaption class="card-header"><h3 class="card-title">Recall by query language</h3><p class="card-description">R@k: share of a language's 50 questions whose gold passage ranks in the top k of 2,000. Chromium, TurboQuant + MoEdernColBERT, the demo's default; reranking reorders the top 25, so R@25 is TurboQuant's own. Target: the nine languages Winzling is built for. Pruned: below 70% R@5.</p></figcaption>
+          <div class="card-content tabs vs-recall-tabs">
+            <div class="tab-list" role="tablist" aria-label="Recall at k" id="recall-tabs">
+            <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="recall-panel-1" id="recall-tab-1" tabindex="-1">R@1</button>
+            <button class="tab-trigger" role="tab" aria-selected="true" aria-controls="recall-panel-5" id="recall-tab-5">R@5</button>
+            <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="recall-panel-10" id="recall-tab-10" tabindex="-1">R@10</button>
+            <button class="tab-trigger" role="tab" aria-selected="false" aria-controls="recall-panel-25" id="recall-tab-25" tabindex="-1">R@25</button>
             </div>
-            <div class="progress-field" data-recall="deu_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-deu_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-deu_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-deu_Latn"></progress>
+            <div class="tab-content vs-recall-list" role="tabpanel" id="recall-panel-1" aria-labelledby="recall-tab-1" tabindex="0" hidden>
+              <div class="progress-field" data-recall="eng_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-eng_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-eng_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r1-eng_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="rus_Cyrl">
+                <div class="progress-header"><span class="progress-label" id="r1-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-rus_Cyrl" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r1-rus_Cyrl"></progress>
+              </div>
+              <div class="progress-field" data-recall="por_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-por_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-por_Latn" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r1-por_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="deu_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-deu_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-deu_Latn" data-size="xs" data-tone="auto" value="80" max="100" aria-labelledby="r1-deu_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="fra_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-fra_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-fra_Latn" data-size="xs" data-tone="auto" value="82" max="100" aria-labelledby="r1-fra_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="nld_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-nld_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-nld_Latn" data-size="xs" data-tone="auto" value="80" max="100" aria-labelledby="r1-nld_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ind_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-ind_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-ind_Latn" data-size="xs" data-tone="auto" value="76" max="100" aria-labelledby="r1-ind_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="spa_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-spa_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-spa_Latn" data-size="xs" data-tone="auto" value="62" max="100" aria-labelledby="r1-spa_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ita_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r1-bar-ita_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-ita_Latn" data-size="xs" data-tone="auto" value="66" max="100" aria-labelledby="r1-ita_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="pol_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-pol_Latn">Polish</span><output class="progress-value" for="r1-bar-pol_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-pol_Latn" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r1-pol_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="tur_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-tur_Latn">Turkish</span><output class="progress-value" for="r1-bar-tur_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-tur_Latn" data-size="xs" data-tone="auto" value="66" max="100" aria-labelledby="r1-tur_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="vie_Latn">
+                <div class="progress-header"><span class="progress-label" id="r1-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-vie_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-vie_Latn" data-size="xs" data-tone="auto" value="50" max="100" aria-labelledby="r1-vie_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="kor_Hang">
+                <div class="progress-header"><span class="progress-label" id="r1-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-kor_Hang" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-kor_Hang" data-size="xs" data-tone="auto" value="26" max="100" aria-labelledby="r1-kor_Hang"></progress>
+              </div>
+              <div class="progress-field" data-recall="jpn_Jpan">
+                <div class="progress-header"><span class="progress-label" id="r1-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-jpn_Jpan" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="24" max="100" aria-labelledby="r1-jpn_Jpan"></progress>
+              </div>
+              <div class="progress-field" data-recall="zho_Hans">
+                <div class="progress-header"><span class="progress-label" id="r1-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-zho_Hans" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-zho_Hans" data-size="xs" data-tone="auto" value="10" max="100" aria-labelledby="r1-zho_Hans"></progress>
+              </div>
+              <div class="progress-field" data-recall="tha_Thai">
+                <div class="progress-header"><span class="progress-label" id="r1-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-tha_Thai" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-tha_Thai" data-size="xs" data-tone="auto" value="8" max="100" aria-labelledby="r1-tha_Thai"></progress>
+              </div>
+              <div class="progress-field" data-recall="hin_Deva">
+                <div class="progress-header"><span class="progress-label" id="r1-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-hin_Deva" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-hin_Deva" data-size="xs" data-tone="auto" value="8" max="100" aria-labelledby="r1-hin_Deva"></progress>
+              </div>
+              <div class="progress-field" data-recall="urd_Arab">
+                <div class="progress-header"><span class="progress-label" id="r1-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-urd_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-urd_Arab" data-size="xs" data-tone="auto" value="12" max="100" aria-labelledby="r1-urd_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="arb_Arab">
+                <div class="progress-header"><span class="progress-label" id="r1-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-arb_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-arb_Arab" data-size="xs" data-tone="auto" value="2" max="100" aria-labelledby="r1-arb_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="ben_Beng">
+                <div class="progress-header"><span class="progress-label" id="r1-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r1-bar-ben_Beng" data-template="{value}%"></output></div>
+                <progress class="progress" id="r1-bar-ben_Beng" data-size="xs" data-tone="auto" value="4" max="100" aria-labelledby="r1-ben_Beng"></progress>
+              </div>
             </div>
-            <div class="progress-field" data-recall="rus_Cyrl">
-              <div class="progress-header"><span class="progress-label" id="r5-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-rus_Cyrl" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-rus_Cyrl"></progress>
+            <div class="tab-content vs-recall-list" role="tabpanel" id="recall-panel-5" aria-labelledby="recall-tab-5" tabindex="0">
+              <div class="progress-field" data-recall="eng_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-eng_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-eng_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r5-eng_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="rus_Cyrl">
+                <div class="progress-header"><span class="progress-label" id="r5-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-rus_Cyrl" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r5-rus_Cyrl"></progress>
+              </div>
+              <div class="progress-field" data-recall="por_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-por_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-por_Latn" data-size="xs" data-tone="auto" value="96" max="100" aria-labelledby="r5-por_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="deu_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-deu_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-deu_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-deu_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="fra_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-fra_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-fra_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-fra_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="nld_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-nld_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-nld_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-nld_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ind_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ind_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-ind_Latn" data-size="xs" data-tone="auto" value="94" max="100" aria-labelledby="r5-ind_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="spa_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-spa_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-spa_Latn" data-size="xs" data-tone="auto" value="90" max="100" aria-labelledby="r5-spa_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ita_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ita_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-ita_Latn" data-size="xs" data-tone="auto" value="90" max="100" aria-labelledby="r5-ita_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="pol_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-pol_Latn">Polish</span><output class="progress-value" for="r5-bar-pol_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-pol_Latn" data-size="xs" data-tone="auto" value="82" max="100" aria-labelledby="r5-pol_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="tur_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-tur_Latn">Turkish</span><output class="progress-value" for="r5-bar-tur_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-tur_Latn" data-size="xs" data-tone="auto" value="82" max="100" aria-labelledby="r5-tur_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="vie_Latn">
+                <div class="progress-header"><span class="progress-label" id="r5-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-vie_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-vie_Latn" data-size="xs" data-tone="auto" value="66" max="100" aria-labelledby="r5-vie_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="kor_Hang">
+                <div class="progress-header"><span class="progress-label" id="r5-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-kor_Hang" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-kor_Hang" data-size="xs" data-tone="auto" value="48" max="100" aria-labelledby="r5-kor_Hang"></progress>
+              </div>
+              <div class="progress-field" data-recall="jpn_Jpan">
+                <div class="progress-header"><span class="progress-label" id="r5-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-jpn_Jpan" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="30" max="100" aria-labelledby="r5-jpn_Jpan"></progress>
+              </div>
+              <div class="progress-field" data-recall="zho_Hans">
+                <div class="progress-header"><span class="progress-label" id="r5-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-zho_Hans" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-zho_Hans" data-size="xs" data-tone="auto" value="26" max="100" aria-labelledby="r5-zho_Hans"></progress>
+              </div>
+              <div class="progress-field" data-recall="tha_Thai">
+                <div class="progress-header"><span class="progress-label" id="r5-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-tha_Thai" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-tha_Thai" data-size="xs" data-tone="auto" value="16" max="100" aria-labelledby="r5-tha_Thai"></progress>
+              </div>
+              <div class="progress-field" data-recall="hin_Deva">
+                <div class="progress-header"><span class="progress-label" id="r5-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-hin_Deva" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-hin_Deva" data-size="xs" data-tone="auto" value="14" max="100" aria-labelledby="r5-hin_Deva"></progress>
+              </div>
+              <div class="progress-field" data-recall="urd_Arab">
+                <div class="progress-header"><span class="progress-label" id="r5-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-urd_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-urd_Arab" data-size="xs" data-tone="auto" value="14" max="100" aria-labelledby="r5-urd_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="arb_Arab">
+                <div class="progress-header"><span class="progress-label" id="r5-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-arb_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-arb_Arab" data-size="xs" data-tone="auto" value="12" max="100" aria-labelledby="r5-arb_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="ben_Beng">
+                <div class="progress-header"><span class="progress-label" id="r5-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-ben_Beng" data-template="{value}%"></output></div>
+                <progress class="progress" id="r5-bar-ben_Beng" data-size="xs" data-tone="auto" value="10" max="100" aria-labelledby="r5-ben_Beng"></progress>
+              </div>
             </div>
-            <div class="progress-field" data-recall="fra_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-fra_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-fra_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-fra_Latn"></progress>
+            <div class="tab-content vs-recall-list" role="tabpanel" id="recall-panel-10" aria-labelledby="recall-tab-10" tabindex="0" hidden>
+              <div class="progress-field" data-recall="eng_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-eng_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-eng_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r10-eng_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="rus_Cyrl">
+                <div class="progress-header"><span class="progress-label" id="r10-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-rus_Cyrl" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r10-rus_Cyrl"></progress>
+              </div>
+              <div class="progress-field" data-recall="por_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-por_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-por_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r10-por_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="deu_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-deu_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-deu_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r10-deu_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="fra_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-fra_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-fra_Latn" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r10-fra_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="nld_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-nld_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-nld_Latn" data-size="xs" data-tone="auto" value="96" max="100" aria-labelledby="r10-nld_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ind_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-ind_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-ind_Latn" data-size="xs" data-tone="auto" value="96" max="100" aria-labelledby="r10-ind_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="spa_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-spa_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-spa_Latn" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r10-spa_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ita_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r10-bar-ita_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-ita_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r10-ita_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="pol_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-pol_Latn">Polish</span><output class="progress-value" for="r10-bar-pol_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-pol_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r10-pol_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="tur_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-tur_Latn">Turkish</span><output class="progress-value" for="r10-bar-tur_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-tur_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r10-tur_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="vie_Latn">
+                <div class="progress-header"><span class="progress-label" id="r10-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-vie_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-vie_Latn" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r10-vie_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="kor_Hang">
+                <div class="progress-header"><span class="progress-label" id="r10-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-kor_Hang" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-kor_Hang" data-size="xs" data-tone="auto" value="60" max="100" aria-labelledby="r10-kor_Hang"></progress>
+              </div>
+              <div class="progress-field" data-recall="jpn_Jpan">
+                <div class="progress-header"><span class="progress-label" id="r10-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-jpn_Jpan" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="46" max="100" aria-labelledby="r10-jpn_Jpan"></progress>
+              </div>
+              <div class="progress-field" data-recall="zho_Hans">
+                <div class="progress-header"><span class="progress-label" id="r10-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-zho_Hans" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-zho_Hans" data-size="xs" data-tone="auto" value="38" max="100" aria-labelledby="r10-zho_Hans"></progress>
+              </div>
+              <div class="progress-field" data-recall="tha_Thai">
+                <div class="progress-header"><span class="progress-label" id="r10-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-tha_Thai" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-tha_Thai" data-size="xs" data-tone="auto" value="26" max="100" aria-labelledby="r10-tha_Thai"></progress>
+              </div>
+              <div class="progress-field" data-recall="hin_Deva">
+                <div class="progress-header"><span class="progress-label" id="r10-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-hin_Deva" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-hin_Deva" data-size="xs" data-tone="auto" value="18" max="100" aria-labelledby="r10-hin_Deva"></progress>
+              </div>
+              <div class="progress-field" data-recall="urd_Arab">
+                <div class="progress-header"><span class="progress-label" id="r10-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-urd_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-urd_Arab" data-size="xs" data-tone="auto" value="22" max="100" aria-labelledby="r10-urd_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="arb_Arab">
+                <div class="progress-header"><span class="progress-label" id="r10-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-arb_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-arb_Arab" data-size="xs" data-tone="auto" value="18" max="100" aria-labelledby="r10-arb_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="ben_Beng">
+                <div class="progress-header"><span class="progress-label" id="r10-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r10-bar-ben_Beng" data-template="{value}%"></output></div>
+                <progress class="progress" id="r10-bar-ben_Beng" data-size="xs" data-tone="auto" value="18" max="100" aria-labelledby="r10-ben_Beng"></progress>
+              </div>
             </div>
-            <div class="progress-field" data-recall="ind_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ind_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-ind_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-ind_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="por_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-por_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-por_Latn" data-size="xs" data-tone="auto" value="92" max="100" aria-labelledby="r5-por_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="ita_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-ita_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-ita_Latn" data-size="xs" data-tone="auto" value="90" max="100" aria-labelledby="r5-ita_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="nld_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-nld_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-nld_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r5-nld_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="spa_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r5-bar-spa_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-spa_Latn" data-size="xs" data-tone="auto" value="82" max="100" aria-labelledby="r5-spa_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="pol_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-pol_Latn">Polish</span><output class="progress-value" for="r5-bar-pol_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-pol_Latn" data-size="xs" data-tone="auto" value="76" max="100" aria-labelledby="r5-pol_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="tur_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-tur_Latn">Turkish</span><output class="progress-value" for="r5-bar-tur_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-tur_Latn" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r5-tur_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="vie_Latn">
-              <div class="progress-header"><span class="progress-label" id="r5-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-vie_Latn" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-vie_Latn" data-size="xs" data-tone="auto" value="54" max="100" aria-labelledby="r5-vie_Latn"></progress>
-            </div>
-            <div class="progress-field" data-recall="kor_Hang">
-              <div class="progress-header"><span class="progress-label" id="r5-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-kor_Hang" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-kor_Hang" data-size="xs" data-tone="auto" value="42" max="100" aria-labelledby="r5-kor_Hang"></progress>
-            </div>
-            <div class="progress-field" data-recall="jpn_Jpan">
-              <div class="progress-header"><span class="progress-label" id="r5-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-jpn_Jpan" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="38" max="100" aria-labelledby="r5-jpn_Jpan"></progress>
-            </div>
-            <div class="progress-field" data-recall="zho_Hans">
-              <div class="progress-header"><span class="progress-label" id="r5-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-zho_Hans" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-zho_Hans" data-size="xs" data-tone="auto" value="32" max="100" aria-labelledby="r5-zho_Hans"></progress>
-            </div>
-            <div class="progress-field" data-recall="tha_Thai">
-              <div class="progress-header"><span class="progress-label" id="r5-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-tha_Thai" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-tha_Thai" data-size="xs" data-tone="auto" value="20" max="100" aria-labelledby="r5-tha_Thai"></progress>
-            </div>
-            <div class="progress-field" data-recall="urd_Arab">
-              <div class="progress-header"><span class="progress-label" id="r5-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-urd_Arab" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-urd_Arab" data-size="xs" data-tone="auto" value="18" max="100" aria-labelledby="r5-urd_Arab"></progress>
-            </div>
-            <div class="progress-field" data-recall="hin_Deva">
-              <div class="progress-header"><span class="progress-label" id="r5-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-hin_Deva" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-hin_Deva" data-size="xs" data-tone="auto" value="14" max="100" aria-labelledby="r5-hin_Deva"></progress>
-            </div>
-            <div class="progress-field" data-recall="ben_Beng">
-              <div class="progress-header"><span class="progress-label" id="r5-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-ben_Beng" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-ben_Beng" data-size="xs" data-tone="auto" value="10" max="100" aria-labelledby="r5-ben_Beng"></progress>
-            </div>
-            <div class="progress-field" data-recall="arb_Arab">
-              <div class="progress-header"><span class="progress-label" id="r5-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r5-bar-arb_Arab" data-template="{value}%"></output></div>
-              <progress class="progress" id="r5-bar-arb_Arab" data-size="xs" data-tone="auto" value="6" max="100" aria-labelledby="r5-arb_Arab"></progress>
+            <div class="tab-content vs-recall-list" role="tabpanel" id="recall-panel-25" aria-labelledby="recall-tab-25" tabindex="0" hidden>
+              <div class="progress-field" data-recall="eng_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-eng_Latn">English <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-eng_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-eng_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r25-eng_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="rus_Cyrl">
+                <div class="progress-header"><span class="progress-label" id="r25-rus_Cyrl">Russian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-rus_Cyrl" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-rus_Cyrl" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r25-rus_Cyrl"></progress>
+              </div>
+              <div class="progress-field" data-recall="por_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-por_Latn">Portuguese <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-por_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-por_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r25-por_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="deu_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-deu_Latn">German <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-deu_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-deu_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r25-deu_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="fra_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-fra_Latn">French <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-fra_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-fra_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r25-fra_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="nld_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-nld_Latn">Dutch <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-nld_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-nld_Latn" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r25-nld_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ind_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-ind_Latn">Indonesian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-ind_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-ind_Latn" data-size="xs" data-tone="auto" value="96" max="100" aria-labelledby="r25-ind_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="spa_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-spa_Latn">Spanish <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-spa_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-spa_Latn" data-size="xs" data-tone="auto" value="98" max="100" aria-labelledby="r25-spa_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="ita_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-ita_Latn">Italian <span class="badge" data-variant="outline" data-size="xs">target</span></span><output class="progress-value" for="r25-bar-ita_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-ita_Latn" data-size="xs" data-tone="auto" value="100" max="100" aria-labelledby="r25-ita_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="pol_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-pol_Latn">Polish</span><output class="progress-value" for="r25-bar-pol_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-pol_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r25-pol_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="tur_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-tur_Latn">Turkish</span><output class="progress-value" for="r25-bar-tur_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-tur_Latn" data-size="xs" data-tone="auto" value="88" max="100" aria-labelledby="r25-tur_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="vie_Latn">
+                <div class="progress-header"><span class="progress-label" id="r25-vie_Latn">Vietnamese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-vie_Latn" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-vie_Latn" data-size="xs" data-tone="auto" value="74" max="100" aria-labelledby="r25-vie_Latn"></progress>
+              </div>
+              <div class="progress-field" data-recall="kor_Hang">
+                <div class="progress-header"><span class="progress-label" id="r25-kor_Hang">Korean <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-kor_Hang" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-kor_Hang" data-size="xs" data-tone="auto" value="72" max="100" aria-labelledby="r25-kor_Hang"></progress>
+              </div>
+              <div class="progress-field" data-recall="jpn_Jpan">
+                <div class="progress-header"><span class="progress-label" id="r25-jpn_Jpan">Japanese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-jpn_Jpan" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-jpn_Jpan" data-size="xs" data-tone="auto" value="62" max="100" aria-labelledby="r25-jpn_Jpan"></progress>
+              </div>
+              <div class="progress-field" data-recall="zho_Hans">
+                <div class="progress-header"><span class="progress-label" id="r25-zho_Hans">Chinese <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-zho_Hans" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-zho_Hans" data-size="xs" data-tone="auto" value="58" max="100" aria-labelledby="r25-zho_Hans"></progress>
+              </div>
+              <div class="progress-field" data-recall="tha_Thai">
+                <div class="progress-header"><span class="progress-label" id="r25-tha_Thai">Thai <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-tha_Thai" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-tha_Thai" data-size="xs" data-tone="auto" value="36" max="100" aria-labelledby="r25-tha_Thai"></progress>
+              </div>
+              <div class="progress-field" data-recall="hin_Deva">
+                <div class="progress-header"><span class="progress-label" id="r25-hin_Deva">Hindi <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-hin_Deva" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-hin_Deva" data-size="xs" data-tone="auto" value="36" max="100" aria-labelledby="r25-hin_Deva"></progress>
+              </div>
+              <div class="progress-field" data-recall="urd_Arab">
+                <div class="progress-header"><span class="progress-label" id="r25-urd_Arab">Urdu <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-urd_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-urd_Arab" data-size="xs" data-tone="auto" value="34" max="100" aria-labelledby="r25-urd_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="arb_Arab">
+                <div class="progress-header"><span class="progress-label" id="r25-arb_Arab">Arabic <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-arb_Arab" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-arb_Arab" data-size="xs" data-tone="auto" value="32" max="100" aria-labelledby="r25-arb_Arab"></progress>
+              </div>
+              <div class="progress-field" data-recall="ben_Beng">
+                <div class="progress-header"><span class="progress-label" id="r25-ben_Beng">Bangla <span class="badge" data-variant="secondary" data-size="xs">Pruned</span></span><output class="progress-value" for="r25-bar-ben_Beng" data-template="{value}%"></output></div>
+                <progress class="progress" id="r25-bar-ben_Beng" data-size="xs" data-tone="auto" value="28" max="100" aria-labelledby="r25-ben_Beng"></progress>
+              </div>
             </div>
           </div>
         </figure>
+<!-- bench-card:end -->
       </div>
     </section>
   </section>

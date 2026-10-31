@@ -15,10 +15,16 @@ export const formatMs = (ms) => (ms < 10 ? `${ms.toFixed(1)} ms` : `${Math.round
 /**
  * One result card per item, best first. The first card wears an aura (a light running around it); a gold mark shows
  * as a badge in a gold aura ring, at the end of the header: filled for the gold passage, secondary for a translation
- * of it. `key` is the card's identity across re-ranks.
+ * of it. `key` is the card's identity across re-ranks. `denseRank` (fused results only) adds a badge with the places
+ * the reranker moved the card. VERIFIED: its score stays the dense similarity, so without the badge a fused list read
+ * as unsorted (the human's report, 2026-10-31).
  */
 const renderCards = (items) => items.map((item, i) => {
   const score = Math.max(0, Math.min(1, item.score));
+  const moved = item.denseRank === undefined ? 0 : item.denseRank - (i + 1);
+  const move = moved
+    ? `<span class="badge vs-moved" data-variant="outline" data-size="sm" title="Reranked from #${item.denseRank}"><span aria-hidden="true">${moved > 0 ? "↑" : "↓"}${Math.abs(moved)}</span><span class="sr-only">reranked from position ${item.denseRank}</span></span>`
+    : "";
   const badge = item.mark
     ? `<span class="aura aura-gold aura-sm vs-gold" style="--shape-round:999px"><span class="badge"${item.mark === "translation" ? ` data-variant="secondary"` : ""} data-size="sm">${item.mark === "exact" ? "Gold" : "Gold · translation"}</span></span>`
     : "";
@@ -26,7 +32,7 @@ const renderCards = (items) => items.map((item, i) => {
     <div class="card-header">
       <span class="vs-rank" aria-hidden="true">${String(i + 1).padStart(2, "0")}</span>
       <div><h3 class="card-title">${escape(item.title)}</h3><p class="card-description">${escape(item.description)}</p></div>
-      ${badge}
+      ${move}${badge}
     </div>
     <div class="card-content"><p class="vs-hit-text"${item.lang ? ` lang="${item.lang}"` : ""}>${escape(item.text)}</p></div>
     <div class="card-footer">
@@ -46,7 +52,7 @@ const renderCards = (items) => items.map((item, i) => {
 export const renderHits = (hits, languages, gold) => renderCards(hits.map((hit) => {
   const code = languages[hit.language];
   return {
-    key: `hit-${hit.row}`, score: hit.score, text: hit.text, lang: languageTag(code),
+    key: `hit-${hit.row}`, score: hit.score, denseRank: hit.denseRank, text: hit.text, lang: languageTag(code),
     title: languageName(code), description: `passage ${hit.group + 1} · ${code}`,
     mark: gold && hit.group === gold.group ? (hit.row === gold.row ? "exact" : "translation") : "",
   };
@@ -54,7 +60,7 @@ export const renderHits = (hits, languages, gold) => renderCards(hits.map((hit) 
 
 /** Note hits as cards; `labels` maps a note id to its visible name ("Note 2"). */
 export const renderNoteHits = (hits, labels) => renderCards(hits.map((hit) => ({
-  key: `note-hit-${hit.id}`, score: hit.score, text: hit.text, title: labels.get(hit.id) ?? "Note", description: "your note", mark: "",
+  key: `note-hit-${hit.id}`, score: hit.score, denseRank: hit.denseRank, text: hit.text, title: labels.get(hit.id) ?? "Note", description: "your note", mark: "",
 })));
 
 /** A yellow note: a native textarea and a status line the board fills in. */

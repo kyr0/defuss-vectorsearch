@@ -57,7 +57,7 @@ export interface RerankedHit {
 /** A dense hit after fusion with its ColBERT score; `index` is the dense hit's own `index`. */
 export interface FusedHit {
   readonly index: number;
-  /** Reciprocal rank fusion score: 1 / (60 + dense rank) + 1 / (60 + ColBERT rank). */
+  /** Reciprocal rank fusion score: 1 / (60 + dense rank) + 1 / (60 + ColBERT rank); 2 / (60 + dense rank) when the dense order stands. */
   readonly score: number;
   /** 1-based position in the dense hits passed in. */
   readonly denseRank: number;
@@ -68,6 +68,14 @@ export interface FuseOptions extends ColbertEncodeOptions {
   /** How many of the first dense hits to rerank; default 25. */
   candidates?: number | undefined;
   topK?: number | undefined;
+  /** The dense order stands when its top score leads the second by at least this much; default 0.1, `Infinity` always fuses. */
+  denseMargin?: number | undefined;
+}
+
+export interface FuseRanksOptions {
+  /** Dense scores in the same positions as the ColBERT scores, best first; they enable the `denseMargin` check. */
+  denseScores?: readonly number[] | undefined;
+  denseMargin?: number | undefined;
 }
 
 interface RuntimeConfig {
@@ -119,16 +127,39 @@ export const maxSim = (query: TokenMatrix, document: TokenMatrix): number => {
 const RRF_K = 60;
 /** VERIFIED: fusion held R@1 between 75.6 and 77.1 for 10 to 100 candidates; 25 keeps a query's rerank near 160 ms in WASM. */
 const DEFAULT_CANDIDATES = 25;
+/**
+ * Winzling cosine margin above which fusion keeps the dense order. VERIFIED (tmp/fusion-gate-probe.ts, 450 target
+ * queries): over the 87 queries whose top hit led by 0.1 or more, fusion never lifted the gold passage to rank 1 and
+ * dropped it from rank 1 once; R@1 stayed at 77.1 for margins from 0.06 to 0.13. VERIFIED: it keeps the demo's
+ * "Bücher" note on top, which fusion moved to third.
+ */
+const DEFAULT_DENSE_MARGIN = 0.1;
+
+const denseMarginOf = (value: number | undefined): number => {
+  const margin = value ?? DEFAULT_DENSE_MARGIN;
+  if (typeof margin !== "number" || Number.isNaN(margin) || margin < 0) throw new RangeError("denseMargin must be a non-negative number");
+  return margin;
+};
 
 /**
  * Fuses a dense order with ColBERT scores of the same candidates: `colbertScores[i]` scores the dense hit at rank
  * `i + 1`. Returns those positions best first with their fused score; ties keep the dense order. Fusion, not the
  * ColBERT order alone, keeps what the dense model knows better. VERIFIED: over 25 Winzling candidates, the ColBERT
  * order alone halved R@3 in Japanese (38 to 20) and Chinese (24 to 12); fused, they reached 28 and 20.
+ * With `denseScores`, a dense top hit that leads by `denseMargin` keeps the dense order. VERIFIED: rank fusion ignores
+ * score gaps, and near-equal ColBERT scores outvoted a clear dense winner in the demo's notes (DEFAULT_DENSE_MARGIN).
  * Use it with `maxSim` when passage vectors are cached; `rerankHits` does both steps.
  */
-export const fuseRanks = (colbertScores: readonly number[]): { position: number; score: number }[] => {
+export const fuseRanks = (colbertScores: readonly number[], options: FuseRanksOptions = {}): { position: number; score: number }[] => {
   if (!colbertScores.every(Number.isFinite)) throw new Error("ColBERT scores must be finite numbers");
+  const margin = denseMarginOf(options.denseMargin);
+  const dense = options.denseScores;
+  if (dense !== undefined && (dense.length !== colbertScores.length || !dense.every(Number.isFinite))) {
+    throw new Error("denseScores must hold one finite score per ColBERT score");
+  }
+  if (dense !== undefined && dense.length > 1 && dense[0]! - dense[1]! >= margin) {
+    return colbertScores.map((_, position) => ({ position, score: 2 / (RRF_K + position + 1) }));
+  }
   const colbertRank: number[] = [];
   colbertScores.map((score, position) => ({ score, position }))
     .sort((a, b) => b.score - a.score || a.position - b.position)
@@ -331,8 +362,9 @@ export class ColbertRerankerCore {
 
   /**
    * Reranks the first `candidates` hits of a dense search (best first, e.g. from `searchTurboQuantIndex`) and fuses
-   * the ColBERT order with the dense order. `documents[hit.index]` must hold each hit's text. Returns at most
-   * `candidates` hits; the dense hits after them keep their order and are not returned.
+   * the ColBERT order with the dense order, unless the top dense hit leads by `denseMargin` (see `fuseRanks`).
+   * `documents[hit.index]` must hold each hit's text. Returns at most `candidates` hits; the dense hits after them keep
+   * their order and are not returned.
    */
   async rerankHits(query: string, hits: readonly SearchHit[], documents: readonly string[],
     options: FuseOptions = {}): Promise<FusedHit[]> {
@@ -340,6 +372,8 @@ export class ColbertRerankerCore {
     if (options.topK !== undefined && (!Number.isInteger(options.topK) || options.topK < 0)) throw new RangeError("topK must be a non-negative integer");
     if (typeof query !== "string") throw new TypeError("query must be a string");
     if (!Array.isArray(hits) || !Array.isArray(documents)) throw new TypeError("hits and documents must be arrays");
+    const fuseOptions = { denseScores: hits.slice(0, candidates).map(hit => hit.score), denseMargin: denseMarginOf(options.denseMargin) };
+    if (!fuseOptions.denseScores.every(Number.isFinite)) throw new RangeError("Hit scores must be finite numbers");
     const pool = hits.slice(0, candidates).map(hit => hit.index);
     const texts = pool.map(index => {
       const text = Number.isInteger(index) ? documents[index] : undefined;
@@ -350,7 +384,7 @@ export class ColbertRerankerCore {
     return this.enqueue(async () => {
       const [encodedQuery] = await this.encodeQueued([query], "query", options);
       const colbert = (await this.encodeQueued(texts, "document", options)).map(document => maxSim(encodedQuery!, document));
-      const fused = fuseRanks(colbert).map(({ position, score }) =>
+      const fused = fuseRanks(colbert, fuseOptions).map(({ position, score }) =>
         ({ index: pool[position]!, score, denseRank: position + 1, colbertScore: colbert[position]! }));
       return options.topK === undefined ? fused : fused.slice(0, options.topK);
     });

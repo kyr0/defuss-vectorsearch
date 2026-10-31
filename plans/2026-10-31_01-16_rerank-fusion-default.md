@@ -36,7 +36,11 @@ Deviations:
   fused, which keeps the page's states and the e2e deterministic.
 - The first bench run was discarded: the stop hook ran `make e2e` during it. The clean rerun is the published one.
 - Chromium memory figures rose from 206 to 598 MiB (Winzling) against the 2026-10-07 run. VERIFIED: a probe measured
-  643 to 654 MiB with and without the reranker module, so the new Chromium and Node.js builds explain it, not M9 to M12.
+  643 to 654 MiB with and without the reranker module. The build explanation drawn from it was wrong: the 0.2.1 bench
+  run on the same builds measured 296 MiB. UNKNOWN: why the figure swings between runs.
+- 0.2.1 (same day): fusion moved a clear dense winner to third in the demo's notes ("Bücher"). `fuseRanks` keeps the
+  dense order when the top dense score leads by `denseMargin` (0.1); fused cards show how far the reranker moved them;
+  `make bench` adds R@10 and writes the website's tabbed recall card.
 
 ## Contracts
 

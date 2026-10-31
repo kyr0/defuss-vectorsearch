@@ -75,5 +75,15 @@ it("fuses Winzling's TurboQuant hits with the reranker in Chromium", async () =>
       expect(fused.map(hit => hit.denseRank).sort()).toEqual([1, 2, 3, 4, 5]);
       expect(fixture.relevant[q], `query ${q}`).toContain(fused[0]!.index);
     }
+    // The demo's notes for "Bücher": the library note leads Winzling's order by 0.186, so the dense order stands.
+    // VERIFIED: without the denseMargin check, fusion moved it to third (tmp/notes-probe.ts, 2026-10-31).
+    const notes = ["Die neue Bibliothek in der Innenstadt hat bis 22 Uhr geöffnet.", "Договор аренды заканчивается в марте.",
+      "The tax return is due at the end of July.", "Для похода в горы взять крепкие ботинки и дождевик."];
+    const noteHits = searchTurboQuantIndex(buildTurboQuantIndex(await embedder.embedDocuments(notes)), await embedder.embedQuery("Bücher"), 25);
+    const kept = await reranker.rerankHits("Bücher", noteHits, notes, { truncate: true });
+    expect(kept.map(hit => hit.index)).toEqual(noteHits.map(hit => hit.index));
+    expect(kept[0]!.index).toBe(0);
+    const fusedNotes = await reranker.rerankHits("Bücher", noteHits, notes, { truncate: true, denseMargin: Infinity });
+    expect(fusedNotes[0]!.index).not.toBe(0);
   } finally { await embedder.dispose(); await reranker.dispose(); }
 }, 120_000);

@@ -40,6 +40,19 @@ describe("reciprocal rank fusion", () => {
     expect(() => fuseRanks([1, Number.NaN])).toThrow(/finite/);
   });
 
+  it("keeps the dense order when the dense top hit leads by denseMargin", () => {
+    // VERIFIED scores of the demo's notes for "Bücher" (tmp/notes-probe.ts): fusion moved the library note to third.
+    const colbert = [11.551, 13.514, 13.55, 13.255];
+    const dense = [0.287, 0.101, 0.038, 0.006];
+    expect(fuseRanks(colbert, { denseScores: dense })).toEqual([0, 1, 2, 3].map(position => ({ position, score: 2 / (61 + position) })));
+    expect(fuseRanks(colbert, { denseScores: dense, denseMargin: Infinity }).map(hit => hit.position)).toEqual([2, 1, 0, 3]);
+    expect(fuseRanks(colbert, { denseScores: [0.287, 0.2, 0.038, 0.006] }).map(hit => hit.position)).toEqual([2, 1, 0, 3]);
+    expect(fuseRanks(colbert).map(hit => hit.position)).toEqual([2, 1, 0, 3]);
+    expect(() => fuseRanks(colbert, { denseMargin: -1 })).toThrow(/denseMargin/);
+    expect(() => fuseRanks(colbert, { denseMargin: Number.NaN })).toThrow(/denseMargin/);
+    expect(() => fuseRanks(colbert, { denseScores: [1] })).toThrow(/denseScores/);
+  });
+
   it("validates dense hits before loading anything", async () => {
     let loads = 0;
     const reranker = createColbertReranker({ model: "1.5m", loadFile: async () => { loads++; return new Uint8Array(); } });
@@ -47,6 +60,8 @@ describe("reciprocal rank fusion", () => {
     await expect(reranker.rerankHits("q", [{ index: 2, score: 1 }], ["a"])).rejects.toThrow(/Hit index 2 has no document/);
     await expect(reranker.rerankHits("q", [{ index: 0.5, score: 1 }], ["a"])).rejects.toThrow(/no document/);
     await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { topK: -1 })).rejects.toThrow(/topK/);
+    await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { denseMargin: -1 })).rejects.toThrow(/denseMargin/);
+    await expect(reranker.rerankHits("q", [{ index: 0, score: Number.NaN }], ["a"])).rejects.toThrow(/finite/);
     expect(await reranker.rerankHits("q", [], ["a"])).toEqual([]);
     expect(loads).toBe(0);
     await reranker.dispose();

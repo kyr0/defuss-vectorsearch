@@ -41,8 +41,9 @@ export type DemoRequest =
   | { type: "clear-cache" };
 /** "bench": the prebuilt 2,000 passages; "notes": the user's own notes, embedded in the browser. */
 export type SearchIndex = "bench" | "notes";
-export type DemoHit = { row: number; score: number; text: string; language: number; group: number };
-export type NoteHit = { id: string; score: number; text: string };
+/** `denseRank`: the hit's 1-based TurboQuant position, on fused results only. VERIFIED: the card turns it into the move badge (render.js). */
+export type DemoHit = { row: number; score: number; text: string; language: number; group: number; denseRank?: number };
+export type NoteHit = { id: string; score: number; text: string; denseRank?: number };
 export type DemoEvent =
   | { type: "probe"; cached: boolean }
   | { type: "progress"; phase: "model" | "index"; loaded: number; total: number }
@@ -303,7 +304,8 @@ const pump = async () => {
       const fused = await reranker!.rerankHits(job.query, hits, source.texts, { topK: job.k, truncate: true });
       // Cards keep the dense similarity for their bar; the order is the fused one.
       const byIndex = new Map(hits.map((hit) => [hit.index, hit]));
-      post({ ...base, strategy: FUSED, final: true, rerankMs: performance.now() - reranking, hits: fused.map((hit) => source.hit(byIndex.get(hit.index)!)) });
+      post({ ...base, strategy: FUSED, final: true, rerankMs: performance.now() - reranking,
+        hits: fused.map((hit) => ({ ...source.hit(byIndex.get(hit.index)!), denseRank: hit.denseRank })) });
     }
   } catch (error) {
     post({ type: "error", message: message(error), index: current });

@@ -25,7 +25,8 @@ for (const module of [esm, cjs]) {
   try {
     const passages = ['Paris is the capital of France.', 'Die Zugspitze ist 2962 Meter hoch.'];
     ranked.push(await reranker.rerank('Wie hoch ist die Zugspitze?', passages));
-    const fused = await reranker.rerankHits('Wie hoch ist die Zugspitze?', [{ index: 0, score: 0.5 }, { index: 1, score: 0.4 }], passages);
+    // VERIFIED: a 0.05 lead stays below the default denseMargin (0.1), so the two hits are fused (0.5 and 0.4 passed only by float rounding).
+    const fused = await reranker.rerankHits('Wie hoch ist die Zugspitze?', [{ index: 0, score: 0.5 }, { index: 1, score: 0.45 }], passages);
     // VERIFIED: two candidates in opposite orders tie under rank fusion, and ties keep the dense order (fuseRanks unit test).
     assert.deepEqual(fused.map(hit => [hit.index, hit.denseRank]), [[0, 1], [1, 2]]);
     assert.ok(fused[1]!.colbertScore > fused[0]!.colbertScore);

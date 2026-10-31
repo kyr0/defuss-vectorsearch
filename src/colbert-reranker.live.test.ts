@@ -96,7 +96,8 @@ describe("MoEdernColBERT reranker behavior", () => {
 
   it("fuses the first dense hits with their ColBERT scores and maps them back to corpus indices", async () => {
     const corpus = ["A bicycle has two wheels.", "Paris is the capital of France.", "Die Zugspitze ist 2962 Meter hoch.", "Bread needs flour."];
-    const dense = [{ index: 3, score: 0.9 }, { index: 1, score: 0.8 }, { index: 2, score: 0.7 }, { index: 0, score: 0.1 }];
+    // A 0.05 lead is below the default denseMargin (0.1), so these hits are fused.
+    const dense = [{ index: 3, score: 0.9 }, { index: 1, score: 0.85 }, { index: 2, score: 0.7 }, { index: 0, score: 0.1 }];
     const query = "Wie hoch ist die Zugspitze?";
     const fused = await reranker.rerankHits(query, dense, corpus, { candidates: 3 });
     expect(fused.map(hit => hit.index).sort()).toEqual([1, 2, 3]); // the 4th dense hit is not a candidate
@@ -106,6 +107,9 @@ describe("MoEdernColBERT reranker behavior", () => {
       ({ index: dense[position]!.index, score, denseRank: position + 1, colbertScore: colbert[position]! })));
     expect(fused.find(hit => hit.index === 2)!.colbertScore).toBe(Math.max(...colbert));
     expect(await reranker.rerankHits(query, dense, corpus, { candidates: 3, topK: 1 })).toEqual(fused.slice(0, 1));
+    // A top hit that leads by denseMargin keeps the dense order; the ColBERT scores still come back.
+    const kept = await reranker.rerankHits(query, [{ index: 3, score: 0.99 }, ...dense.slice(1)], corpus, { candidates: 3 });
+    expect(kept.map(hit => [hit.index, hit.denseRank, hit.colbertScore])).toEqual([[3, 1, colbert[0]], [1, 2, colbert[1]], [2, 3, colbert[2]]]);
   });
 
   it("fails on overlong input unless truncation is explicit, and keeps the final [SEP]", async () => {

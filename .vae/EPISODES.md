@@ -35,10 +35,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:footer ad portrait learn=none: content decision for the user
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:closing CTA copy learn=none: no cross-browser runs in this repo
 2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc (user edit) learn=none: author's copy decision
-2026-10-08T14:08:26Z s=542d48d6 FINDING docs/index.html:#add-note learn=test: test-docs.ts asserts it sits above the notes list
-2026-10-08T14:14:33Z s=542d48d6 FAIL tests.e2e.1
-2026-10-08T14:17:13Z s=542d48d6 DONE fp=d4c93af53bf9 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+15)
-2026-10-08T14:17:13Z s=542d48d6 FINDING docs/data + scripts/docs/index-format.ts (v2) learn=test: index-format.test.ts round-trips the v2 format; test-docs.ts asserts the hint, readout and stat against manifest.json
 2026-10-08T14:17:13Z s=542d48d6 FINDING docs/index.html:size figures learn=test: test-docs.ts fails on any visible '40 MB' or 'MiB' and recomputes each figure from data
 2026-10-08T14:39:23Z s=542d48d6 DONE fp=a7bc4bc37c31 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
 2026-10-08T14:39:23Z s=542d48d6 FINDING docs/assets/notes.js:addRandom + docs/assets/sample-notes.js learn=test: test-docs.ts checks pool size/mix, 5 distinct pool notes with lang tags, all embedded, count, and a steady page
@@ -105,3 +101,7 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-31T02:10:31Z s=8e62adc6 FINDING bench.json run 1 learn=memory: agent memory stop-hook-runs-gate: keep the turn open while make bench runs
 2026-10-31T02:10:31Z s=8e62adc6 FINDING README.md:Findings memory learn=none: environment-dependent measurement; documented, not pinned
 2026-10-31T02:10:31Z s=8e62adc6 FINDING .github/workflows/verify.yml:setup-bun learn=none: falsifier: the CI run's setup-bun step log names the installed Bun version
+2026-10-31T15:11:42Z s=8e62adc6 FAIL prose
+2026-10-31T15:18:51Z s=8e62adc6 DONE fp=a8d32d3adc02 cov=67.9% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+49)
+2026-10-31T15:18:51Z s=8e62adc6 FINDING scripts/test-package.ts:28 rerankHits learn=none: Fixed in place; the same pattern in src/colbert-reranker.live.test.ts (0.9/0.8) was already changed to a 0.05 lead, and git grep finds no other literal hit scor
+2026-10-31T15:18:51Z s=8e62adc6 FINDING README.md:463 B01 / plans/2026-10-31_01-16_rerank-fusion-default.md learn=memory: .vae/MEMORY.md line: Chromium runtimeMiB swings between runs on identical builds; never attribute a change to code or builds from one run.

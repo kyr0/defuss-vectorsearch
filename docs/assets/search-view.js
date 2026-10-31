@@ -100,7 +100,9 @@ export const createSearchView = ({ index, root, worker, isReady, needModel, rend
       badge.hidden = !extra;
       badge.textContent = extra;
       const rerank = data.rerankMs === undefined ? "" : ` · rerank ${formatMs(data.rerankMs)}`;
-      summary.querySelector(".mk-search-summary-time").textContent = `embed ${formatMs(data.embedMs)} · scan ${formatMs(data.scanMs)}${rerank} | strategy: ${data.strategy}`;
+      // VERIFIED: fused cards keep the dense similarity, so the order can disagree with the scores; the suffix says which is which.
+      const order = data.rerankMs === undefined ? "" : " (reranked order, Winzling scores)";
+      summary.querySelector(".mk-search-summary-time").textContent = `embed ${formatMs(data.embedMs)} · scan ${formatMs(data.scanMs)}${rerank} | strategy: ${data.strategy}${order}`;
       summary.hidden = false;
       empty.hidden = true;
       onShown(data);
