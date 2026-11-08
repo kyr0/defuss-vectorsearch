@@ -30,6 +30,9 @@ for (const module of [esm, cjs]) {
     // VERIFIED: two candidates in opposite orders tie under rank fusion, and ties keep the dense order (fuseRanks unit test).
     assert.deepEqual(fused.map(hit => [hit.index, hit.denseRank]), [[0, 1], [1, 2]]);
     assert.ok(fused[1]!.colbertScore > fused[0]!.colbertScore);
+    const weighted = await reranker.rerankHits('Wie hoch ist die Zugspitze?', [{ index: 0, score: 0.5 }, { index: 1, score: 0.45 }], passages,
+      { colbertWeight: 0.75, denseMargin: Infinity });
+    assert.deepEqual(weighted.map(hit => [hit.index, hit.denseRank]), [[1, 2], [0, 1]]);
   } finally {
     await reranker.dispose();
   }

@@ -70,7 +70,7 @@ export interface RerankedHit {
 /** A dense hit after fusion with its ColBERT score; `index` is the dense hit's own `index`. */
 export interface FusedHit {
   readonly index: number;
-  /** Reciprocal rank fusion score: 1 / (60 + dense rank) + 1 / (60 + ColBERT rank); 2 / (60 + dense rank) when the dense order stands. */
+  /** Weighted reciprocal rank fusion score; the default gives equal weight to dense and ColBERT ranks. */
   readonly score: number;
   /** 1-based position in the dense hits passed in. */
   readonly denseRank: number;
@@ -83,12 +83,16 @@ export interface FuseOptions extends ColbertEncodeOptions {
   topK?: number | undefined;
   /** The dense order stands when its top score leads the second by at least this much; default 0.1, `Infinity` always fuses. */
   denseMargin?: number | undefined;
+  /** ColBERT's share of rank fusion, in [0, 1]; default 0.5. At 1 only ColBERT ranks count, unless denseMargin keeps the dense order. */
+  colbertWeight?: number | undefined;
 }
 
 export interface FuseRanksOptions {
   /** Dense scores in the same positions as the ColBERT scores, best first; they enable the `denseMargin` check. */
   denseScores?: readonly number[] | undefined;
   denseMargin?: number | undefined;
+  /** ColBERT's share of rank fusion, in [0, 1]; default 0.5. */
+  colbertWeight?: number | undefined;
 }
 
 interface RuntimeConfig {
@@ -154,6 +158,14 @@ const denseMarginOf = (value: number | undefined): number => {
   return margin;
 };
 
+const colbertWeightOf = (value: number | undefined): number => {
+  const weight = value ?? 0.5;
+  if (typeof weight !== "number" || !Number.isFinite(weight) || weight < 0 || weight > 1) {
+    throw new RangeError("colbertWeight must be a finite number in [0, 1]");
+  }
+  return weight;
+};
+
 /**
  * Fuses a dense order with ColBERT scores of the same candidates: `colbertScores[i]` scores the dense hit at rank
  * `i + 1`. Returns those positions best first with their fused score; ties keep the dense order. Fusion, not the
@@ -166,6 +178,7 @@ const denseMarginOf = (value: number | undefined): number => {
 export const fuseRanks = (colbertScores: readonly number[], options: FuseRanksOptions = {}): { position: number; score: number }[] => {
   if (!colbertScores.every(Number.isFinite)) throw new Error("ColBERT scores must be finite numbers");
   const margin = denseMarginOf(options.denseMargin);
+  const weight = colbertWeightOf(options.colbertWeight);
   const dense = options.denseScores;
   if (dense !== undefined && (dense.length !== colbertScores.length || !dense.every(Number.isFinite))) {
     throw new Error("denseScores must hold one finite score per ColBERT score");
@@ -177,7 +190,7 @@ export const fuseRanks = (colbertScores: readonly number[], options: FuseRanksOp
   colbertScores.map((score, position) => ({ score, position }))
     .sort((a, b) => b.score - a.score || a.position - b.position)
     .forEach((entry, rank) => { colbertRank[entry.position] = rank + 1; });
-  return colbertScores.map((_, position) => ({ position, score: 1 / (RRF_K + position + 1) + 1 / (RRF_K + colbertRank[position]!) }))
+  return colbertScores.map((_, position) => ({ position, score: 2 * (1 - weight) / (RRF_K + position + 1) + 2 * weight / (RRF_K + colbertRank[position]!) }))
     .sort((a, b) => b.score - a.score || a.position - b.position);
 };
 
@@ -385,7 +398,11 @@ export class ColbertRerankerCore {
     if (options.topK !== undefined && (!Number.isInteger(options.topK) || options.topK < 0)) throw new RangeError("topK must be a non-negative integer");
     if (typeof query !== "string") throw new TypeError("query must be a string");
     if (!Array.isArray(hits) || !Array.isArray(documents)) throw new TypeError("hits and documents must be arrays");
-    const fuseOptions = { denseScores: hits.slice(0, candidates).map(hit => hit.score), denseMargin: denseMarginOf(options.denseMargin) };
+    const fuseOptions = {
+      denseScores: hits.slice(0, candidates).map(hit => hit.score),
+      denseMargin: denseMarginOf(options.denseMargin),
+      colbertWeight: colbertWeightOf(options.colbertWeight),
+    };
     if (!fuseOptions.denseScores.every(Number.isFinite)) throw new RangeError("Hit scores must be finite numbers");
     const pool = hits.slice(0, candidates).map(hit => hit.index);
     const texts = pool.map(index => {

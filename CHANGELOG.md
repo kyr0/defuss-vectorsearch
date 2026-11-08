@@ -13,6 +13,7 @@
 ### Added
 
 - `model: "1.5m-original"` keeps the unedited 1.5M export with `fp32`, `fp16`, `q8` and `int8`.
+- `rerankHits` and `fuseRanks` accept `colbertWeight`, the reranker's share of rank fusion from 0 to 1. The default 0.5 keeps today's scores.
 - `make bench` also reports any-language recall, which counts a translation of the gold passage as a hit, and records the reranker it ran. `bench.json` moves to schema v2.
 
 ### Fixed

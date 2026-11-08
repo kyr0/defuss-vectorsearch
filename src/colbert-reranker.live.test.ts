@@ -131,6 +131,10 @@ describe("MoEdernColBERT reranker behavior", () => {
     expect(fused).toEqual(fuseRanks(colbert).map(({ position, score }) =>
       ({ index: dense[position]!.index, score, denseRank: position + 1, colbertScore: colbert[position]! })));
     expect(fused.find(hit => hit.index === 2)!.colbertScore).toBe(Math.max(...colbert));
+    const weighted = await reranker.rerankHits(query, dense, corpus, { candidates: 3, colbertWeight: 1, denseMargin: Infinity });
+    expect(weighted).toEqual(fuseRanks(colbert, { colbertWeight: 1 }).map(({ position, score }) =>
+      ({ index: dense[position]!.index, score, denseRank: position + 1, colbertScore: colbert[position]! })));
+    expect(weighted[0]!.index).toBe(2);
     expect(await reranker.rerankHits(query, dense, corpus, { candidates: 3, topK: 1 })).toEqual(fused.slice(0, 1));
     // A top hit that leads by denseMargin keeps the dense order; the ColBERT scores still come back.
     const kept = await reranker.rerankHits(query, [{ index: 3, score: 0.99 }, ...dense.slice(1)], corpus, { candidates: 3 });

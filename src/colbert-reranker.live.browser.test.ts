@@ -74,6 +74,8 @@ it("fuses Winzling's TurboQuant hits with the reranker in Chromium", async () =>
       expect(fused.map(hit => hit.index).sort()).toEqual(hits.map(hit => hit.index).sort());
       expect(fused.map(hit => hit.denseRank).sort()).toEqual([1, 2, 3, 4, 5]);
       expect(fixture.relevant[q], `query ${q}`).toContain(fused[0]!.index);
+      const weighted = await reranker.rerankHits(query, hits, fixture.documents, { truncate: true, colbertWeight: 1, denseMargin: Infinity });
+      expect(weighted.map(hit => hit.index)).toEqual([...fused].sort((a, b) => b.colbertScore - a.colbertScore || a.denseRank - b.denseRank).map(hit => hit.index));
     }
     // The demo's notes for "Bücher": the library note leads Winzling's order by 0.186, so the dense order stands.
     // VERIFIED: without the denseMargin check, fusion moved it to third (tmp/notes-probe.ts, 2026-10-31).

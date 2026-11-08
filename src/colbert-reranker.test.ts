@@ -38,6 +38,19 @@ describe("tokenizer input", () => {
 });
 
 describe("reciprocal rank fusion", () => {
+  it("weights either ranking explicitly while preserving the dense-margin override", () => {
+    const colbert = [0.1, 0.9];
+    expect(fuseRanks(colbert, { colbertWeight: 0 }).map(hit => hit.position)).toEqual([0, 1]);
+    expect(fuseRanks(colbert, { colbertWeight: 1 }).map(hit => hit.position)).toEqual([1, 0]);
+    const weighted = fuseRanks(colbert, { colbertWeight: 0.75 });
+    expect(weighted[0]!.position).toBe(1);
+    expect(weighted[0]!.score).toBeCloseTo(0.5 / 62 + 1.5 / 61, 14);
+    expect(fuseRanks(colbert, { colbertWeight: 0.5 })).toEqual(fuseRanks(colbert));
+    expect(fuseRanks(colbert, { colbertWeight: 1, denseScores: [0.8, 0.3] }).map(hit => hit.position)).toEqual([0, 1]);
+    expect(fuseRanks(colbert, { colbertWeight: 1, denseScores: [0.8, 0.3], denseMargin: Infinity }).map(hit => hit.position)).toEqual([1, 0]);
+    for (const value of [-1, 1.1, NaN, Infinity]) expect(() => fuseRanks(colbert, { colbertWeight: value })).toThrow(/colbertWeight/);
+  });
+
   it("fuses the dense order with the ColBERT order and breaks ties by dense rank", () => {
     // Dense ranks 1, 2, 3; ColBERT ranks 3, 1, 2: rank pair (2, 1) beats (1, 3), which beats (3, 2).
     expect(fuseRanks([0.1, 0.9, 0.5]).map(hit => hit.position)).toEqual([1, 0, 2]);
@@ -71,6 +84,7 @@ describe("reciprocal rank fusion", () => {
     await expect(reranker.rerankHits("q", [{ index: 0.5, score: 1 }], ["a"])).rejects.toThrow(/no document/);
     await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { topK: -1 })).rejects.toThrow(/topK/);
     await expect(reranker.rerankHits("q", [{ index: 0, score: 1 }], ["a"], { denseMargin: -1 })).rejects.toThrow(/denseMargin/);
+    await expect(reranker.rerankHits("q", [], [], { colbertWeight: NaN })).rejects.toThrow(/colbertWeight/);
     await expect(reranker.rerankHits("q", [{ index: 0, score: Number.NaN }], ["a"])).rejects.toThrow(/finite/);
     expect(await reranker.rerankHits("q", [], ["a"])).toEqual([]);
     expect(loads).toBe(0);
