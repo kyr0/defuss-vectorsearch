@@ -78,7 +78,7 @@ it("fuses Winzling's TurboQuant hits with the reranker in Chromium", async () =>
       expect(weighted.map(hit => hit.index)).toEqual([...fused].sort((a, b) => b.colbertScore - a.colbertScore || a.denseRank - b.denseRank).map(hit => hit.index));
     }
     // The demo's notes for "Bücher": the library note leads Winzling's order by 0.190, so the dense order stands.
-    // VERIFIED (tmp/notes-probe.ts, 2026-11-08): with the 0.3.0 models, plain fusion ties it with an unrelated note and
+    // VERIFIED (tmp/notes-probe.ts, 2026-11-08): with the 0.3.1 models, plain fusion ties it with an unrelated note and
     // keeps it first only by the dense tie-break; with the 0.2.x models it moved it to third. Where plain fusion puts it
     // depends on the models, so the test checks the contract instead: `denseMargin: Infinity` orders by rank fusion alone.
     const notes = ["Die neue Bibliothek in der Innenstadt hat bis 22 Uhr geöffnet.", "Договор аренды заканчивается в марте.",

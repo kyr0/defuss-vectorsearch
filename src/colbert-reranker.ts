@@ -149,8 +149,8 @@ const RRF_K = 60;
  */
 const DEFAULT_CANDIDATES = 25;
 /**
- * Winzling cosine margin above which fusion keeps the dense order. VERIFIED (tmp/rank-probe.ts, the Winzling release and
- * the edited 1.5M pinned by 0.3.0, 450 target queries over the exact top 25, 2026-11-08): for the 80 queries whose top hit
+ * Winzling cosine margin above which fusion keeps the dense order. VERIFIED (tmp/rank-probe.ts, the Winzling release
+ * pinned by 0.3.1 and the edited 1.5M, 450 target queries over the exact top 25, 2026-11-08): for the 80 queries whose top hit
  * led by 0.1 or more, fusion moved no gold passage onto or off rank 1, and R@1 stayed between 78.0 and 78.2 for margins
  * from 0.05 to 0.20. With the 0.2.x models, fusion had dropped one of 87 such queries from rank 1 and moved the demo's
  * "Bücher" note to third (tmp/fusion-gate-probe.ts, tmp/notes-probe.ts); the margin keeps such clear winners on top.

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1 (2026-11-08)
+
+### Changed
+
+- The pinned Winzling release is Hub revision `8f37defd53558efb7f2cc7febf5a9c19a8033bea`. Its `onnx/model_uint4.onnx` (sha256 `b07e0e6f…`) keeps the graph, size and tokenizer of the previous pin, but its 4-bit weights were re-quantized with GPTQ and its block scales distilled from a ColBERT teacher (see the [model card](https://huggingface.co/kyr0/Winzling-Embed-a8m-64k)). Every embedding changes: on the 24 reference texts the new vectors have a cosine of 0.852 to 0.985 with the old ones (median 0.976). Re-embed stored vectors and rebuild TurboQuant indexes made with 0.3.0 or earlier; the browser cache downloads the new release on first use.
+- On the bench's nine target languages (Node.js, bruteforce), Winzling's R@1 is 66.7 (0.3.0: 66.4) and R@5 90.7 (92.2). German, English and Russian hold or gain (R@1 76.0 against 75.3, R@5 96.7 in both); the six target languages the model does not support lose (R@5 87.7 against 90.0, Spanish 74 against 84). With the edited 1.5M reranker of 0.3.0, the demo's pipeline, TurboQuant + MoEdernColBERT, reaches R@1 78.7 (0.3.0: 78.0) and R@5 94.9 (94.4).
+- The reference fixtures, the benchmark tables and the demo's precomputed passage embeddings come from the new release; the demo's vector index is 436 kB gzipped (431 kB).
+
 ## 0.3.0 (2026-11-08)
 
 ### Changed
@@ -7,11 +15,8 @@
 - `createColbertReranker({ model: "1.5m" })` loads a weight edit of SauerkrautLM-MoEdernColBERT-1.5M with 11,998 added Cyrillic tokens, pinned from `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`. It ships `q8` only and is 3.83 MB instead of 3.97 MB. Its model card measures, with exhaustive MaxSim:
   - Upstream card benchmarks: macro nDCG@10 +0.0015 against the original, not significant. GermanDPR (+0.008) and GermanQuAD (+0.003) improve significantly, and nothing gets significantly worse.
   - Russian: the original tokenizer maps Russian to `<unk>`. nDCG@10 on six tasks rises from 0.01–0.16 to 0.35–0.86.
-  - `make bench` with the Winzling release pinned by 0.2.1: Winzling with `rerankHits` reaches R@1 78.0 over the nine target languages, against 77.8 with the original. Russian R@1 falls from 94 to 88. In each of the 3 Russian queries the edit lost, a translation of the gold passage took rank 1.
+  - `make bench`: Winzling with `rerankHits` reaches R@1 78.0 over the nine target languages, against 77.8 with the original. Russian R@1 falls from 94 to 88. In each of the 3 Russian queries the edit lost, a translation of the gold passage took rank 1.
 - Vectors cached from `"1.5m"` with 0.2.x carry the old fingerprint, which `maxSim` refuses to mix with new vectors. Re-encode cached passages.
-- The pinned Winzling release is Hub revision `8f37defd53558efb7f2cc7febf5a9c19a8033bea`. Its `onnx/model_uint4.onnx` (sha256 `b07e0e6f…`) keeps the graph, size and tokenizer of the previous pin, but its 4-bit weights were re-quantized with GPTQ and its block scales distilled from a ColBERT teacher (see the [model card](https://huggingface.co/kyr0/Winzling-Embed-a8m-64k)). Every embedding changes: on the 24 reference texts the new vectors have a cosine of 0.852 to 0.985 with the old ones (median 0.976). Re-embed stored vectors and rebuild TurboQuant indexes made with 0.2.x; the browser cache downloads the new release on first use.
-- On the bench's nine target languages (Node.js, bruteforce), Winzling's R@1 is 66.7 (0.2.1: 66.4) and R@5 90.7 (92.2). German, English and Russian hold or gain (R@1 76.0 against 75.3, R@5 96.7 in both); the six target languages the model does not support lose (R@5 87.7 against 90.0, Spanish 74 against 84). With both new models, the demo's pipeline, TurboQuant + MoEdernColBERT, reaches R@1 78.7 (0.2.1: 77.8) and R@5 94.9 (94.4).
-- The reference fixtures, the benchmark tables and the demo's precomputed passage embeddings come from the new release; the demo's vector index is 436 kB gzipped (431 kB).
 
 ### Added
 

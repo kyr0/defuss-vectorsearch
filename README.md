@@ -56,7 +56,7 @@ The package does not serialize indexes; the live demo writes its own format (`sc
 ## Install
 
 ```sh
-bun add defuss-vectorsearch@0.3.0        # or: npm install defuss-vectorsearch@0.3.0
+bun add defuss-vectorsearch@0.3.1        # or: npm install defuss-vectorsearch@0.3.1
 bun add onnxruntime-node@1.21.0          # only for device: "cpu" in Node.js or Bun
 ```
 
@@ -240,7 +240,7 @@ await reranker.dispose();
 
 Methods: `load()`, `fingerprint()`, `encodeQueries()`, `encodeDocuments()`, `rerankHits()`, `rerank()`, `dispose()`. The pure functions `maxSim(query, document)` and `rankEncoded(query, documents)` score `TokenMatrix` values. A query always takes 32 positions, its padding filled by `[MASK]` expansion; a passage takes up to 512. Punctuation is excluded from passage scoring.
 
-`rerankHits(query, hits, documents, options?)` takes dense hits best first (what `searchTurboQuantIndex` and `searchTopK` return) and the texts they index. It reranks the first `candidates` hits (default 25) and returns them in fused order: reciprocal rank fusion, `1 / (60 + dense rank) + 1 / (60 + ColBERT rank)`, ties kept in dense order. With the default equal weights, two candidates in opposite orders tie. When the top dense hit's score leads the second's by `denseMargin` or more (default 0.1, on Winzling's cosine scale), the dense order stands and each hit scores `2 / (60 + dense rank)`; the ColBERT scores still come back. Rank fusion ignores how far ahead a hit is, so without this check near-equal ColBERT scores could outvote a clear dense winner. VERIFIED with the 0.2.x models: in the demo's notes, the one-word query "Bücher" had its clear Winzling winner (0.287 against 0.101) pushed to third, and on the bench fusion moved one of the 87 queries whose top hit led by 0.1 or more off rank 1. VERIFIED with the 0.3.0 models (2026-11-08): that winner leads by 0.190, and plain fusion keeps it first only through the dense tie-break; on the bench, fusion moves no gold passage onto or off rank 1 for the 80 queries above the margin. Pass `denseMargin: Infinity` to always fuse. `fuseRanks(colbertScores, { denseScores, denseMargin })` is the same fusion for callers with cached token vectors: `colbertScores[i]` and `denseScores[i]` score the dense hit at rank `i + 1`; without `denseScores` it always fuses. `rerank()` returns the ColBERT order alone; it fits candidates without a meaningful order, not dense hits.
+`rerankHits(query, hits, documents, options?)` takes dense hits best first (what `searchTurboQuantIndex` and `searchTopK` return) and the texts they index. It reranks the first `candidates` hits (default 25) and returns them in fused order: reciprocal rank fusion, `1 / (60 + dense rank) + 1 / (60 + ColBERT rank)`, ties kept in dense order. With the default equal weights, two candidates in opposite orders tie. When the top dense hit's score leads the second's by `denseMargin` or more (default 0.1, on Winzling's cosine scale), the dense order stands and each hit scores `2 / (60 + dense rank)`; the ColBERT scores still come back. Rank fusion ignores how far ahead a hit is, so without this check near-equal ColBERT scores could outvote a clear dense winner. VERIFIED with the 0.2.x models: in the demo's notes, the one-word query "Bücher" had its clear Winzling winner (0.287 against 0.101) pushed to third, and on the bench fusion moved one of the 87 queries whose top hit led by 0.1 or more off rank 1. VERIFIED with the 0.3.1 models (2026-11-08): that winner leads by 0.190, and plain fusion keeps it first only through the dense tie-break; on the bench, fusion moves no gold passage onto or off rank 1 for the 80 queries above the margin. Pass `denseMargin: Infinity` to always fuse. `fuseRanks(colbertScores, { denseScores, denseMargin })` is the same fusion for callers with cached token vectors: `colbertScores[i]` and `denseScores[i]` score the dense hit at rank `i + 1`; without `denseScores` it always fuses. `rerank()` returns the ColBERT order alone; it fits candidates without a meaningful order, not dense hits.
 
 VERIFIED: `colbertWeight` sets the reranker's share of rank fusion, from 0 to 1 (default 0.5). Scores are `2 * (1 - weight) / (60 + dense rank) + 2 * weight / (60 + ColBERT rank)`, so the default gives today's scores. A weight of 0 uses the dense ranks and 1 the ColBERT ranks. The `denseMargin` override still applies; combine `colbertWeight: 1` with `denseMargin: Infinity` for the pure ColBERT order. `fuseRanks` takes the same weight for cached vectors. An invalid weight fails before inference. The Node.js, browser and packaged-consumer tests cover weighted ordering and the unchanged default.
 
@@ -490,7 +490,7 @@ VERIFIED: measured from the cached model files and from the Chromium page's netw
 
 - VERIFIED: the memory saving holds only without exact reranking. `searchTurboQuantIndexRerank` re-scores candidates against the float32 vectors, so it needs them in memory. To keep the small footprint, use `searchTurboQuantIndex`, or store the float32 vectors elsewhere (IndexedDB, a server) and fetch only the top candidates. The benchmark measured `searchTurboQuantIndex` only, with no exact float32 reranking variant.
 - VERIFIED: the evidence base is small. Overall recall rests on 450 target-language queries against 2,000 passages, so the largest TurboQuant gap above (0.7 points) is 3 queries, on one dataset.
-- VERIFIED: Chromium's memory figures swing between runs. Winzling's runtime measured 206 MiB on 2026-10-07, then 598 and 296 MiB in two runs on 2026-10-31 and 580 and 168 MiB in two runs on 2026-11-08, with the same Chromium (140.0.7339.186) and Node.js (26.11) builds and unchanged Winzling code. With the same builds and the Winzling release pinned by 0.3.0, which keeps the graph, three runs on 2026-11-08 measured 609, 573 and 306 MiB. Read each MiB figure as one run's sample, not as a property of the model.
+- VERIFIED: Chromium's memory figures swing between runs. Winzling's runtime measured 206 MiB on 2026-10-07, then 598 and 296 MiB in two runs on 2026-10-31 and 580 and 168 MiB in two runs on 2026-11-08, with the same Chromium (140.0.7339.186) and Node.js (26.11) builds and unchanged Winzling code. With the same builds and the Winzling release pinned by 0.3.1, which keeps the graph, three runs on 2026-11-08 measured 609, 573 and 306 MiB. Read each MiB figure as one run's sample, not as a property of the model.
 - VERIFIED: nothing here covers corpora larger than 2,000 passages. [docs/BENCHMARK.md](docs/BENCHMARK.md) lists the open questions for larger corpora and how to test them.
 
 ## When to use it
@@ -598,7 +598,7 @@ If you use defuss-vectorsearch in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-vectorsearch: Isomorphic Multilingual Embeddings and 4-Bit TurboQuant Vector Search for JavaScript},
   year         = {2026},
-  version      = {0.3.0},
+  version      = {0.3.1},
   howpublished = {\url{https://github.com/kyr0/defuss-vectorsearch}},
   note         = {MIT License}
 }

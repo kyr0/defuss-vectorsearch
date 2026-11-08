@@ -1,6 +1,6 @@
 {
   "name": "defuss-vectorsearch",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "license": "MIT",
   "description": "Isomorphic Harrier and Winzling ONNX vector embeddings with exact and TurboQuant-style vector search.",
