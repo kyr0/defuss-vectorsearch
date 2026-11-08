@@ -127,7 +127,7 @@ try {
   await page.waitForFunction(() => document.querySelectorAll("#cmd .command-item[data-query]").length === 1000);
   await page.waitForFunction(() => /not cached yet/.test(document.querySelector("#log")!.textContent ?? ""));
   assert.equal(await stateOf(page, "#p-index"), "complete", "progress counts the gzipped bytes against the manifest sizes");
-  // One set of figures everywhere: the index hint shows the manifest's raw and gzipped sizes (431 kB = the vector index).
+  // One set of figures everywhere: the index hint shows the manifest's raw and gzipped sizes (436 kB = the vector index).
   const kb = (bytes: number) => `${Math.round(bytes / 1e3)} kB`;
   const mb = (bytes: number) => `${(bytes / 1e6).toFixed(2)} MB`;
   assert.equal(await page.textContent("#p-index-hint"),

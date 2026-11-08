@@ -35,19 +35,9 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:footer ad portrait learn=none: content decision for the user
 2026-10-08T13:38:01Z s=542d48d6 FINDING docs/index.html:closing CTA copy learn=none: no cross-browser runs in this repo
 2026-10-08T13:52:26Z s=542d48d6 FINDING docs/index.html:.mk-hero-desc (user edit) learn=none: author's copy decision
-2026-10-08T14:17:13Z s=542d48d6 FINDING docs/index.html:size figures learn=test: test-docs.ts fails on any visible '40 MB' or 'MiB' and recomputes each figure from data
-2026-10-08T14:39:23Z s=542d48d6 DONE fp=a7bc4bc37c31 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
-2026-10-08T14:39:23Z s=542d48d6 FINDING docs/assets/notes.js:addRandom + docs/assets/sample-notes.js learn=test: test-docs.ts checks pool size/mix, 5 distinct pool notes with lang tags, all embedded, count, and a steady page
 2026-10-08T14:39:23Z s=542d48d6 FINDING scripts/test-docs.ts:random-notes scroll check learn=none: test mechanics, documented inline
-2026-10-08T14:39:23Z s=542d48d6 FINDING scripts/test-docs.ts:flip figures learn=test: figures derive from bench.json and manifest.json
 2026-10-08T14:39:23Z s=542d48d6 FINDING docs/index.html:flip '~21,5 kB' learn=none: copy decision
-2026-10-08T14:46:53Z s=542d48d6 DONE fp=180757def024 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
-2026-10-08T14:46:53Z s=542d48d6 FINDING docs/index.html:#bench .mk-stats-desc learn=test: test-docs.ts checks the sentence and the link
-2026-10-08T14:46:53Z s=542d48d6 FINDING docs/index.html:#pipeline diagram learn=test: test-docs.ts waits for the autoplay to pause on step 8 and counts nodes, edges and drawn wires; the phone overflow check includes #pipeline
-2026-10-08T15:42:43Z s=542d48d6 FAIL tests.e2e.1
-2026-10-08T15:44:55Z s=542d48d6 DONE fp=c3beb4edba03 cov=66.7% paths=.oxlintrc.json,CHANGELOG.md,Makefile,README.md(+16)
 2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:#pipeline lanes + intro + agent prompt learn=none: copy precision
-2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:#intro-6 recall scope learn=test: test-docs.ts recomputes all three from bench.json
 2026-10-08T15:44:55Z s=542d48d6 FINDING examples/search-worker.ts:STRATEGY learn=test: test-docs.ts checks the summary in both tabs
 2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:.vs-flythrough position learn=none: visual spacing; screenshots checked, no layout assertion
 2026-10-08T15:44:55Z s=542d48d6 FINDING scripts/test-docs.ts:copy assertions learn=test: copy belongs to the author; numbers stay verified
@@ -105,3 +95,13 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-31T15:18:51Z s=8e62adc6 DONE fp=a8d32d3adc02 cov=67.9% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+49)
 2026-10-31T15:18:51Z s=8e62adc6 FINDING scripts/test-package.ts:28 rerankHits learn=none: Fixed in place; the same pattern in src/colbert-reranker.live.test.ts (0.9/0.8) was already changed to a 0.05 lead, and git grep finds no other literal hit scor
 2026-10-31T15:18:51Z s=8e62adc6 FINDING README.md:463 B01 / plans/2026-10-31_01-16_rerank-fusion-default.md learn=memory: .vae/MEMORY.md line: Chromium runtimeMiB swings between runs on identical builds; never attribute a change to code or builds from one run.
+2026-11-08T17:05:30Z s=6664d85b DONE fp=d18538ee50cf cov=67.9% paths=ARCH.md,CHANGELOG.md,README.md,bench.json(+18)
+2026-11-08T17:05:30Z s=6664d85b FINDING README.md:453 B04 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
+2026-11-08T17:05:30Z s=6664d85b FINDING README.md:86 P08 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
+2026-11-08T17:05:30Z s=6664d85b FINDING docs/MODEL.md:35 B01 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
+2026-11-08T17:05:30Z s=6664d85b FINDING scripts/docs/index-format.ts:7 B01 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
+2026-11-08T19:51:45Z s=6664d85b DONE fp=ab69b5a8a814 cov=68.1% paths=ARCH.md,CHANGELOG.md,README.md,bench.json(+35)
+2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.live.browser.test.ts:89 learn=memory: Added a .vae/MEMORY.md line: example outcomes of plain fusion depend on both pinned models; tests assert fusion contracts.
+2026-11-08T19:51:45Z s=6664d85b FINDING CHANGELOG.md:11 B09 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
+2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.ts:152 B02 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
+2026-11-08T19:51:45Z s=6664d85b FINDING README.md:487 B01 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread

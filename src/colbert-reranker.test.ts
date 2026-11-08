@@ -64,7 +64,8 @@ describe("reciprocal rank fusion", () => {
   });
 
   it("keeps the dense order when the dense top hit leads by denseMargin", () => {
-    // VERIFIED scores of the demo's notes for "Bücher" (tmp/notes-probe.ts): fusion moved the library note to third.
+    // VERIFIED scores of the demo's notes for "Bücher" with the Winzling release pinned by 0.2.x (tmp/notes-probe.ts):
+    // fusion moved the library note to third.
     const colbert = [11.551, 13.514, 13.55, 13.255];
     const dense = [0.287, 0.101, 0.038, 0.006];
     expect(fuseRanks(colbert, { denseScores: dense })).toEqual([0, 1, 2, 3].map(position => ({ position, score: 2 / (61 + position) })));

@@ -4,8 +4,9 @@
 // Why plain ES modules driving component State APIs instead of a framework app: the page is served as static files
 // (docs/, no build step), and every visual state is a documented component state, so the e2e can read it back.
 // VERIFIED: scripts/test-docs.ts reads progress/ring states through el.api.getState() and passes.
-// The index loads on page load (868 kB gzipped, it carries the 1,000 example queries); the models (Winzling and the
+// The index loads on page load (870 kB gzipped, it carries the 1,000 example queries); the models (Winzling and the
 // MoEdernColBERT reranker, 43.6 MB) only when the user searches, writes a note or asks for them, unless they are cached.
+// VERIFIED: docs/data/manifest.json gives both figures: 436,261 + 434,194 index bytes and 43,586,609 model bytes.
 import { createNotesBoard } from "./notes.js";
 import { formatMs, renderExampleButtons, renderHits, renderLogLine, renderNoteHits, renderQueryGroups } from "./render.js";
 import { createSearchView } from "./search-view.js";
@@ -184,7 +185,7 @@ const handlers = {
     if (state.phase !== "loading") { caption("model"); el.status.textContent = "Index loaded. The model loads with your first search."; }
     setStat("passages", data.passages.toLocaleString("en"));
     setStat("languages", `documents · ${data.languages.length} languages`);
-    // The same figures as the hero and the benchmark: the vector index is the 431 kB in transfer, the text comes on top.
+    // The same figures as the hero and the benchmark: the vector index is the 436 kB in transfer, the text comes on top.
     $("p-index-hint").textContent = `vector index ${mb(data.vectors.rawBytes)} → ${kb(data.vectors.bytes)} gzip · passage text ${mb(data.documents.rawBytes)} → ${kb(data.documents.bytes)} gzip`;
     const order = languageOrder(data.languages);
     $("cmd-placeholder").outerHTML = renderQueryGroups(data.queries, data.languages, order);

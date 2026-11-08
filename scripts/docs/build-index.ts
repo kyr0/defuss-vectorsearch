@@ -1,6 +1,6 @@
 /**
  * `make docs` step 1: embeds every bench passage once, at build time, and writes the demo's prebuilt index.
- * VERIFIED: bench.json: Chromium embeds a Winzling passage in 123 ms on average, so 2,000 passages would take ~4 min in
+ * VERIFIED: bench.json: Chromium embeds a Winzling passage in 111 ms on average, so 2,000 passages would take ~4 min in
  * the browser; a query takes 21 ms (p50). Node embeds here with native ONNX Runtime; README "Benchmark" records min
  * cosine 1 between Node and Chromium vectors for the same passages, so browser queries match these vectors.
  * Output (write-index.ts): docs/data/documents.json.gz (passages, queries), docs/data/vectors.bin.gz (the TurboQuant

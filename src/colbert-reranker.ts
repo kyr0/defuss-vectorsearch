@@ -138,17 +138,22 @@ export const maxSim = (query: TokenMatrix, document: TokenMatrix): number => {
 };
 
 /**
- * Reciprocal rank fusion constant of Cormack, Clarke and Buettcher (SIGIR 2009). VERIFIED: with 25 candidates it
- * lifted Winzling's R@1 from 66.4 to 76.2 on the bench's target languages, where the ColBERT order alone reached 70.9.
+ * Reciprocal rank fusion constant of Cormack, Clarke and Buettcher (SIGIR 2009). VERIFIED by a probe on 2026-10-31 with
+ * the Winzling release pinned by 0.2.x and the original 1.5M: with 25 candidates it lifted Winzling's R@1 from 66.4 to 76.2 on the bench's
+ * target languages, where the ColBERT order alone reached 70.9.
  */
 const RRF_K = 60;
-/** VERIFIED: fusion held R@1 between 75.6 and 77.1 for 10 to 100 candidates; 25 keeps a query's rerank near 160 ms in WASM. */
+/**
+ * VERIFIED by the same probe: fusion held R@1 between 75.6 and 77.1 for 10 to 100 candidates; 25 keeps a query's rerank
+ * near 160 ms in WASM.
+ */
 const DEFAULT_CANDIDATES = 25;
 /**
- * Winzling cosine margin above which fusion keeps the dense order. VERIFIED (tmp/fusion-gate-probe.ts, 450 target
- * queries): over the 87 queries whose top hit led by 0.1 or more, fusion never lifted the gold passage to rank 1 and
- * dropped it from rank 1 once; R@1 stayed at 77.1 for margins from 0.06 to 0.13. VERIFIED: it keeps the demo's
- * "Bücher" note on top, which fusion moved to third.
+ * Winzling cosine margin above which fusion keeps the dense order. VERIFIED (tmp/rank-probe.ts, the Winzling release and
+ * the edited 1.5M pinned by 0.3.0, 450 target queries over the exact top 25, 2026-11-08): for the 80 queries whose top hit
+ * led by 0.1 or more, fusion moved no gold passage onto or off rank 1, and R@1 stayed between 78.0 and 78.2 for margins
+ * from 0.05 to 0.20. With the 0.2.x models, fusion had dropped one of 87 such queries from rank 1 and moved the demo's
+ * "Bücher" note to third (tmp/fusion-gate-probe.ts, tmp/notes-probe.ts); the margin keeps such clear winners on top.
  */
 const DEFAULT_DENSE_MARGIN = 0.1;
 

@@ -3,7 +3,7 @@
  * crosses the network (the page's progress and transfer figures), `rawBytes` what the browser unpacks.
  * Why gzip at build time instead of trusting the host: pre-gzipped files are the same size on every host, and the
  * worker unpacks them with the browser's native DecompressionStream.
- * VERIFIED: vectors.bin.gz is 430,635 bytes, the 431 kB the page shows (scripts/test-docs.ts compares them).
+ * VERIFIED: vectors.bin.gz is 436,261 bytes, the 436 kB the page shows (scripts/test-docs.ts compares them).
  * HYPOTHESIS: GitHub Pages would not gzip a binary file itself; falsifier: `curl -sI --compressed <pages-url>/data/vectors.bin.gz`.
  */
 import { mkdir, writeFile } from "node:fs/promises";

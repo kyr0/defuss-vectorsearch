@@ -1,12 +1,12 @@
 {
   "documents": {
     "file": "documents.json.gz",
-    "bytes": 437721,
+    "bytes": 434194,
     "rawBytes": 955378
   },
   "vectors": {
     "file": "vectors.bin.gz",
-    "bytes": 430635,
+    "bytes": 436261,
     "rawBytes": 512512
   },
   "modelFiles": {

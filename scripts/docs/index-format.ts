@@ -4,7 +4,7 @@
  * Node (gzipped), read by examples/search-worker.ts in the browser (gunzipped with DecompressionStream), so it uses only
  * APIs both have. Columns instead of objects keep 2,000 rows small.
  * Why binary vectors instead of base64 inside the JSON: base64 adds a third and gzip cannot take it back.
- * VERIFIED: the vector index is 512,576 bytes raw and 431 kB gzipped; as base64 in JSON it was 475 kB gzipped.
+ * VERIFIED: the vector index is 512,512 bytes raw and 436 kB gzipped; as one base64 string in JSON it gzips to 487 kB.
  */
 import type { TurboQuantSearchIndex } from "../../src/types.ts";
 
