@@ -2,7 +2,9 @@ name: verify
 on: [push, pull_request]
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # VERIFIED: ubuntu-latest became Ubuntu 26.04, where Playwright 1.55.1 refuses to install Chromium (CI, 2026-11-08).
+    # HYPOTHESIS: 24.04 installs it; falsifier: this workflow's `make setup` step.
+    runs-on: ubuntu-24.04
     env:
       ONNXRUNTIME_NODE_INSTALL_CUDA: skip
     steps:
