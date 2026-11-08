@@ -56,7 +56,7 @@ The package does not serialize indexes; the live demo writes its own format (`sc
 ## Install
 
 ```sh
-bun add defuss-vectorsearch@0.2.1        # or: npm install defuss-vectorsearch@0.2.1
+bun add defuss-vectorsearch@0.3.0        # or: npm install defuss-vectorsearch@0.3.0
 bun add onnxruntime-node@1.21.0          # only for device: "cpu" in Node.js or Bun
 ```
 
@@ -598,7 +598,7 @@ If you use defuss-vectorsearch in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-vectorsearch: Isomorphic Multilingual Embeddings and 4-Bit TurboQuant Vector Search for JavaScript},
   year         = {2026},
-  version      = {0.2.1},
+  version      = {0.3.0},
   howpublished = {\url{https://github.com/kyr0/defuss-vectorsearch}},
   note         = {MIT License}
 }
