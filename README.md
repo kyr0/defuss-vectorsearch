@@ -14,10 +14,10 @@ The Winzling embedding model runs on ONNX Runtime Web (WASM, experimental WebGPU
 Build the index server-side and publish it. The browser downloads the index, embeds the search query locally and searches the TurboQuant index locally. Once the model is cached, a reload loads it in ~0.4 s; embedding a query then takes 28.4 ms and searching 2,000 passages 0.36 ms (headless Chromium, see [Quick start](#quick-start) and [Benchmark](#benchmark)).
 
 - 🔁 **Isomorphic:** one embedder API in browsers and in Node.js; both produce the same Winzling vectors (minimum cosine 1 over 40 passages)
-- 🪶 **Small model:** 39.76 MB to download (30.46 MB ONNX graph, 9.29 MB tokenizer) instead of 304.68 MB for Harrier, and 296 to 598 MiB of memory at runtime in Chromium 140 (two runs)
+- 🪶 **Small model:** 39.76 MB to download (30.46 MB ONNX graph, 9.29 MB tokenizer) instead of 304.68 MB for Harrier, and 168 to 598 MiB of memory at runtime in Chromium 140 (five runs)
 - 🗜️ **4-bit index:** TurboQuant keeps 256 B per vector instead of 1,536 B in float32; the live demo's 2,000 passages are 431 kB gzipped
-- 🎯 **Multilingual recall:** R@5 of 92.2% over nine languages, 94 to 100% for German, Russian and English, against a 2,000-passage haystack in 20 languages
-- ⚡ **Fast queries:** 28.4 ms to embed a query, 0.36 ms to search 2,000 passages (means, Chromium, WASM, 1 thread)
+- 🎯 **Multilingual recall:** R@5 of 92.2% over nine languages for the passage in the query's language (98.7% counting its translations), 94 to 100% for German, Russian and English, against a 2,000-passage haystack in 20 languages
+- ⚡ **Fast queries:** 31.1 ms to embed a query, 0.36 ms to search 2,000 passages (means, Chromium, WASM, 1 thread)
 - 🔒 **Pinned and checked:** one pinned model revision; every file is SHA-256 checked, cache hits included, and cached in the Cache API and IndexedDB (browser) or on the filesystem (Node.js)
 - 📦 **Lean browser bundle:** `browser.js` builds to 340 KB of JavaScript plus the 26.78 MB ONNX Runtime Web WASM, with no Transformers.js or Node.js code
 - 🧪 **Oracle-tested:** exact token IDs, and embeddings within `2e-5` of Rust tokenizers and Python ONNX Runtime, on 24 multilingual and adversarial cases
@@ -83,14 +83,14 @@ VERIFIED by `scripts/test-browser-bundle.ts` (part of `make e2e`) and one run ag
 - **Bundlers.** Only Vite was tested. Under Vite's dev server, keep `onnxruntime-web` out of dependency pre-bundling (`optimizeDeps: { exclude: ["onnxruntime-web"] }`), as this repo's `vite.config.ts` does. With another bundler, pass `wasmPaths` pointing at a copy of `onnxruntime-web/dist/`, as the demo does with `"/ort/"`.
 - **Format.** The entry is ESM-only and accepts `device: "wasm"` (default) or `"webgpu"`.
 
-This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.8× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. It retrieves less well than Harrier in the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish). R@3 is 83.8% against 98.9%, and R@25 is 98.9% against 100% (Node.js, bruteforce). Its weakest target languages are Portuguese and Spanish, at 76% and 74% R@3. When the top 3 must be right, use Harrier through `client.js`.
+This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.7× faster embedding in Chromium, and a TurboQuant index 6× smaller than float32. The benchmark holds each passage in 20 languages. In the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish), Winzling ranks the passage or one of its translations in the top 3 for 98.0% of queries, against 99.3% for Harrier (Node.js, bruteforce). The passage in the query's language reaches the top 3 for 83.8% of queries, against 98.9%: Winzling often ranks a translation above it. Portuguese and Spanish show this most, at 76% and 74% R@3, and 100% when a translation counts. When the top 3 must hold the passage in the query's language, use Harrier through `client.js`.
 
 ### Rerank dense hits with MoEdernColBERT
 
 ```ts
 import { createColbertReranker } from "defuss-vectorsearch/browser.js"; // or onnx.js in Node.js
 
-const reranker = createColbertReranker({ model: "1.5m" }); // q8 by default: 3.97 MB, cached like Winzling
+const reranker = createColbertReranker({ model: "1.5m" }); // q8 by default: 3.83 MB, cached like Winzling
 const query = "A sleeping cat on a couch.";
 const hits = searchTurboQuantIndex(index, await embedder.embedQuery(query), 25);
 const fused = await reranker.rerankHits(query, hits, documents, { truncate: true }); // best first
@@ -99,23 +99,31 @@ console.log(fused.slice(0, 3).map((hit) => documents[hit.index]));
 
 `rerankHits` reranks the top 25 dense hits and fuses the reranker's order with Winzling's (reciprocal rank fusion), so it reorders the hits of a dense search rather than replacing it. The reranker encodes the query and each passage into 128-dimensional token vectors and scores them with ColBERT MaxSim. Those vectors share no space with Winzling's, so you cannot put them in a TurboQuant index. `truncate: true` lets a query longer than 32 tokens keep its first 31 instead of throwing.
 
-VERIFIED by `make bench` (2026-10-31, the nine target languages; Winzling's rows are identical in Node.js and Chromium, Harrier's are from Node.js):
+VERIFIED by `make bench` (2026-11-08, the nine target languages; Winzling's rows are identical in Node.js and Chromium, Harrier's are from Node.js):
 
 | Pipeline | R@1 | R@3 | R@5 | R@10 | Added per query |
 |---|---:|---:|---:|---:|---:|
 | Winzling, TurboQuant | 65.8 | 82.9 | 91.6 | 96.7 | |
-| Winzling, TurboQuant, then `rerankHits` | 77.8 | 90.2 | 94.4 | 98.4 | 89 ms in Node.js (native CPU), 157 ms in Chromium (p50) |
+| Winzling, TurboQuant, then `rerankHits` | 78.0 | 90.2 | 94.4 | 98.4 | 89 ms in Node.js (native CPU), 161 ms in Chromium (p50) |
 | Harrier, TurboQuant | 96.9 | 98.9 | 99.3 | 99.6 | |
-| Harrier, TurboQuant, then `rerankHits` | 89.1 | 96.4 | 98.4 | 100.0 | 91 ms in Node.js (native CPU) |
+| Harrier, TurboQuant, then `rerankHits` | 91.6 | 97.3 | 98.7 | 100.0 | 97 ms in Node.js (native CPU) |
 
-Use the reranker with Winzling only: it is weaker than Harrier and pulls Harrier's ranking down. Chromium's Harrier rows and the per-language effect are in the [benchmark](#benchmark).
+Use the reranker with Winzling only: it is weaker than Harrier and pulls Harrier's ranking down. Chromium's Harrier rows and the per-language effect are in the [benchmark](#benchmark). Counting a translation as a hit, Winzling's R@1 rises only from 93.8 to 96.7: most of the gain is ranking the passage in the query's language above its translations.
 
 | `model` | Hugging Face release | q8 download | Graphs |
 |---|---|---|---|
-| `"1.5m"` | [`kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX) | 3.97 MB | `fp32`, `fp16`, `q8`, `int8` |
+| `"1.5m"` | [`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming) | 3.83 MB | `q8` |
+| `"1.5m-original"` | [`kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX) | 3.97 MB | `fp32`, `fp16`, `q8`, `int8` |
 | `"27m"` | [`kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX) | 29.77 MB | `fp32`, `fp16`, `q8`, `int8`, `q4` |
 
-Use `q8`, the default, for both models. It stores INT8 weights and computes in FP32. Its scores match the exporter's Python ONNX Runtime within `1e-3` in native Node.js CPU, Node.js WASM and Chromium WASM. `int8` and `fp16` round differently on each runtime, and `int8` is larger than `q8`. The 1.5M release has no `q4` graph because it failed the exporter's quality gate (mean token cosine 0.954 to 0.961 against FP32, gate 0.98).
+`"1.5m"` is a weight edit of SauerkrautLM-MoEdernColBERT-1.5M that adds 11,998 Cyrillic tokens. It ships as `q8` only. VERIFIED in [its model card](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming), with exhaustive MaxSim on the upstream card's nine benchmarks:
+- **Card benchmarks.** The macro nDCG@10 is +0.0015 against the original (95% CI −0.0026 to +0.0054). GermanDPR (+0.008) and GermanQuAD (+0.003) improve significantly, and no benchmark gets significantly worse.
+- **Russian.** The original tokenizer maps Russian to `<unk>` and scores 0.01 to 0.16 nDCG@10 on six Russian tasks. The edit scores 0.35 to 0.86.
+- **Other text.** Text without Cyrillic letters keeps its token ids.
+
+`"1.5m-original"` is the unedited export, with all four precisions. Token vectors cached with 0.2.x carry the original release's fingerprint, and `maxSim` refuses to compare them with new vectors, so re-encode cached passages.
+
+Use `q8`, the default, for every model. It stores INT8 weights and computes in FP32. Its scores match the exporter's Python ONNX Runtime within `1e-3` in native Node.js CPU, Node.js WASM and Chromium WASM. `int8` and `fp16` round differently on each runtime, and `int8` is larger than `q8`. The original 1.5M release has no `q4` graph because it failed the exporter's quality gate (mean token cosine 0.954 to 0.961 against FP32, gate 0.98).
 
 VERIFIED by `src/colbert-reranker.live.test.ts`, `src/colbert-reranker.live.browser.test.ts` (`make test`), `scripts/test-browser-bundle.ts` (`make e2e`) and one run against huggingface.co:
 
@@ -166,7 +174,7 @@ Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUD
 
 ## Live demo
 
-[vectorsearch.defuss.org](https://vectorsearch.defuss.org) serves `docs/index.html`, a standalone page built with defuss-shadcn from its CDN. On page load it fetches a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model and the MoEdernColBERT 1.5M reranker (43.7 MB together) with byte progress, and later searches run as you type. Each search shows TurboQuant's hits at once, then their order fused with the reranker over the top 25. The ⌘K palette lists the 1,000 benchmark questions by language; for those, the results mark the gold passage and its translations. A second tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it. The "Use it" section gives a prompt that points a coding agent at this repository.
+[vectorsearch.defuss.org](https://vectorsearch.defuss.org) serves `docs/index.html`, a standalone page built with defuss-shadcn from its CDN. On page load it fetches a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model and the MoEdernColBERT 1.5M reranker (43.6 MB together) with byte progress, and later searches run as you type. Each search shows TurboQuant's hits at once, then their order fused with the reranker over the top 25. The ⌘K palette lists the 1,000 benchmark questions by language; for those, the results mark the gold passage and its translations. A second tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it. The "Use it" section gives a prompt that points a coding agent at this repository.
 
 ```sh
 python3 -m http.server -d docs 8080   # serves docs/ at http://localhost:8080/
@@ -236,7 +244,7 @@ Methods: `load()`, `fingerprint()`, `encodeQueries()`, `encodeDocuments()`, `rer
 
 | Option | Default / behavior |
 |---|---|
-| `model` | Required: `"1.5m"` or `"27m"` |
+| `model` | Required: `"1.5m"`, `"1.5m-original"` or `"27m"` |
 | `precision` | `"q8"`; a graph the release does not ship throws |
 | `device` | `"wasm"`; `"cpu"` is Node-only and needs `onnxruntime-node` |
 | `batchSize` | 4 |
@@ -299,13 +307,13 @@ Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know th
 | `kyr0/Winzling-Embed-a8m-64k` | Direct ONNX + `@huggingface/tokenizers` | Masked mean; unchanged, unprefixed input |
 | `tss-deposium/harrier-oss-v1-270m-onnx-int8` | Existing Transformers.js pipeline | Existing last-token pooling and instruction formatting |
 | `onnx-community/harrier-oss-v1-270m-ONNX` | Existing Transformers.js pipeline, `dtype: "q4"` | Existing Harrier behavior |
-| `kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`, `kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX` | Direct ONNX + `@huggingface/tokenizers`, through `createColbertReranker` only | Reranker: `[Q] ` and `[D] ` prefixes, MaxSim over token vectors |
+| `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, `kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`, `kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX` | Direct ONNX + `@huggingface/tokenizers`, through `createColbertReranker` only | Reranker: `[Q] ` and `[D] ` prefixes, MaxSim over token vectors |
 
 The no-argument client/server factory defaults to Harrier. Explicit OpenAI-compatible endpoints and the vector-search exports are retained. See [the preserved upstream README](docs/UPSTREAM_README.md) for those APIs and historical benchmarks; those benchmark results were not reproduced for this release.
 
 ### Runtime and deployment
 
-Native Node CPU uses `onnxruntime-node@1.21.0`, matching the retained Transformers.js dependency so two incompatible native ORT libraries are not loaded into one process. The native peer is optional; the development checkout installs it. ORT Web is pinned independently to `1.30.0` and the tokenizer to `0.2.0`.
+Native Node CPU uses `onnxruntime-node@1.21.0`, matching the retained Transformers.js dependency so two incompatible native ORT libraries are not loaded into one process. The native peer is optional; the development checkout installs it. ORT Web is pinned independently to `1.30.0` and the tokenizer to `0.2.0`. That tokenizer splits on JavaScript's whitespace, not Unicode's. For U+0085 (next line) and U+FEFF (byte-order mark), its ids would differ from those of the Rust tokenizers library. So the reranker replaces U+0085 with a space and U+FEFF with U+2060 (word joiner) before tokenizing.
 
 The included demo runs tokenization and inference in a dedicated module Worker, serves all assets from localhost, and uses exact cosine similarity for display. Do not enable ORT's proxy-worker mode for WebGPU. The provider sets it to false. WASM paths and thread settings are global ORT configuration: use consistent settings across instances and configure other users of ORT before initialization. HTTPS or localhost is needed for browser cryptography, storage, and WebGPU APIs.
 
@@ -332,6 +340,7 @@ The benchmark uses [tiny-embedding-bench-v1](https://github.com/kyr0/tiny-embedd
   (`buildTurboQuantIndex`) without exact reranking.
 - **Metrics.**
   - R@k is the share of queries whose target ranks within the top k.
+  - *Any-language R@k* also counts a query as a hit when a translation of its gold passage ranks within the top k. Its gap to R@k is the share of queries whose top k holds a translation of the gold passage but not the passage in the query's language.
   - *Rank ±10%* is the share of queries where TurboQuant places the target within ±10% of its bruteforce rank. An exact rank below 10 must be matched exactly.
   - Embedding time is the mean per text, one text per call, on one warm session per model.
   - Search time is the mean per query for the top 100.
@@ -344,7 +353,7 @@ The benchmark uses [tiny-embedding-bench-v1](https://github.com/kyr0/tiny-embedd
   - Chromium runs the same build on ONNX Runtime Web (`device: "wasm"`, 1 thread) in headless Playwright. It loads the model files the Node run cached in `bench/cache/`.
 
 <!-- bench:start -->
-Generated by `make bench` on 2026-10-31 · Apple M5 Max, 18 cores, darwin arm64.
+Generated by `make bench` on 2026-11-08 · Apple M5 Max, 18 cores, darwin arm64.
 Runtimes: Node.js v26.11.1; Chromium 140.0.7339.186 headless (Playwright).
 
 ### Embedding
@@ -353,31 +362,50 @@ One text per call, warm session; model runtime = memory growth over load + embed
 
 | Environment | Model | Device | Load ms | Embed passage ms | Embed query ms | Model runtime MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| Node.js | Winzling | cpu | 235 | 51.4 (p95 161.9) | 10.1 (p95 26.9) | 238.8 |
-| Node.js | Harrier | cpu | 980 | 17.0 (p95 22.5) | 9.9 (p95 11.9) | 1092.56 |
-| Chromium | Winzling | wasm | 576 | 109.7 (p95 330.9) | 28.4 (p95 63.6) | 296.01 |
-| Chromium | Harrier | wasm | 1770 | 316.9 (p95 439.1) | 157.9 (p95 198.8) | 292.14 |
+| Node.js | Winzling | cpu | 142 | 51.7 (p95 164.4) | 10.6 (p95 29.7) | 219.68 |
+| Node.js | Harrier | cpu | 937 | 17.4 (p95 24.0) | 10.0 (p95 12.1) | 1171.61 |
+| Chromium | Winzling | wasm | 658 | 116.8 (p95 349.5) | 31.1 (p95 70.8) | 167.82 |
+| Chromium | Harrier | wasm | 1783 | 315.1 (p95 436.0) | 146.4 (p95 186.1) | 516.08 |
 
 ### Retrieval Quality
 
 The 9 target languages: `deu_Latn`, `rus_Cyrl`, `eng_Latn`, `fra_Latn`, `ind_Latn`, `nld_Latn`, `ita_Latn`, `por_Latn`, `spa_Latn`; their 450 queries against all 2000 passages in 20 languages; R@k = % of queries whose gold passage ranks in the top k:
 
-TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with SauerkrautLM-MoEdernColBERT 1.5M (q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's.
+TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the `"1.5m"` reranker (`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's.
 
 | Environment | Model | Strategy | R@1 | R@3 | R@5 | R@10 | R@25 | R@100 | Rank ±10% |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | Node.js | Winzling | bruteforce | 66.4 | 83.8 | 92.2 | 96.7 | 98.9 | 99.3 | n/a |
 | Node.js | Winzling | TurboQuant | 65.8 | 82.9 | 91.6 | 96.7 | 98.9 | 99.3 | 88.9% |
-| Node.js | Winzling | TurboQuant + MoEdernColBERT | 77.8 | 90.2 | 94.4 | 98.4 | 98.9 | 99.3 | n/a |
+| Node.js | Winzling | TurboQuant + MoEdernColBERT | 78 | 90.2 | 94.4 | 98.4 | 98.9 | 99.3 | n/a |
 | Node.js | Harrier | bruteforce | 97.1 | 98.9 | 99.3 | 99.8 | 100 | 100 | n/a |
 | Node.js | Harrier | TurboQuant | 96.9 | 98.9 | 99.3 | 99.6 | 100 | 100 | 98.7% |
-| Node.js | Harrier | TurboQuant + MoEdernColBERT | 89.1 | 96.4 | 98.4 | 100 | 100 | 100 | n/a |
+| Node.js | Harrier | TurboQuant + MoEdernColBERT | 91.6 | 97.3 | 98.7 | 100 | 100 | 100 | n/a |
 | Chromium | Winzling | bruteforce | 66.4 | 83.8 | 92.2 | 96.7 | 98.9 | 99.3 | n/a |
 | Chromium | Winzling | TurboQuant | 65.8 | 82.9 | 91.6 | 96.7 | 98.9 | 99.3 | 88.9% |
-| Chromium | Winzling | TurboQuant + MoEdernColBERT | 77.8 | 90.2 | 94.4 | 98.4 | 98.9 | 99.3 | n/a |
+| Chromium | Winzling | TurboQuant + MoEdernColBERT | 78 | 90.2 | 94.4 | 98.4 | 98.9 | 99.3 | n/a |
 | Chromium | Harrier | bruteforce | 96.7 | 98.4 | 99.3 | 99.8 | 100 | 100 | n/a |
 | Chromium | Harrier | TurboQuant | 96.9 | 98.9 | 99.1 | 99.8 | 100 | 100 | 97.3% |
-| Chromium | Harrier | TurboQuant + MoEdernColBERT | 89.8 | 96.7 | 98.4 | 99.8 | 100 | 100 | n/a |
+| Chromium | Harrier | TurboQuant + MoEdernColBERT | 91.8 | 97.3 | 98.9 | 100 | 100 | 100 | n/a |
+
+### Any-Language Recall
+
+The same queries, but the gold passage in any of the 20 languages counts as a hit. The gap to R@k above is the share of queries whose top k holds a translation of the gold passage but not the passage in the query's language:
+
+| Environment | Model | Strategy | R@1 | R@3 | R@5 | R@10 | R@25 | R@100 |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Node.js | Winzling | bruteforce | 94.2 | 98 | 98.7 | 98.7 | 99.3 | 100 |
+| Node.js | Winzling | TurboQuant | 93.8 | 98 | 98.4 | 98.7 | 99.3 | 100 |
+| Node.js | Winzling | TurboQuant + MoEdernColBERT | 96.7 | 98.4 | 99.1 | 99.3 | 99.3 | 100 |
+| Node.js | Harrier | bruteforce | 97.8 | 99.3 | 99.6 | 99.8 | 100 | 100 |
+| Node.js | Harrier | TurboQuant | 98 | 99.3 | 99.6 | 99.6 | 100 | 100 |
+| Node.js | Harrier | TurboQuant + MoEdernColBERT | 98.7 | 99.8 | 99.8 | 100 | 100 | 100 |
+| Chromium | Winzling | bruteforce | 94.2 | 98 | 98.7 | 98.7 | 99.3 | 100 |
+| Chromium | Winzling | TurboQuant | 93.8 | 98 | 98.4 | 98.7 | 99.3 | 100 |
+| Chromium | Winzling | TurboQuant + MoEdernColBERT | 96.7 | 98.4 | 99.1 | 99.3 | 99.3 | 100 |
+| Chromium | Harrier | bruteforce | 97.8 | 99.1 | 99.6 | 99.8 | 100 | 100 |
+| Chromium | Harrier | TurboQuant | 98 | 99.3 | 99.6 | 99.8 | 100 | 100 |
+| Chromium | Harrier | TurboQuant + MoEdernColBERT | 98.2 | 99.8 | 99.8 | 100 | 100 | 100 |
 
 ### Cost per Method
 
@@ -385,18 +413,18 @@ Passage = embed + share of the index build; query = embed + top-100 search, plus
 
 | Environment | Model | Strategy | Passage ms | Query ms | Search ms mean | Index build ms | Runtime MiB | Index MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Node.js | Winzling | bruteforce | 51.4 (p95 161.9) | 10.4 (p95 27.2) | 0.324 | 1.8 | 241.73 | 2.93 |
-| Node.js | Winzling | TurboQuant | 51.4 (p95 161.9) | 10.4 (p95 27.2) | 0.336 | 11.1 | 239.29 | 0.49 |
-| Node.js | Winzling | TurboQuant + MoEdernColBERT | 51.4 (p95 161.9) | 89.2 (p95 116.9) | 79.170 | 11.1 | 201.05 | 0.49 |
-| Node.js | Harrier | bruteforce | 17.0 (p95 22.5) | 10.5 (p95 12.5) | 0.562 | 3.6 | 1097.44 | 4.88 |
-| Node.js | Harrier | TurboQuant | 17.0 (p95 22.5) | 10.7 (p95 12.8) | 0.721 | 20.2 | 1093.54 | 0.98 |
-| Node.js | Harrier | TurboQuant + MoEdernColBERT | 17.0 (p95 22.5) | 97.8 (p95 118.2) | 87.910 | 20.2 | 1138.71 | 0.98 |
-| Chromium | Winzling | bruteforce | 109.7 (p95 330.9) | 28.8 (p95 64.0) | 0.350 | 1.4 | 298.94 | 2.93 |
-| Chromium | Winzling | TurboQuant | 109.7 (p95 330.9) | 28.8 (p95 63.9) | 0.356 | 11.8 | 296.5 | 0.49 |
-| Chromium | Winzling | TurboQuant + MoEdernColBERT | 109.7 (p95 330.9) | 167.5 (p95 216.3) | 139.097 | 11.8 | 482.95 | 0.49 |
-| Chromium | Harrier | bruteforce | 316.9 (p95 439.1) | 158.4 (p95 199.4) | 0.566 | 3.1 | 297.03 | 4.88 |
-| Chromium | Harrier | TurboQuant | 316.9 (p95 439.1) | 158.6 (p95 199.5) | 0.712 | 24.2 | 293.12 | 0.98 |
-| Chromium | Harrier | TurboQuant + MoEdernColBERT | 316.9 (p95 439.1) | 334.1 (p95 403.3) | 176.215 | 24.2 | 95.48 | 0.98 |
+| Node.js | Winzling | bruteforce | 51.7 (p95 164.4) | 10.9 (p95 30.0) | 0.340 | 1.6 | 222.61 | 2.93 |
+| Node.js | Winzling | TurboQuant | 51.7 (p95 164.4) | 10.9 (p95 30.0) | 0.339 | 11.2 | 220.17 | 0.49 |
+| Node.js | Winzling | TurboQuant + MoEdernColBERT | 51.7 (p95 164.4) | 90.1 (p95 118.0) | 79.517 | 11.2 | 201.58 | 0.49 |
+| Node.js | Harrier | bruteforce | 17.4 (p95 24.0) | 10.6 (p95 12.7) | 0.548 | 2.7 | 1176.49 | 4.88 |
+| Node.js | Harrier | TurboQuant | 17.4 (p95 24.1) | 10.8 (p95 13.1) | 0.749 | 21.4 | 1172.59 | 0.98 |
+| Node.js | Harrier | TurboQuant + MoEdernColBERT | 17.4 (p95 24.1) | 104.8 (p95 132.9) | 94.824 | 21.4 | 1256.46 | 0.98 |
+| Chromium | Winzling | bruteforce | 116.8 (p95 349.5) | 31.5 (p95 71.1) | 0.369 | 2.0 | 170.75 | 2.93 |
+| Chromium | Winzling | TurboQuant | 116.8 (p95 349.5) | 31.5 (p95 71.1) | 0.361 | 12.1 | 168.31 | 0.49 |
+| Chromium | Winzling | TurboQuant + MoEdernColBERT | 116.8 (p95 349.5) | 173.7 (p95 225.3) | 142.620 | 12.1 | 587.72 | 0.49 |
+| Chromium | Harrier | bruteforce | 315.1 (p95 436.0) | 147.0 (p95 186.7) | 0.566 | 2.4 | 520.96 | 4.88 |
+| Chromium | Harrier | TurboQuant | 315.1 (p95 436.0) | 147.1 (p95 186.7) | 0.710 | 24.3 | 517.06 | 0.98 |
+| Chromium | Harrier | TurboQuant + MoEdernColBERT | 315.1 (p95 436.0) | 310.8 (p95 361.8) | 164.461 | 24.3 | 580.5 | 0.98 |
 
 ### Per Language, Node.js
 
@@ -404,22 +432,22 @@ Target languages, best first by Winzling bruteforce; cells: R@1 / R@3 / R@5 / R@
 
 | Language | Winzling bruteforce | Winzling TurboQuant | Winzling TurboQuant + MoEdernColBERT | Harrier bruteforce | Harrier TurboQuant | Harrier TurboQuant + MoEdernColBERT |
 | --- | --- | --- | --- | --- | --- | --- |
-| `rus_Cyrl` | 84 / 92 / 94 / 98 / 98 / 100 | 86 / 92 / 94 / 98 / 98 / 100 | 94 / 98 / 98 / 98 / 98 / 100 | 96 / 98 / 98 / 98 / 100 / 100 | 94 / 98 / 98 / 98 / 100 / 100 | 84 / 88 / 94 / 100 / 100 / 100 |
-| `fra_Latn` | 76 / 84 / 94 / 96 / 100 / 100 | 76 / 84 / 92 / 96 / 100 / 100 | 82 / 86 / 94 / 98 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 84 / 96 / 100 / 100 / 100 / 100 |
-| `eng_Latn` | 72 / 90 / 100 / 100 / 100 / 100 | 70 / 90 / 100 / 100 / 100 / 100 | 88 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 |
-| `deu_Latn` | 70 / 92 / 96 / 98 / 100 / 100 | 68 / 92 / 94 / 98 / 100 / 100 | 80 / 92 / 94 / 100 / 100 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 98 / 98 / 98 / 98 / 100 / 100 | 90 / 100 / 100 / 100 / 100 / 100 |
-| `nld_Latn` | 70 / 82 / 90 / 96 / 98 / 98 | 68 / 82 / 88 / 96 / 98 / 98 | 80 / 92 / 94 / 96 / 98 / 98 | 94 / 98 / 100 / 100 / 100 / 100 | 94 / 98 / 100 / 100 / 100 / 100 | 90 / 98 / 100 / 100 / 100 / 100 |
-| `ind_Latn` | 62 / 84 / 92 / 92 / 96 / 96 | 62 / 76 / 92 / 92 / 96 / 96 | 76 / 86 / 94 / 96 / 96 / 96 | 94 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 | 88 / 98 / 100 / 100 / 100 / 100 |
-| `por_Latn` | 58 / 76 / 94 / 98 / 100 / 100 | 58 / 74 / 92 / 98 / 100 / 100 | 72 / 96 / 96 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 |
-| `ita_Latn` | 54 / 80 / 86 / 98 / 100 / 100 | 52 / 84 / 90 / 98 / 100 / 100 | 66 / 82 / 90 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 84 / 92 / 94 / 100 / 100 / 100 |
-| `spa_Latn` | 52 / 74 / 84 / 94 / 98 / 100 | 52 / 72 / 82 / 94 / 98 / 100 | 62 / 80 / 90 / 98 / 98 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 96 / 98 / 98 / 100 / 100 / 100 | 86 / 96 / 98 / 100 / 100 / 100 |
+| `rus_Cyrl` | 84 / 92 / 94 / 98 / 98 / 100 | 86 / 92 / 94 / 98 / 98 / 100 | 88 / 94 / 98 / 98 / 98 / 100 | 96 / 98 / 98 / 98 / 100 / 100 | 94 / 98 / 98 / 98 / 100 / 100 | 90 / 96 / 98 / 100 / 100 / 100 |
+| `fra_Latn` | 76 / 84 / 94 / 96 / 100 / 100 | 76 / 84 / 92 / 96 / 100 / 100 | 80 / 86 / 94 / 100 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 86 / 94 / 98 / 100 / 100 / 100 |
+| `eng_Latn` | 72 / 90 / 100 / 100 / 100 / 100 | 70 / 90 / 100 / 100 / 100 / 100 | 90 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 |
+| `deu_Latn` | 70 / 92 / 96 / 98 / 100 / 100 | 68 / 92 / 94 / 98 / 100 / 100 | 86 / 92 / 94 / 100 / 100 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 98 / 98 / 98 / 98 / 100 / 100 | 92 / 100 / 100 / 100 / 100 / 100 |
+| `nld_Latn` | 70 / 82 / 90 / 96 / 98 / 98 | 68 / 82 / 88 / 96 / 98 / 98 | 78 / 92 / 94 / 96 / 98 / 98 | 94 / 98 / 100 / 100 / 100 / 100 | 94 / 98 / 100 / 100 / 100 / 100 | 92 / 98 / 100 / 100 / 100 / 100 |
+| `ind_Latn` | 62 / 84 / 92 / 92 / 96 / 96 | 62 / 76 / 92 / 92 / 96 / 96 | 78 / 92 / 94 / 96 / 96 / 96 | 94 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 |
+| `por_Latn` | 58 / 76 / 94 / 98 / 100 / 100 | 58 / 74 / 92 / 98 / 100 / 100 | 72 / 94 / 98 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 |
+| `ita_Latn` | 54 / 80 / 86 / 98 / 100 / 100 | 52 / 84 / 90 / 98 / 100 / 100 | 64 / 82 / 90 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 84 / 94 / 96 / 100 / 100 / 100 |
+| `spa_Latn` | 52 / 74 / 84 / 94 / 98 / 100 | 52 / 72 / 82 / 94 / 98 / 100 | 66 / 80 / 88 / 96 / 98 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 96 / 98 / 98 / 100 / 100 / 100 | 88 / 96 / 96 / 100 / 100 / 100 |
 
 Node.js vs Chromium vectors for the same passages: Winzling min cosine 1 over 40 passages; Harrier min cosine 0.98881 over 40 passages.
 <!-- bench:end -->
 
 ## Findings
 
-`make bench` regenerates the tables above. This analysis is written by hand and cites the 2026-10-31 run.
+`make bench` regenerates the tables above. This analysis is written by hand and cites the 2026-11-08 run.
 
 ### Index Size
 
@@ -430,7 +458,7 @@ VERIFIED: TurboQuant stores 5 to 6 times less than bruteforce. Bruteforce keeps 
 | Winzling (384 dims) | 1,536 B | 256 B | 2.93 MiB | 0.49 MiB | 146.5 MiB | 24.4 MiB |
 | Harrier (640 dims) | 2,560 B | 512 B | 4.88 MiB | 0.98 MiB | 244.1 MiB | 48.8 MiB |
 
-At 2,000 passages the models' runtimes (95 to 1,139 MiB in Cost per Method) still dwarf either index.
+At 2,000 passages the models' runtimes (168 to 1,256 MiB in Cost per Method) still dwarf either index.
 
 ### Download Size
 
@@ -450,33 +478,33 @@ VERIFIED: measured from the cached model files and from the Chromium page's netw
 
 ### Quality, Speed, and Caveats
 
-**Quality.** VERIFIED: over the nine target languages, TurboQuant without reranking stays within 0.9 points of bruteforce at every R@k, for both models in both environments, and is sometimes slightly ahead. The largest gap is Winzling R@3 (82.9 vs 83.8). From R@25 on, both strategies agree for both models. Harrier keeps the gold passage within ±10% of its bruteforce rank for 97 to 99% of queries, Winzling for 89%.
+**Quality.** VERIFIED: over the nine target languages, TurboQuant without reranking stays within 0.9 points of bruteforce at every R@k, for both models in both environments, and is sometimes slightly ahead. The largest gap is Winzling R@3 (82.9 vs 83.8). From R@25 on, both strategies agree for both models. Harrier keeps the gold passage within ±10% of its bruteforce rank for 97 to 99% of queries, Winzling for 89%. Counting a translation of the gold passage as a hit, bruteforce R@1 is 94.2 for Winzling and 97.8 for Harrier: most of Winzling's misses at rank 1 put a translation of the right passage first.
 
-**Speed.** VERIFIED: TurboQuant gives no speed advantage at 2,000 passages. Its search costs about as much as bruteforce (TurboQuant against bruteforce: Winzling 0.34 vs 0.32 ms, Harrier 0.72 vs 0.56 ms in Node.js). Embedding dominates both: a query costs 10 to 159 ms end to end, and the search method changes that by under 0.2 ms.
+**Speed.** VERIFIED: TurboQuant gives no speed advantage at 2,000 passages. Its search costs about as much as bruteforce (TurboQuant against bruteforce: Winzling 0.34 vs 0.34 ms, Harrier 0.75 vs 0.55 ms in Node.js). Embedding dominates both: a query costs 11 to 147 ms end to end, and the search method changes that by about 0.2 ms at most.
 
-**Reranking.** VERIFIED: fusing TurboQuant's top 25 with MoEdernColBERT 1.5M (`rerankHits`, default `denseMargin` 0.1) lifts Winzling to R@1 77.8, R@3 90.2, R@5 94.4 and R@10 98.4, from 65.8, 82.9, 91.6 and 96.7, in both environments. For Harrier it costs accuracy: R@1 falls from 96.9 to 89.1 in Node.js and 89.8 in Chromium. R@25 and R@100 do not change, because fusion only reorders the top 25. It adds 89 ms per query in Node.js (native CPU) and 157 ms in Chromium (p50), since the reranker encodes the 25 candidates at query time. Its memory cost is not measured reliably: between the TurboQuant and the fused strategy, memory moved by −198 to +186 MiB in this run.
+**Reranking.** VERIFIED: fusing TurboQuant's top 25 with the `"1.5m"` reranker (`rerankHits`, default `denseMargin` 0.1) lifts Winzling to R@1 78.0, R@3 90.2, R@5 94.4 and R@10 98.4, from 65.8, 82.9, 91.6 and 96.7, in both environments. Any-language R@1 rises only from 93.8 to 96.7, so most of that gain is ranking the passage in the query's language above its translations. In Russian, 5 of the 6 queries it misses at rank 1 put a translation of the gold passage first (R@1 88, any-language R@1 98). For Harrier it costs accuracy: R@1 falls from 96.9 to 91.6 in Node.js and 91.8 in Chromium. R@25 and R@100 do not change, because fusion only reorders the top 25. It adds 89 ms per query in Node.js (native CPU) and 161 ms in Chromium (p50), since the reranker encodes the 25 candidates at query time. Its memory cost is not measured reliably: between the TurboQuant and the fused strategy, memory moved by −19 to +419 MiB in this run.
 
 **Caveats.**
 
 - VERIFIED: the memory saving holds only without exact reranking. `searchTurboQuantIndexRerank` re-scores candidates against the float32 vectors, so it needs them in memory. To keep the small footprint, use `searchTurboQuantIndex`, or store the float32 vectors elsewhere (IndexedDB, a server) and fetch only the top candidates. The benchmark measured `searchTurboQuantIndex` only, with no exact float32 reranking variant.
 - VERIFIED: the evidence base is small. Overall recall rests on 450 target-language queries against 2,000 passages, so a 0.9-point gap is 4 queries, on one dataset.
-- VERIFIED: Chromium's memory figures swing between runs. Winzling's runtime measured 206 MiB on 2026-10-07, then 598 and 296 MiB in two runs on 2026-10-31, with the same Chromium (140.0.7339.186) and Node.js (26.11) builds and unchanged Winzling code. Read each MiB figure as one run's sample, not as a property of the model.
+- VERIFIED: Chromium's memory figures swing between runs. Winzling's runtime measured 206 MiB on 2026-10-07, then 598 and 296 MiB in two runs on 2026-10-31 and 580 and 168 MiB in two runs on 2026-11-08, with the same Chromium (140.0.7339.186) and Node.js (26.11) builds and unchanged Winzling code. Read each MiB figure as one run's sample, not as a property of the model.
 - VERIFIED: nothing here covers corpora larger than 2,000 passages. [docs/BENCHMARK.md](docs/BENCHMARK.md) lists the open questions for larger corpora and how to test them.
 
 ## When to use it
 
-Winzling gives up top-3 precision (R@3 83.8% against Harrier's 98.9%) for a download 7.7 times smaller (39.76 MB against 304.68 MB), and TurboQuant shrinks its index 6 times.
+On the benchmark, Winzling ranks the right passage or one of its translations in the top 3 for 98.0% of queries, against 99.3% for Harrier. For the passage in the query's language, R@3 is 83.8% against 98.9%, mostly because Winzling ranks a translation first. Its download is 7.7 times smaller (39.76 MB against 304.68 MB), and TurboQuant shrinks its index 6 times.
 
 ### Use it for
 
 - **Search on the visitor's device:** the browser embeds and searches the query itself; the live demo makes no network request during a search
 - **Corpora you can index ahead of time:** the demo embeds its 2,000 passages once at build time (`make docs`) instead of in each visitor's browser, where that would take about 4 minutes, and ships them as a 431 kB index
-- **German, Russian and English:** R@5 of 96, 94 and 100% (Node.js, bruteforce); the other six target languages reach 84 to 94%
+- **German, Russian and English:** R@5 of 96, 94 and 100% for the passage in the query's language (Node.js, bruteforce); the other six target languages reach 84 to 94%. Counting a translation, all nine reach 96 to 100%
 - **Hybrid search:** combined with `defuss-search`, which offers exact, phonetic and fuzzy search plus rank fusion with vector search, it covers structured and unstructured data in the browser and in Node.js
 
 ### Use something else for
 
-- **Top-3 precision in all nine languages:** Harrier reaches R@3 98.9% against Winzling's 83.8%; use it through `client.js` or `server.js`
+- **The query's language first when the corpus also holds translations:** for the passage in the query's language, Harrier reaches R@3 98.9% against Winzling's 83.8%; use it through `client.js` or `server.js`
 - **Faster search than bruteforce:** TurboQuant saves memory and download, not time, at 2,000 passages
 - **Exact reranking at TurboQuant's footprint:** `searchTurboQuantIndexRerank` needs the float32 vectors in memory
 - **Long documents as one vector:** the 8192-token context limit is no promise of low memory use; chunk upstream
@@ -535,11 +563,14 @@ Individual commands are listed in `Makefile` and `package.json`.
 
 The checked-in oracle contains **24 multilingual and adversarial cases** made with Rust tokenizers and Python native ONNX Runtime. Tests require exact token-ID agreement and compare normalized embeddings within `2e-5` maximum absolute error, including padded batches against independently generated singleton vectors. Fixtures cover Unicode, whitespace, special tokens, empty text, and byte fallback. Other tests cover pooling, normalization, explicit truncation, corruption, initialization retry, concurrent calls, disposal, and offline browser-cache reuse.
 
+For the reranker, a second Rust-tokenizer oracle holds the token IDs of eight texts, six of them with U+FEFF or U+0085. Tests require exact agreement for every pinned MoEdernColBERT tokenizer.
+
 To regenerate the independent oracle:
 
 ```sh
 python -m pip install -r scripts/reference-requirements.txt
 python scripts/generate-reference.py
+python scripts/generate-colbert-tokenizer-reference.py
 ```
 
 See [source provenance](docs/SOURCE_PROVENANCE.json) and [model details and licensing](docs/MODEL.md). This verifies runtime behavior, not retrieval quality on your application's corpus.

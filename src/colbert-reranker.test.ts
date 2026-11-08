@@ -1,7 +1,8 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { fuseRanks, maxSim, rankEncoded, type TokenMatrix } from "./colbert-reranker.js";
+import type { Tokenizer } from "@huggingface/tokenizers";
+import { fuseRanks, maxSim, rankEncoded, tokenIds, type TokenMatrix } from "./colbert-reranker.js";
 import { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
 import { createColbertReranker } from "./onnx.js";
 import { describeOrt, loadOrtNode, loadOrtWeb } from "./ort-runtime.js";
@@ -24,6 +25,15 @@ describe("MaxSim scoring", () => {
     expect(() => maxSim(query, { ...matrix([1, 0, 0]), dimensions: 3, tokenCount: 1 })).toThrow(/dimensions/);
     expect(() => maxSim(query, matrix([]))).toThrow(/Invalid token matrix/);
     expect(() => maxSim(query, matrix([Number.NaN, 0]))).toThrow(/Invalid token matrix/);
+  });
+});
+
+describe("tokenizer input", () => {
+  it("maps U+0085 to a space and U+FEFF to U+2060 before tokenizing, keeping the length", () => {
+    const seen: string[] = [];
+    const tokenizer = { encode: (text: string) => { seen.push(text); return { ids: [text.length] }; } } as unknown as Tokenizer;
+    expect(tokenIds(tokenizer, "[D] ", "\uFEFFa\u0085b\uFEFF")).toEqual([9]);
+    expect(seen).toEqual(["[D] \u2060a b\u2060"]);
   });
 });
 
@@ -72,7 +82,9 @@ describe("reranker options", () => {
   it("rejects unknown models, unshipped precisions and invalid settings before loading anything", () => {
     expect(() => createColbertReranker({ model: "115m" as "27m" })).toThrow(/Unknown MoEdernColBERT model/);
     // VERIFIED in the exporter: 1.5M q4 fails the 0.98 quality gate, so no q4 graph is pinned.
-    expect(() => createColbertReranker({ model: "1.5m", precision: "q4" })).toThrow(/ships no q4 graph; available: fp32, fp16, q8, int8/);
+    expect(() => createColbertReranker({ model: "1.5m-original", precision: "q4" })).toThrow(/ships no q4 graph; available: fp32, fp16, q8, int8/);
+    // The round-4 weight edit exists only as a q8 graph.
+    expect(() => createColbertReranker({ model: "1.5m", precision: "fp32" })).toThrow(/ships no fp32 graph; available: q8$/);
     expect(() => createColbertReranker({ model: "27m", device: "webgpu" as "wasm" })).toThrow(/Unsupported reranker device/);
     expect(() => createColbertReranker({ model: "27m", batchSize: 0 })).toThrow(/batchSize/);
     expect(() => createColbertReranker({ model: "27m", modelBaseUrl: "/models" })).toThrow(/HTTP\(S\)/);

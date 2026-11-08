@@ -38,6 +38,10 @@ export const rankOf = (scores: ArrayLike<number>, target: number): number => {
   return rank;
 };
 
+/** 1-based rank of the best-ranked of `targets`, ties as in `rankOf`: a passage and its translations count as one hit. */
+export const bestRankOf = (scores: ArrayLike<number>, targets: readonly number[]): number =>
+  Math.min(...targets.map((target) => rankOf(scores, target)));
+
 const percent = (hits: number, total: number): number => round((100 * hits) / total, 1);
 
 const recallOf = (ranks: readonly number[]): RecallAtK =>

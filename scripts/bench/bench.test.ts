@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { topKFromScores } from "../../src/vector-search.js";
 import { buildBenchTasks, DATASET_SHA256, loadDataset, validateDataset, type TinyRetrievalDataset } from "./dataset.ts";
-import { endToEnd, rankOf, rankReproduction, recallMatrix, summarize } from "./metrics.ts";
+import { bestRankOf, endToEnd, rankOf, rankReproduction, recallMatrix, summarize } from "./metrics.ts";
 import { byRecallDescending, README_END, README_START, renderReadmeSection, replaceReadmeSection, type BenchReport } from "./report.ts";
 
 const dataset = (): TinyRetrievalDataset => ({
@@ -43,6 +43,13 @@ describe("benchmark metrics", () => {
     for (const target of order.keys()) expect(rankOf(scores, order[target]!)).toBe(target + 1);
   });
 
+  it("ranks a passage with its translations by the best of them, ties included", () => {
+    const scores = Float32Array.from([0.5, 0.9, 0.5, 0.1, 0.9]);
+    expect(bestRankOf(scores, [2, 3])).toBe(4);
+    expect(bestRankOf(scores, [3, 4])).toBe(2);
+    expect(bestRankOf(scores, [0])).toBe(rankOf(scores, 0));
+  });
+
   it("computes recall@k per query language", () => {
     const matrix = recallMatrix([1, 4, 30, 200], [0, 0, 1, 1], ["eng_Latn", "deu_Latn"]);
     expect(matrix.overall).toEqual({ "@1": 25, "@3": 25, "@5": 50, "@10": 50, "@25": 50, "@100": 75 });
@@ -75,6 +82,7 @@ describe("benchmark report", () => {
   const strategy = {
     indexMs: 1.25, indexMiB: 1, searchMs: { mean: 0.4, p50: 0.4, p95: 0.5 }, passageMs: timing, queryMs: timing, runtimeMiB: 6,
     recall: { overall: recall, byLanguage },
+    anyLanguageRecall: { overall: recall, byLanguage: { ...byLanguage, deu_Latn: { "@1": 90, "@3": 95, "@5": 100, "@10": 100, "@25": 100, "@100": 100 } } },
   };
   const model = {
     modelId: "m", device: "cpu", dims: 2, loadMs: 10, modelRuntimeMiB: 5,
@@ -87,19 +95,19 @@ describe("benchmark report", () => {
   };
   const env = { runtime: "v24", models: { winzling: model, harrier: model } };
   const report: BenchReport = {
-    schema: "defuss-vectorsearch-bench.v1", generatedAt: "2026-10-07T00:00:00.000Z",
+    schema: "defuss-vectorsearch-bench.v2", generatedAt: "2026-10-07T00:00:00.000Z",
     host: { cpu: "cpu", cores: 8, platform: "darwin arm64" },
     dataset: { name: "unit", sha256: "x", languages: ["eng_Latn", "deu_Latn", "tha_Thai"], haystack: 6, queries: 3 },
-    ks: [1, 3, 5, 10, 25, 100], environments: { node: env, chromium: env },
+    ks: [1, 3, 5, 10, 25, 100], reranker: { model: "1.5m", id: "kyr0/reranker", revision: "abc" }, environments: { node: env, chromium: env },
     crossEnvironment: { winzling: { samples: 2, minCosine: 1, meanCosine: 1 }, harrier: { samples: 2, minCosine: 1, meanCosine: 1 } },
   };
 
   it("renders quality and cost rows per environment, model and strategy plus a per-language matrix", () => {
     const section = renderReadmeSection(report, targets);
-    expect(section.match(/^\| (Node\.js|Chromium) \| (Winzling|Harrier) \| (bruteforce|TurboQuant|TurboQuant \+ MoEdernColBERT) \|/gm)).toHaveLength(24);
+    expect(section.match(/^\| (Node\.js|Chromium) \| (Winzling|Harrier) \| (bruteforce|TurboQuant|TurboQuant \+ MoEdernColBERT) \|/gm)).toHaveLength(36);
     expect(section).toContain("| Node.js | Winzling | TurboQuant | 2.4 (p95 3.5) | 2.4 (p95 3.5) | 0.400 | 1.3 | 6 | 1 |");
     expect(section).toContain("| Node.js | Winzling | TurboQuant + MoEdernColBERT | 2.4 (p95 3.5) | 2.4 (p95 3.5) | 160.000 | 1.3 | 9 | 1 |");
-    for (const heading of ["Embedding", "Retrieval Quality", "Cost per Method", "Per Language, Node.js"]) {
+    for (const heading of ["Embedding", "Retrieval Quality", "Any-Language Recall", "Cost per Method", "Per Language, Node.js"]) {
       expect(section).toContain(`\n### ${heading}\n\n`);
     }
   });
@@ -110,6 +118,8 @@ describe("benchmark report", () => {
     expect(section).toContain("| Node.js | Winzling | TurboQuant | 50 | 60 | 70 | 77.5 | 85 | 100 | 80% |");
     expect(section).toContain("| Node.js | Winzling | TurboQuant + MoEdernColBERT | 50 | 60 | 70 | 77.5 | 85 | 100 | n/a |");
     expect(section).toContain("their 2 queries against all 6 passages in 3 languages");
+    expect(section).toContain('fusion with the `"1.5m"` reranker (`kyr0/reranker`, q8, `rerankHits`)');
+    expect(section).toContain("| Node.js | Winzling | TurboQuant + MoEdernColBERT | 65 | 72.5 | 80 | 85 | 90 | 100 |");
     expect(() => renderReadmeSection(report, ["eng_Latn", "jpn_Jpan"])).toThrow(/jpn_Jpan/);
   });
 

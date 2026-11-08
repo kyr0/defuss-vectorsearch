@@ -32,9 +32,10 @@ const fetchPinned = async (modelId: string, revision: string, files: Record<stri
 const directory = path.resolve(root, process.argv[2] ?? 'public/models/winzling');
 await fetchPinned(WINZLING_MODEL_ID, WINZLING_REVISION, WINZLING_FILES, directory);
 
-// Reranker test assets: every 1.5M precision and the recommended 27M q8 graph. VERIFIED: 13.66 MB and 27.82 MB of
-// graphs; the live tests and scripts/test-package.ts read them from public/models/<repo name>/.
-const RERANKER_TEST_GRAPHS = { '1.5m': ['fp32', 'fp16', 'q8', 'int8'], '27m': ['q8'] } as const;
+// Reranker test assets: the edited 1.5M q8 graph, every original 1.5M precision and the recommended 27M q8 graph.
+// VERIFIED: 2.26 MB, 13.66 MB and 27.82 MB of graphs; the live tests and scripts/test-package.ts read them from
+// public/models/<repo name>/.
+const RERANKER_TEST_GRAPHS = { '1.5m': ['q8'], '1.5m-original': ['fp32', 'fp16', 'q8', 'int8'], '27m': ['q8'] } as const;
 for (const [model, precisions] of Object.entries(RERANKER_TEST_GRAPHS)) {
   const profile = MOEDERNCOLBERT_MODELS[model as keyof typeof MOEDERNCOLBERT_MODELS];
   const files = Object.fromEntries(Object.entries(profile.files)
@@ -50,6 +51,6 @@ for (const file of await readdir(ort)) {
   if (/^ort-wasm.*\.(wasm|mjs)$/.test(file)) await copyFile(path.join(ort, file), path.join(assets, file));
 }
 await mkdir(path.join(root, 'public/fixtures'), { recursive: true });
-for (const fixture of ['winzling-reference.json', 'moederncolbert-1.5m-reference.json', 'moederncolbert-27m-reference.json'])
+for (const fixture of ['winzling-reference.json', 'moederncolbert-1.5m-reference.json', 'moederncolbert-1.5m-original-reference.json', 'moederncolbert-27m-reference.json'])
   await copyFile(path.join(root, 'fixtures', fixture), path.join(root, 'public/fixtures', fixture));
 console.log(`Ready: ${directory}; ORT assets: ${assets}`);

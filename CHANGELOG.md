@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.3.0 (2026-11-08)
+
+### Changed
+
+- `createColbertReranker({ model: "1.5m" })` loads a weight edit of SauerkrautLM-MoEdernColBERT-1.5M with 11,998 added Cyrillic tokens, pinned from `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`. It ships `q8` only and is 3.83 MB instead of 3.97 MB. Its model card measures, with exhaustive MaxSim:
+  - Upstream card benchmarks: macro nDCG@10 +0.0015 against the original, not significant. GermanDPR (+0.008) and GermanQuAD (+0.003) improve significantly, and nothing gets significantly worse.
+  - Russian: the original tokenizer maps Russian to `<unk>`. nDCG@10 on six tasks rises from 0.01–0.16 to 0.35–0.86.
+  - `make bench`: Winzling with `rerankHits` reaches R@1 78.0 over the nine target languages, against 77.8 with the original. Russian R@1 falls from 94 to 88. In each of the 3 Russian queries the edit lost, a translation of the gold passage took rank 1.
+- Vectors cached from `"1.5m"` with 0.2.x carry the old fingerprint, which `maxSim` refuses to mix with new vectors. Re-encode cached passages.
+
+### Added
+
+- `model: "1.5m-original"` keeps the unedited 1.5M export with `fp32`, `fp16`, `q8` and `int8`.
+- `make bench` also reports any-language recall, which counts a translation of the gold passage as a hit, and records the reranker it ran. `bench.json` moves to schema v2.
+
+### Fixed
+
+- The MoEdernColBERT reranker now tokenizes U+FEFF (byte-order mark) and U+0085 (next line) like the Rust tokenizers library. `@huggingface/tokenizers` 0.2.0 dropped a byte-order mark, which Rust keeps as `<unk>`, and joined the words on either side of U+0085, where Rust splits. The reranker now replaces U+0085 with a space and U+FEFF with U+2060 (word joiner) before tokenizing. Over all code points and 31,178 passages, its token IDs now differ from Rust's only on 96 code points that are newer than Rust's Unicode tables. Cached vectors of texts with either character can still be compared; re-encode them to get the corrected tokens.
+
 ## 0.2.1 (2026-10-31)
 
 ### Fixed

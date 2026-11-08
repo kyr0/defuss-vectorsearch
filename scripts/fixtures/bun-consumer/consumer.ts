@@ -3,17 +3,19 @@
 // VERIFIED: identical rankings on CPU, WASM and CJS with Bun 1.4.0, 1.4.3 and 1.4.4 (2026-10-31).
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
-import { createColbertReranker, createWinzlingEmbedder } from "defuss-vectorsearch/onnx.js";
+import { createColbertReranker, createWinzlingEmbedder, MOEDERNCOLBERT_MODELS } from "defuss-vectorsearch/onnx.js";
 import { buildTurboQuantIndex, searchTurboQuantIndex } from "defuss-vectorsearch/turboquant.js";
 
 const [modelsDir, inputFile] = process.argv.slice(2);
 const input = JSON.parse(await readFile(inputFile!, "utf8")) as { documents: string[]; queries: string[] };
 const cjs = createRequire(import.meta.url)("defuss-vectorsearch/onnx.js") as typeof import("defuss-vectorsearch/onnx.js");
 const fromDir = (dir: string) => async (file: string) => new Uint8Array(await readFile(`${modelsDir}/${dir}/${file}`));
+// scripts/download-model.ts stores each MoEdernColBERT model in public/models/<repo name>/.
+const rerankerDir = MOEDERNCOLBERT_MODELS["1.5m"].id.split("/")[1]!;
 
 const run = async (entry: typeof cjs, device: "cpu" | "wasm") => {
   const embedder = entry.createWinzlingEmbedder({ device, loadFile: fromDir("winzling") });
-  const reranker = entry.createColbertReranker({ model: "1.5m", device, loadFile: fromDir("SauerkrautLM-MoEdernColBERT-1.5M-ONNX") });
+  const reranker = entry.createColbertReranker({ model: "1.5m", device, loadFile: fromDir(rerankerDir) });
   try {
     const index = buildTurboQuantIndex(await embedder.embedDocuments(input.documents));
     const ranked: number[][] = [];

@@ -38,8 +38,9 @@ export const SUPPORTED_MODELS = Object.freeze({
 });
 
 /**
- * MoEdernColBERT late-interaction rerankers, converted to ONNX by the feat-moederncolbert-onnx exporter.
- * VERIFIED: every pinned hash equals the file at the pinned Hugging Face commit (tree API, 2026-10-31).
+ * MoEdernColBERT late-interaction rerankers. "1.5m" is the round-4 weight edit of the 1.5M model, which adds 11,998
+ * Cyrillic tokens and ships q8 only. "1.5m-original" and "27m" are the unedited feat-moederncolbert-onnx exports.
+ * VERIFIED: every pinned hash equals the file at the pinned Hugging Face commit (tree API, 2026-10-31; "1.5m": a download of its commit, 2026-11-08).
  * parity "exact": identical vectors in every ONNX Runtime; "quality": runtime-specific vectors that pass a
  * quality gate against the same runtime's FP32 output, so their fingerprints name the runtime.
  */
@@ -50,6 +51,18 @@ const MOEDERNCOLBERT_SHARED_FILES = {
 
 export const MOEDERNCOLBERT_MODELS = Object.freeze({
   "1.5m": Object.freeze({
+    id: "kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming",
+    revision: "9d3b299bd0d4a327bfa18d8b5db695f3fec2b8e4",
+    files: Object.freeze({
+      // Its tokenizer emits ids up to 41,999, which only this graph accepts.
+      "tokenizer.json": "d7b2ba6bf68fd03cdb4f728196da966ba169572c4c8c1f06deda4ff5ee058598",
+      "tokenizer_config.json": MOEDERNCOLBERT_SHARED_FILES["tokenizer_config.json"],
+      "runtime.json": "aea3c634e5efad4f5aa31b85884582ca0106cb96c42482aa5ae7143fb5ab7822",
+      "model_q8.onnx": "162a2b7cf814940cc79cfc154ae33309063fc9d0dde8d5f067373a6ba35be09b",
+    }),
+    precisions: Object.freeze({ q8: "exact" } as const),
+  }),
+  "1.5m-original": Object.freeze({
     id: "kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX",
     revision: "f386a021490a5cd9202a049024561420655065ae",
     files: Object.freeze({

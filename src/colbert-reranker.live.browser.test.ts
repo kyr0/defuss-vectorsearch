@@ -28,7 +28,7 @@ const encodeAll = async (model: ColbertModel, precision: ColbertPrecision, fixtu
   } finally { await reranker.dispose(); }
 };
 
-const PLAN: [ColbertModel, ColbertPrecision[]][] = [["1.5m", ["fp32", "fp16", "q8", "int8"]], ["27m", ["q8"]]];
+const PLAN: [ColbertModel, ColbertPrecision[]][] = [["1.5m", ["q8"]], ["1.5m-original", ["fp32", "fp16", "q8", "int8"]], ["27m", ["q8"]]];
 
 for (const [model, precisions] of PLAN) it(`${model} in Chromium WASM matches the Python reference: ${precisions.join(", ")}`, async () => {
   const fixture = await (await fetch(`/fixtures/moederncolbert-${model}-reference.json`)).json();

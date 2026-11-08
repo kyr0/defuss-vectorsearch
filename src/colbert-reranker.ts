@@ -15,6 +15,19 @@ import { describeOrt, loadOrtNode, loadOrtWeb, type Ort } from "./ort-runtime.js
 import { readPinnedAsset, type PinnedAssetCache, type PinnedAssetOptions } from "./pinned-asset.js";
 import type { SearchHit } from "./types.js";
 
+/**
+ * Token ids for one prefixed text, as the Rust tokenizers library produces them. `@huggingface/tokenizers` 0.2.0
+ * splits on JavaScript's `\s`, which also matches U+FEFF (byte-order mark) and misses U+0085 (next line), while Rust
+ * splits on Unicode White_Space. So U+0085 becomes a space, where Rust also splits, and U+FEFF becomes U+2060 (word
+ * joiner). No pinned vocabulary contains either character, so both stay one `<unk>` inside the word, as in Rust. Each
+ * replacement keeps the UTF-16 length. VERIFIED: the live tests compare these ids with Rust tokenizers for both pinned
+ * tokenizers. A sweep of every code point (203,152 texts) and 31,178 passages differs only on 96 code points that are
+ * newer than Rust's Unicode tables (2026-11-08).
+ */
+export function tokenIds(tokenizer: Tokenizer, prefix: string, text: string): number[] {
+  return tokenizer.encode(prefix + text.replace(/\u0085/g, " ").replace(/\uFEFF/g, "\u2060")).ids;
+}
+
 export type ColbertModel = keyof typeof MOEDERNCOLBERT_MODELS;
 export type ColbertPrecision = "fp32" | "fp16" | "q8" | "int8" | "q4";
 
@@ -264,7 +277,7 @@ export class ColbertRerankerCore {
     const limit = kind === "query" ? config.query_length : documentLength;
     const truncated: boolean[] = [];
     const rows = texts.map((text, offset) => {
-      let ids = tokenizer.encode(config.prefixes[kind] + text).ids;
+      let ids = tokenIds(tokenizer, config.prefixes[kind], text);
       truncated.push(ids.length > limit);
       if (ids.length > limit) {
         if (!truncate) throw new RangeError(`${kind} ${offset} has ${ids.length} tokens; limit is ${limit}. Chunk it or enable truncate explicitly.`);

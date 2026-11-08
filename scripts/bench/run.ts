@@ -9,7 +9,8 @@ import { chromium } from "playwright";
 import { createServer } from "vite";
 import { buildBenchTasks, DATASET_SHA256, loadDataset } from "./dataset.ts";
 import { cosine, KS, round } from "./metrics.ts";
-import { logLine, MODEL_KEYS, type ModelKey } from "./models.ts";
+import { MOEDERNCOLBERT_MODELS } from "../../dist/shared.mjs";
+import { logLine, MODEL_KEYS, RERANKER_MODEL, type ModelKey } from "./models.ts";
 import { BENCH_SCHEMA, renderReadmeSection, replaceReadmeSection, type BenchReport, type PublishedModelResult } from "./report.ts";
 import type { ModelResult } from "./runner.ts";
 
@@ -113,6 +114,7 @@ const report: BenchReport = {
     queries: tasks.queries.length,
   },
   ks: [...KS],
+  reranker: { model: RERANKER_MODEL, id: MOEDERNCOLBERT_MODELS[RERANKER_MODEL].id, revision: MOEDERNCOLBERT_MODELS[RERANKER_MODEL].revision },
   environments: {
     node: { runtime: process.version, models: map((key) => publish(nodeResults[key])) },
     chromium: { runtime: `${chromiumVersion} headless (Playwright)`, models: map((key) => publish(chromiumResults[key])) },

@@ -9,6 +9,7 @@ import { dotProduct, normalizeVector, searchTopK } from "../../dist/vector-searc
 import type { BenchTasks } from "./dataset.ts";
 import {
   KS,
+  bestRankOf,
   rankOf,
   endToEnd,
   rankReproduction,
@@ -55,6 +56,8 @@ export interface StrategyResult {
   /** `modelRuntimeMiB` + `indexMiB`. */
   readonly runtimeMiB: number;
   readonly recall: RecallMatrix;
+  /** Like `recall`, but the gold passage in any language counts, so a translation in the top k is a hit. */
+  readonly anyLanguageRecall: RecallMatrix;
 }
 
 export interface ModelResult {
@@ -103,29 +106,34 @@ const embedAll = async (
 };
 
 /**
- * Times one top-k search per query and ranks the target from the full score vector.
+ * Times one top-k search per query and ranks the target, and the best of its translations, from the full score vector.
  * VERIFIED: the same scores feed `topKFromScores`, so a target ranked <= MAX_K must sit at that position (checked per query).
  */
 const runStrategy = (
   queries: readonly Float32Array[],
   targets: readonly number[],
+  translations: readonly (readonly number[])[],
   search: (query: Float32Array) => readonly { index: number }[],
   score: (query: Float32Array) => ArrayLike<number>,
-): { ranks: number[]; ms: number[] } => {
+): { ranks: number[]; anyRanks: number[]; ms: number[] } => {
   for (const query of queries.slice(0, WARMUP_QUERIES)) search(query);
   const ranks: number[] = [];
+  const anyRanks: number[] = [];
   const ms: number[] = [];
   for (const [i, query] of queries.entries()) {
     const start = performance.now();
     const hits = search(query);
     ms.push(performance.now() - start);
-    const rank = rankOf(score(query), targets[i]!);
-    if (rank <= MAX_K && hits[rank - 1]?.index !== targets[i]) {
-      throw new Error(`rank ${rank} disagrees with the top-${MAX_K} list for query ${i}`);
+    const scores = score(query);
+    const rank = rankOf(scores, targets[i]!);
+    const anyRank = bestRankOf(scores, translations[i]!);
+    if ((rank <= MAX_K && hits[rank - 1]?.index !== targets[i]) || (anyRank <= MAX_K && !translations[i]!.includes(hits[anyRank - 1]?.index ?? -1))) {
+      throw new Error(`rank ${rank} or ${anyRank} disagrees with the top-${MAX_K} list for query ${i}`);
     }
     ranks.push(rank);
+    anyRanks.push(anyRank);
   }
-  return { ranks, ms };
+  return { ranks, anyRanks, ms };
 };
 
 const strategyCost = (
@@ -135,7 +143,7 @@ const strategyCost = (
   passageEmbedMs: readonly number[],
   queryEmbedMs: readonly number[],
   modelRuntimeBytes: number,
-): Omit<StrategyResult, "recall"> => ({
+): Omit<StrategyResult, "recall" | "anyLanguageRecall"> => ({
   indexMs: round(indexMs),
   indexMiB: toMiB(indexBytes),
   searchMs: summarize(searchMs),
@@ -163,6 +171,9 @@ export const runModelBench = async (
   const modelRuntimeBytes = (await probes.memoryBytes()) - memoryBefore - heldBytes;
 
   const targets = tasks.queries.map((q) => q.target);
+  // Passage index = group * languages + language (dataset.ts), so the gold passage in every language is its group.
+  const size = tasks.languages.length;
+  const translations = targets.map((target) => Array.from({ length: size }, (_, language) => target - (target % size) + language));
   const queryLanguages = tasks.queries.map((q) => q.language);
   const queries = queryVectors.map((vector) => normalizeVector(vector));
   const exactStart = performance.now();
@@ -172,6 +183,7 @@ export const runModelBench = async (
   const exact = runStrategy(
     queries,
     targets,
+    translations,
     (query) => searchTopK(haystack, query, MAX_K),
     (query) => Float32Array.from(haystack, (vector) => dotProduct(vector, query)),
   );
@@ -181,6 +193,7 @@ export const runModelBench = async (
   const turbo = runStrategy(
     queries,
     targets,
+    translations,
     (query) => searchTurboQuantIndex(index, query, MAX_K),
     (query) => scoreTurboQuantIndex(index, query),
   );
@@ -192,7 +205,7 @@ export const runModelBench = async (
   const passageTexts = tasks.passages.map((passage) => passage.text);
   const fuse = (i: number) => reranker.rerankHits(tasks.queries[i]!.text, searchTurboQuantIndex(index, queries[i]!, MAX_K), passageTexts);
   for (let i = 0; i < WARMUP_QUERIES; i++) await fuse(i);
-  const fused = { ranks: [] as number[], ms: [] as number[] };
+  const fused = { ranks: [] as number[], anyRanks: [] as number[], ms: [] as number[] };
   for (let i = 0; i < queries.length; i++) {
     const start = performance.now();
     const hits = await fuse(i);
@@ -202,6 +215,9 @@ export const runModelBench = async (
     // below never fired in make bench (2026-10-31), 4,000 queries over both models and environments.
     if (position < 0 && turbo.ranks[i]! <= hits.length) throw new Error(`query ${i}: TurboQuant rank ${turbo.ranks[i]} missing from the fused candidates`);
     fused.ranks.push(position < 0 ? turbo.ranks[i]! : position + 1);
+    const anyPosition = hits.findIndex((hit) => translations[i]!.includes(hit.index));
+    if (anyPosition < 0 && turbo.anyRanks[i]! <= hits.length) throw new Error(`query ${i}: TurboQuant any-language rank ${turbo.anyRanks[i]} missing from the fused candidates`);
+    fused.anyRanks.push(anyPosition < 0 ? turbo.anyRanks[i]! : anyPosition + 1);
     if ((i + 1) % 250 === 0 || i + 1 === queries.length) log(`fused ${i + 1}/${queries.length}`);
   }
   const rerankerRuntimeBytes = (await probes.memoryBytes()) - rerankerMemoryBefore;
@@ -217,15 +233,18 @@ export const runModelBench = async (
       bruteforce: {
         ...strategyCost(exactIndexMs, haystack.length * dims * Float32Array.BYTES_PER_ELEMENT, exact.ms, passageMs, queryMs, modelRuntimeBytes),
         recall: recallMatrix(exact.ranks, queryLanguages, tasks.languages),
+        anyLanguageRecall: recallMatrix(exact.anyRanks, queryLanguages, tasks.languages),
       },
       turboquant: {
         ...strategyCost(turboIndexMs, index.codes.byteLength + index.signs.byteLength + index.codebook.byteLength, turbo.ms, passageMs, queryMs, modelRuntimeBytes),
         recall: recallMatrix(turbo.ranks, queryLanguages, tasks.languages),
+        anyLanguageRecall: recallMatrix(turbo.anyRanks, queryLanguages, tasks.languages),
         rankReproduced10pct: rankReproduction(exact.ranks, turbo.ranks, queryLanguages, tasks.languages),
       },
       fused: {
         ...strategyCost(turboIndexMs, index.codes.byteLength + index.signs.byteLength + index.codebook.byteLength, fused.ms, passageMs, queryMs, modelRuntimeBytes + rerankerRuntimeBytes),
         recall: recallMatrix(fused.ranks, queryLanguages, tasks.languages),
+        anyLanguageRecall: recallMatrix(fused.anyRanks, queryLanguages, tasks.languages),
       },
     },
     sample: haystack.slice(0, SAMPLE_SIZE).map((vector) => Array.from(vector)),

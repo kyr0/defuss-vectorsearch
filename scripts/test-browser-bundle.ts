@@ -15,10 +15,11 @@ import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { chromium, type Page } from "playwright";
 import { build, createLogger, type Rollup } from "vite";
+import { MOEDERNCOLBERT_MODELS } from "../dist/shared.mjs";
 
 const FORBIDDEN = [/@huggingface\/transformers/, /defuss-multicore/, /onnxruntime-node/, /model-cache\.node/, /^node:/, /__vite-browser-external/];
 const TYPES: Record<string, string> = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".wasm": "application/wasm", ".json": "application/json" };
-const COLBERT_REPO = "SauerkrautLM-MoEdernColBERT-1.5M-ONNX";
+const COLBERT_REPO = MOEDERNCOLBERT_MODELS["1.5m"].id.split("/")[1]!;
 /** URL prefix to local mirror directory. VERIFIED: `make setup` (scripts/download-model.ts) fills both directories. */
 const MIRRORS: Record<string, string> = {
   "/models/winzling/": path.resolve("public/models/winzling"),

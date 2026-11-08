@@ -4,6 +4,8 @@ import type { AddressInfo } from "node:net";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
+import { Tokenizer } from "@huggingface/tokenizers";
+import { tokenIds } from "./colbert-reranker.js";
 import { createColbertReranker, fuseRanks, maxSim, MOEDERNCOLBERT_MODELS, rankEncoded, type ColbertModel, type ColbertPrecision, type TokenMatrix } from "./onnx.js";
 
 // Assets come from `make setup` (scripts/download-model.ts), already checked against the pinned SHA-256.
@@ -48,10 +50,10 @@ const encodeAll = async (model: ColbertModel, precision: ColbertPrecision, devic
   } finally { await reranker.dispose(); }
 };
 
-// Every 1.5M graph and the recommended 27M q8 graph, on native CPU and WASM.
-const PLAN: [ColbertModel, ColbertPrecision[]][] = [["1.5m", ["fp32", "fp16", "q8", "int8"]], ["27m", ["q8"]]];
+// The edited 1.5M q8 graph, every original 1.5M graph and the recommended 27M q8 graph, on native CPU and WASM.
+const PLAN: [ColbertModel, ColbertPrecision[]][] = [["1.5m", ["q8"]], ["1.5m-original", ["fp32", "fp16", "q8", "int8"]], ["27m", ["q8"]]];
 
-describe("MoEdernColBERT against the exporter's Python reference scores", () => {
+describe("MoEdernColBERT against Python ONNX Runtime reference scores", () => {
   for (const [model, precisions] of PLAN) for (const device of ["cpu", "wasm"] as const) {
     it(`${model} ${device}: ${precisions.join(", ")}`, async () => {
       const fixture = await reference(model);
@@ -75,6 +77,29 @@ describe("MoEdernColBERT against the exporter's Python reference scores", () => 
         }
       }
     }, 120_000);
+  }
+});
+
+interface TokenizerReference { texts: string[]; tokenizers: Record<string, { query: number[][]; document: number[][] }> }
+
+// Rust-tokenizer ids from scripts/generate-colbert-tokenizer-reference.py. Six texts contain U+FEFF or U+0085, which
+// @huggingface/tokenizers 0.2.0 splits differently on its own; two contain neither.
+describe("MoEdernColBERT token ids against Rust tokenizers", () => {
+  for (const model of ["1.5m", "1.5m-original", "27m"] as const) {
+    it(`${model}: exact ids, and matching document token counts from the reranker`, async () => {
+      const fixture = JSON.parse(await readFile(new URL("../fixtures/moederncolbert-tokenizer-reference.json", import.meta.url), "utf8")) as TokenizerReference;
+      const expected = fixture.tokenizers[MOEDERNCOLBERT_MODELS[model].files["tokenizer.json"]]!;
+      const json = async (name: string) => JSON.parse(await readFile(new URL(name, modelDir(model)), "utf8"));
+      const tokenizer = new Tokenizer(await json("tokenizer.json"), await json("tokenizer_config.json"));
+      expect(fixture.texts.map(text => tokenIds(tokenizer, "[Q] ", text))).toEqual(expected.query);
+      expect(fixture.texts.map(text => tokenIds(tokenizer, "[D] ", text))).toEqual(expected.document);
+      const skip = new Set<number>((await json("runtime.json")).skip_token_ids);
+      const reranker = createColbertReranker({ model, loadFile: loadFileFor(model) });
+      try {
+        const documents = await reranker.encodeDocuments(fixture.texts);
+        expect(documents.map(d => d.tokenCount)).toEqual(expected.document.map(ids => ids.filter(id => !skip.has(id)).length));
+      } finally { await reranker.dispose(); }
+    });
   }
 });
 
@@ -122,8 +147,8 @@ describe("MoEdernColBERT reranker behavior", () => {
   });
 
   it("refuses to compare quality-contract vectors from different runtimes", async () => {
-    const cpu = createColbertReranker({ model: "1.5m", precision: "fp16", device: "cpu", loadFile: loadFileFor("1.5m") });
-    const wasm = createColbertReranker({ model: "1.5m", precision: "fp16", device: "wasm", loadFile: loadFileFor("1.5m") });
+    const cpu = createColbertReranker({ model: "1.5m-original", precision: "fp16", device: "cpu", loadFile: loadFileFor("1.5m-original") });
+    const wasm = createColbertReranker({ model: "1.5m-original", precision: "fp16", device: "wasm", loadFile: loadFileFor("1.5m-original") });
     try {
       const [a] = await cpu.encodeQueries(["Zugspitze"]);
       const [b] = await wasm.encodeDocuments(["Zugspitze"]);

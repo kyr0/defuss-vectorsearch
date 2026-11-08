@@ -4,7 +4,7 @@ import { KS, round, type RecallAtK, type RecallMatrix, type Reproduction, type S
 import type { ModelKey } from "./models.ts";
 import type { ModelResult } from "./runner.ts";
 
-export const BENCH_SCHEMA = "defuss-vectorsearch-bench.v1";
+export const BENCH_SCHEMA = "defuss-vectorsearch-bench.v2";
 export const README_START = "<!-- bench:start -->";
 export const README_END = "<!-- bench:end -->";
 
@@ -23,6 +23,8 @@ export interface BenchReport {
     readonly queries: number;
   };
   readonly ks: readonly number[];
+  /** The fused strategy's reranker: `createColbertReranker({ model })` and the release it pins. */
+  readonly reranker: { readonly model: string; readonly id: string; readonly revision: string };
   readonly environments: Record<
     EnvironmentKey,
     { readonly runtime: string; readonly models: Record<ModelKey, PublishedModelResult> }
@@ -97,7 +99,7 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
     "",
     `The ${targets.length} target languages: ${targets.map((code) => `\`${code}\``).join(", ")}; their ${report.dataset.queries / report.dataset.languages.length * targets.length} queries against all ${report.dataset.haystack} passages in ${report.dataset.languages.length} languages; R@k = % of queries whose gold passage ranks in the top k:`,
     "",
-    "TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with SauerkrautLM-MoEdernColBERT 1.5M (q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's.",
+    `TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the \`"${report.reranker.model}"\` reranker (\`${report.reranker.id}\`, q8, \`rerankHits\`), so its R@25 and R@100 equal TurboQuant's.`,
     "",
     header(["Environment", "Model", "Strategy", ...KS.map((k) => `R@${k}`), "Rank ±10%"], KS.length + 1),
   );
@@ -105,6 +107,18 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
     const reproduced = strategy === "turboquant" ? `${targetReproduction(result.strategies.turboquant.rankReproduced10pct, targets)}%` : "n/a";
     const recall = targetRecall(s.recall, targets);
     lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], STRATEGY_LABEL[strategy], ...KS.map((k) => recall[`@${k}`]), reproduced]));
+  }
+  lines.push(
+    "",
+    "### Any-Language Recall",
+    "",
+    `The same queries, but the gold passage in any of the ${report.dataset.languages.length} languages counts as a hit. The gap to R@k above is the share of queries whose top k holds a translation of the gold passage but not the passage in the query's language:`,
+    "",
+    header(["Environment", "Model", "Strategy", ...KS.map((k) => `R@${k}`)], KS.length),
+  );
+  for (const { env, model, strategy, s } of perStrategy) {
+    const recall = targetRecall(s.anyLanguageRecall, targets);
+    lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], STRATEGY_LABEL[strategy], ...KS.map((k) => recall[`@${k}`])]));
   }
   lines.push(
     "",
