@@ -152,9 +152,9 @@ try {
   const label = (bytes: number) => `${(bytes / 1e6).toFixed(bytes >= 1e7 ? 1 : 2)} MB`;
   // The modes are icon tabs (human decision, 2026-11-09), each naming its models and download.
   const modeTabs = () => page.$$eval("#mode-tabs [role=tab]", (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected"), !!tab.querySelector(".vs-tab-icon")]));
-  // Each tab's "Quality" bar is its R@10 over the nine target languages in Chromium (bench.json), as the recall card's average.
-  const nineR10 = (byLanguage: Record<string, Record<string, number>>) => Number((TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@10"]!, 0) / TARGET_LANGUAGES.length).toFixed(1));
-  const quality = { reranker: nineR10(benchReranker.maxsim.recall.byLanguage), embedder: nineR10(bench.strategies.turboquant.recall.byLanguage), both: nineR10(bench.strategies.fused.recall.byLanguage) };
+  // Each tab's "Quality" bar is its R@10 over the target languages in Chromium (bench.json), as the recall card's average.
+  const targetR10 = (byLanguage: Record<string, Record<string, number>>) => Number((TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@10"]!, 0) / TARGET_LANGUAGES.length).toFixed(1));
+  const quality = { reranker: targetR10(benchReranker.maxsim.recall.byLanguage), embedder: targetR10(bench.strategies.turboquant.recall.byLanguage), both: targetR10(bench.strategies.fused.recall.byLanguage) };
   assert.deepEqual(await modeTabs(), [
     [`kyr0/Winzling-rerankerReranker only · ${label(downloads.reranker)}Quality${quality.reranker}%`, "true", true],
     [`kyr0/Winzling-embedEmbedder only · ${label(downloads.embedder)}Quality${quality.embedder}%`, "false", true],
@@ -238,10 +238,10 @@ try {
   // The hero intro's figures follow bench.json: R@5 of the three best languages (bruteforce) and the index size ratio.
   const node = JSON.parse(await readFile("bench.json", "utf8")).environments.node.models.winzling.strategies;
   const intro = `${await visibleText(page, ".mk-hero-desc")} ${await visibleText(page, "#intro")}`.replace(/\u00a0/g, " ");
-  // The hero's R@25 figures are the recall card's: Fused (its default tab) and the reranker alone, the nine target
+  // The hero's R@25 figures are the recall card's: Fused (its default tab) and the reranker alone, the target
   // languages' mean (human request, 2026-11-09); the flip line below carries them.
-  const nineR25 = (byLanguage: Record<string, Record<string, number>>) => TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@25"]!, 0) / TARGET_LANGUAGES.length;
-  const [fusedR25, rerankerR25] = [nineR25(bench.strategies.fused.recall.byLanguage), nineR25(benchReranker.maxsim.recall.byLanguage)];
+  const targetR25 = (byLanguage: Record<string, Record<string, number>>) => TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@25"]!, 0) / TARGET_LANGUAGES.length;
+  const [fusedR25, rerankerR25] = [targetR25(bench.strategies.fused.recall.byLanguage), targetR25(benchReranker.maxsim.recall.byLanguage)];
   assert.equal(Number(await page.getAttribute("#recall-panel-both-25 [data-recall-average] progress", "value")), Number(fusedR25.toFixed(1)));
   assert.ok(intro.includes(`${demo.index.codeBytes} bytes`), "bytes per document = TurboQuant code bytes");
   assert.ok(intro.includes(`${WINZLING_PROFILE.maxTokens.toLocaleString("en")} tokens`), "context = the profile's maxTokens");
@@ -264,11 +264,11 @@ try {
   assert.ok((await page.textContent(".mk-hero-desc") ?? "").startsWith("The Winzling embedding model family"));
   assert.equal(await page.locator('.mk-hero-actions a[href="#bench"] use[href="#i-chart"]').count(), 1, "the benchmark button has its chart icon");
   assert.ok(!/\d(\.\d+)?\s*(MB|ms|%)/.test(await page.textContent(".mk-hero-desc") ?? ""), "the hero text carries no figures to keep in sync");
-  // "Pareto-optimal quality": the recall card's Chromium figures over the nine target languages, short, without the
+  // "Pareto-optimal quality": the recall card's Chromium figures over the target languages, short, without the
   // downloads the hero already names (human request, 2026-11-09).
-  const nineAt = (byLanguage: Record<string, Record<string, number>>, k: number) => (TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]![`@${k}`]!, 0) / TARGET_LANGUAGES.length).toFixed(1);
+  const targetAt = (byLanguage: Record<string, Record<string, number>>, k: number) => (TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]![`@${k}`]!, 0) / TARGET_LANGUAGES.length).toFixed(1);
   for (const claim of [
-    `the right passage is in the top 25 for ${nineAt(bench.strategies.turboquant.recall.byLanguage, 25)}% of queries, and in the top 5 for ${nineAt(bench.strategies.fused.recall.byLanguage, 5)}% with the reranker`,
+    `the right passage is in the top 25 for ${targetAt(bench.strategies.turboquant.recall.byLanguage, 25)}% of queries, and in the top 5 for ${targetAt(bench.strategies.fused.recall.byLanguage, 5)}% with the reranker`,
   ]) assert.ok(intro.includes(claim), `intro lacks "${claim}"`);
   const promptText = await page.textContent("#agent-prompt") ?? "";
   assert.ok(promptText.includes(`as Brotli files (${downloadMb.toFixed(1)} MB)`) && promptText.includes(`adds a ${rerankerMb.toFixed(2)} MB download`), promptText);
@@ -279,10 +279,10 @@ try {
     assert.ok(flipText.includes(figure), `flip line lacks "${figure}": ${flipText}`);
   }
   // llms.txt (human request, 2026-11-09) is served from the site root; its quality table and downloads are bench.json's
-  // nine-language Chromium figures and the manifest's `.br` bytes.
+  // target-language Chromium figures and the manifest's `.br` bytes.
   const llms = await (await fetch(`${origin}/llms.txt`)).text();
   assert.ok(llms.startsWith("# defuss-vectorsearch\n\n> "), "llms.txt: H1, then the summary blockquote");
-  const row = (byLanguage: Record<string, Record<string, number>>) => [1, 5, 10, 25].map((k) => nineAt(byLanguage, k)).join(" | ");
+  const row = (byLanguage: Record<string, Record<string, number>>) => [1, 5, 10, 25].map((k) => targetAt(byLanguage, k)).join(" | ");
   for (const claim of [
     `| ${downloadMb.toFixed(1)} MB | ${row(bench.strategies.turboquant.recall.byLanguage)} |`,
     `| ${(downloadMb + rerankerMb).toFixed(1)} MB | ${row(bench.strategies.fused.recall.byLanguage)} |`,
@@ -315,14 +315,14 @@ try {
   // Benchmark figures on the page are the ones in bench.json.
   const figures = await page.$$eval("[data-bench] .mk-stat-value", (nodes) => nodes.map((node) => node.textContent));
   // The index figure is the Brotli vector file the page itself downloads (docs/data/manifest.json).
-  // VERIFIED: R@1 over the nine target languages, fused; the "without" figure was dropped (human request, 2026-11-09).
-  const nineR1 = (strategy: string) => Math.round(TARGET_LANGUAGES.reduce((sum, code) => sum + bench.strategies[strategy].recall.byLanguage[code]["@1"], 0) / TARGET_LANGUAGES.length);
+  // VERIFIED: R@1 over the eight target languages, fused; the "without" figure was dropped (human request, 2026-11-09).
+  const targetR1 = (strategy: string) => Math.round(TARGET_LANGUAGES.reduce((sum, code) => sum + bench.strategies[strategy].recall.byLanguage[code]["@1"], 0) / TARGET_LANGUAGES.length);
   // The R@10 card names the languages where the fused pipeline finds every gold passage in the top 10.
   const perfect = ["eng_Latn", "deu_Latn", "por_Latn", "ita_Latn"];
   for (const code of perfect) assert.equal(bench.strategies.fused.recall.byLanguage[code]["@10"], 100, `${code} fused R@10`);
   assert.deepEqual(figures, [`${bench.embedMs.query.p50} ms`, `${bench.strategies.turboquant.searchMs.p50} ms`, `${bench.strategies.fused.searchMs.p50} ms`,
-    `${Math.round(manifest.vectors.bytes / 1000)} kB Brotli`, `${nineR1("fused")}%`, "100%"]);
-  assert.equal(await page.textContent('[data-bench="recall-r1"] .mk-stat-label'), "R@1 over the nine target languages, reranked");
+    `${Math.round(manifest.vectors.bytes / 1000)} kB Brotli`, `${targetR1("fused")}%`, "100%"]);
+  assert.equal(await page.textContent('[data-bench="recall-r1"] .mk-stat-label'), "R@1 over the eight target languages, reranked");
   assert.equal(await page.textContent('[data-bench="recall-r10"] .mk-stat-label'), "R@10 for English, German, Portuguese and Italian");
   assert.match(await page.textContent('[data-bench="index-br"] .mk-stat-label') ?? "", new RegExp(`${(manifest.vectors.rawBytes / 1e6).toFixed(2)} MB raw`));
   assert.equal(await page.textContent("#bench .vs-footnote"), "* measured on an Apple MacBook Air M4 in a Chromium-based browser.");
@@ -354,8 +354,8 @@ try {
     }
   }
   await page.click("#recall-mode-tab-reranker");
-  // "Target languages only", right of each panel's k tabs, is on by default (human request, 2026-11-09): the nine
-  // targets show; switched off in one panel, every panel shows all 20.
+  // "Target languages only", right of each panel's k tabs, is on by default (human request, 2026-11-09): the
+  // target languages show; switched off in one panel, every panel shows all 20.
   const switches = () => page.$$eval(".vs-recall-filter .switch", (inputs) => inputs.map((input) => (input as HTMLInputElement).checked));
   const visibleRows = (mode: string) => page.locator(`#recall-mode-panel-${mode} .vs-recall-list:visible [data-recall]:visible`).count();
   assert.deepEqual(await switches(), [true, true, true]);

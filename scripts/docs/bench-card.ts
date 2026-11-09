@@ -3,7 +3,7 @@
  * between the bench-card markers, so `make bench` regenerates it with the README section.
  * Why generated markup over a script that fetches bench.json: the page stays plain files whose figures read without
  * JavaScript. VERIFIED: scripts/test-docs.ts compares every bar of every tab with bench.json.
- * A switch right of each panel's k tabs, on by default, shows only the nine target languages (human request,
+ * A switch right of each panel's k tabs, on by default, shows only the target languages (human request,
  * 2026-11-09); CSS `:has()` applies it per panel, and docs/assets/demo.js keeps the three switches in step. Two tab bars: the outer one picks the demo mode (the reranker alone, the embedder alone, both fused), each mode's
  * panel holds its own R@k tabs. Why nested tabs over one bar that switches a grid by script: defuss-shadcn tabs switch
  * panels by `aria-controls` id (0.9.13), so the card stays static markup.
@@ -20,7 +20,7 @@ export const CARD_END = "<!-- bench-card:end -->";
  */
 export const CARD_KS = [25, 10, 5, 1] as const;
 export const CARD_DEFAULT_K = 25;
-/** A language other than the nine targets below this R@5 fused wears the "Pruned" badge. VERIFIED: the card's description states the same rule. */
+/** A language other than the targets below this R@5 fused wears the "Pruned" badge. VERIFIED: the card's description states the same rule. */
 export const PRUNED_BELOW = 70;
 const PRUNED_K = 5;
 
@@ -79,9 +79,9 @@ export const renderRecallCard = (report: BenchReport, downloads: CardDownloads):
                   <div class="progress-header"><span class="progress-label" id="r${k}-${mode.key}-${code}">${name(code)}${badge(code)}</span><output class="progress-value" for="r${k}-${mode.key}-bar-${code}" data-template="{value}%"></output></div>
                   <progress class="progress" id="r${k}-${mode.key}-bar-${code}" data-size="xs" data-tone="auto" value="${at(mode, code, k)}" max="100" aria-labelledby="r${k}-${mode.key}-${code}"></progress>
                 </div>`;
-  // The nine target languages' mean, the figure the page's mode tabs show as "Quality" (R@10).
+  // The target languages' mean, the figure the page's mode tabs show as "Quality" (R@10).
   const average = (mode: Mode, k: number) => `                <div class="progress-field vs-recall-average" data-recall-average>
-                  <div class="progress-header"><span class="progress-label" id="r${k}-${mode.key}-average">Average <span class="badge" data-variant="outline" data-size="xs">9 target languages</span></span><output class="progress-value" for="r${k}-${mode.key}-bar-average" data-template="{value}%"></output></div>
+                  <div class="progress-header"><span class="progress-label" id="r${k}-${mode.key}-average">Average <span class="badge" data-variant="outline" data-size="xs">${TARGET_LANGUAGES.length} target languages</span></span><output class="progress-value" for="r${k}-${mode.key}-bar-average" data-template="{value}%"></output></div>
                   <progress class="progress" id="r${k}-${mode.key}-bar-average" data-size="sm" data-tone="auto" value="${targetRecall(mode.recall(report), TARGET_LANGUAGES)[`@${k}` as `@${1 | 3 | 5 | 10 | 25 | 100}`]}" max="100" aria-labelledby="r${k}-${mode.key}-average"></progress>
                 </div>
                 <hr class="separator vs-recall-divider">`;

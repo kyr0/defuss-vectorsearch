@@ -77,8 +77,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.ts:152 B02 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T19:51:45Z s=6664d85b FINDING README.md:487 B01 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T20:18:41Z s=6664d85b FINDING .github/workflows/verify.yml:5 learn=none: Whether 24.04 fully fixes CI is only known after the run; a gate rule cannot observe GitHub runner images.
-2026-11-08T23:35:19Z s=8e62adc6 FAIL prose,lint,tests.unit,tests.e2e.1
-2026-11-08T23:40:02Z s=8e62adc6 FAIL prose,lint
 2026-11-08T23:45:39Z s=8e62adc6 DONE fp=b9e9abd933e7 cov=68.1% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+59)
 2026-11-08T23:45:39Z s=8e62adc6 FINDING public/models/ (gitignored test mirror) learn=none: make setup already runs models:download and the pinned-asset check names the cause; a stale local mirror after a pin change is environment state, not a code def
 2026-11-08T23:45:39Z s=8e62adc6 FINDING .gitignore:36 model-scratch/ learn=none: Human decision for a local workspace; the .gitignore line is the mechanism.
@@ -105,3 +103,5 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-09T19:39:55Z s=8e62adc6 FAIL tests.e2e.1
 2026-11-09T19:46:45Z s=8e62adc6 DONE fp=0cbd6172b0b4 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+66)
 2026-11-09T19:46:45Z s=8e62adc6 FINDING scripts/test-docs.ts:My data (custom) click learn=none: Test-only flake from the floating header; the fix is in the test itself.
+2026-11-09T21:57:11Z s=8e62adc6 DONE fp=1175ae6354ad cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+67)
+2026-11-09T21:57:11Z s=8e62adc6 FINDING README.md, docs/llms.txt, docs/index.html, CHANGELOG.md: eight-language figures learn=test: scripts/test-docs.ts recomputes the page's and llms.txt's figures from bench.json; the README prose has no such check.

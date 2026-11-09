@@ -20,7 +20,7 @@
  *   index they ask (`bench` or `notes`). The notes index is rebuilt per change: at a handful of 256-byte codes that
  *   costs well under a millisecond, simpler than an incremental index.
  * - every search posts the TurboQuant hits at once, then MoEdernColBERT 1.5M (q8) reranks the top 25 and the fused
- *   order replaces them (`final`). VERIFIED: fusing the top 25 lifts R@1 from 66.2 to 78.7 on the bench's nine target
+ *   order replaces them (`final`). VERIFIED: fusing the top 25 lifts R@1 from 67.3 to 78.5 on the bench's eight target
  *   languages (`make bench`, Chromium); posting the dense hits first keeps typing responsive.
  * Built by scripts/docs/build-worker.ts into docs/assets/search-worker.js.
  * Why `loadFile` instead of the library's own cache: it is the one hook that sees the bytes as they arrive.

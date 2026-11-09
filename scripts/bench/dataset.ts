@@ -10,12 +10,15 @@ export const DATASET_SHA256 = "3d09d3653b72cf19c5226cd134bdd7d92ac31f2822cf45bc6
 export const DATASET_SCHEMA = "tiny-multilingual-retrieval.v1";
 
 /**
- * VERIFIED: maintainer decision of 2026-10-07: these are the languages the benchmarked models are built for. Overall
- * recall in the README covers only queries in these languages, rather than shrinking the haystack, so every
- * language's passages stay as distractors and one run still yields per-language results for all of them.
+ * VERIFIED: maintainer decisions of 2026-10-07 and 2026-11-09: the nine languages the benchmarked models are built for,
+ * without Indonesian, which since 0.4.0 is reported per language only. Overall recall in the README, the website and
+ * llms.txt covers only queries in these languages, rather than shrinking the haystack, so every language's passages
+ * stay as distractors and one run still yields per-language results for all of them (bench.json keeps Indonesian's).
+ * Why eight over nine: on the fused pipeline Indonesian is the only one of the nine below 98% R@25 (94%), and the
+ * eight's averages are 99.3 / 98.0 / 95.3 / 78.5 at R@25 / 10 / 5 / 1 against 98.7 / 97.6 / 94.9 / 78.7 (Chromium).
  */
 export const TARGET_LANGUAGES = [
-  "deu_Latn", "rus_Cyrl", "eng_Latn", "fra_Latn", "ind_Latn", "nld_Latn", "ita_Latn", "por_Latn", "spa_Latn",
+  "deu_Latn", "rus_Cyrl", "eng_Latn", "fra_Latn", "nld_Latn", "ita_Latn", "por_Latn", "spa_Latn",
 ] as const;
 
 /** The subset of the upstream `TinyRetrievalDataset` (src/types.ts) that the benchmark reads. */
