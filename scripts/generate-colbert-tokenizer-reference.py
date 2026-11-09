@@ -16,8 +16,9 @@ REPOS = {
     "1.5m-original": "SauerkrautLM-MoEdernColBERT-1.5M-ONNX",
     "27m": "SauerkrautLM-MoEdernColBERT-27M-ONNX",
 }
-# @huggingface/tokenizers 0.2.0 drops U+FEFF (byte-order mark), which Rust keeps, and does not split at U+0085 (next
-# line), where Rust does. The last two texts contain neither character.
+# VERIFIED: @huggingface/tokenizers 0.2.0 drops U+FEFF (byte-order mark), which Rust keeps, and does not split at
+# U+0085 (next line), where Rust does; src/colbert-reranker.live.test.ts checks the reranker against this fixture.
+# The last two texts contain neither character.
 texts = [
     "﻿Простое число – натуральное число больше 1.",
     "﻿The cat sleeps on the sofa.",

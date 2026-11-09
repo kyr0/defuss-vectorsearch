@@ -39,7 +39,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-08T14:39:23Z s=542d48d6 FINDING docs/index.html:flip '~21,5 kB' learn=none: copy decision
 2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:#pipeline lanes + intro + agent prompt learn=none: copy precision
 2026-10-08T15:44:55Z s=542d48d6 FINDING docs/index.html:.vs-flythrough position learn=none: visual spacing; screenshots checked, no layout assertion
-2026-10-10T16:23:33Z s=53696323 DONE fp=eb7f08ce7fc4 cov=? paths=README.md
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:14-23 B03 (old README.md:8-11) learn=none: hand-picked TL;DR copy; a README-vs-bench.json check would be new test scope, offered to the user instead
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:352 B01 (old README.md:6) learn=none: one-off measurement of fixed pinned files; no recurring mechanism
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:58 B01 learn=none: publication state, not code
@@ -49,11 +48,7 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:426 A01 learn=none: structure
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:27,403 T07 learn=none: checker is line-based; <br/> is the working form
 2026-10-10T16:23:33Z s=53696323 FINDING README.md:379 B01 learn=none: needs the author's answer, not a mechanism
-2026-10-10T16:29:58Z s=53696323 DONE fp=a5ecb4c37f27 cov=66.7% paths=bun.lock,package.json
 2026-10-10T16:29:58Z s=53696323 FINDING package.json:135 devDependencies.playwright learn=none: Dependabot already watches the manifest; a repo rule would duplicate it
-2026-10-10T17:14:50Z s=53696323 DONE fp=8c28876fae9b cov=66.7% paths=README.md,bun.lock,package.json
-2026-10-30T22:39:51Z s=8e62adc6 FAIL prose
-2026-10-30T22:41:04Z s=8e62adc6 DONE fp=b44d0dd9f6bb cov=? paths=plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:73 T06 learn=none: rewritten as 'below 1e-4'; one-off wording, static T06 does not cover '<'
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:74,77 T06 learn=none: rewritten with 'is'; one-off wording
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:78 T06 learn=none: rewritten as '0.956, below 0.98'; one-off wording
@@ -63,7 +58,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:49 P08 learn=none: named token outputs
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:24-26 L01 learn=none: stated that graphs, manifest, fixture and card must come from one build
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:111 B01 learn=none: claim removed; file name stays as a plan choice
-2026-10-30T23:49:22Z s=8e62adc6 DONE fp=0b7ccc7bf34e cov=? paths=plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md
 2026-10-30T23:49:22Z s=8e62adc6 FINDING .gitignore:30 learn=none: split back onto its own line; git check-ignore confirms the folder is ignored again
 2026-10-31T00:22:31Z s=8e62adc6 FAIL prose
 2026-10-31T00:34:03Z s=8e62adc6 DONE fp=335ecdd14b2e cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)
@@ -105,3 +99,9 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-08T20:14:28Z s=6664d85b FINDING package.json:3 learn=memory: Added a .vae/MEMORY.md line: check `npm view <pkg>@<version> gitHead` before labelling a change with a version. A gate rule would need a registry query, so it s
 2026-11-08T20:18:41Z s=6664d85b DONE fp=7fca3da35d5f cov=68.1% paths=.github/workflows/verify.yml,ARCH.md,CHANGELOG.md,README.md(+36)
 2026-11-08T20:18:41Z s=6664d85b FINDING .github/workflows/verify.yml:5 learn=none: Whether 24.04 fully fixes CI is only known after the run; a gate rule cannot observe GitHub runner images.
+2026-11-08T23:35:19Z s=8e62adc6 FAIL prose,lint,tests.unit,tests.e2e.1
+2026-11-08T23:40:02Z s=8e62adc6 FAIL prose,lint
+2026-11-08T23:45:39Z s=8e62adc6 DONE fp=b9e9abd933e7 cov=68.1% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+59)
+2026-11-08T23:45:39Z s=8e62adc6 FINDING public/models/ (gitignored test mirror) learn=none: make setup already runs models:download and the pinned-asset check names the cause; a stale local mirror after a pin change is environment state, not a code def
+2026-11-08T23:45:39Z s=8e62adc6 FINDING .gitignore:36 model-scratch/ learn=none: Human decision for a local workspace; the .gitignore line is the mechanism.
+2026-11-08T23:45:39Z s=8e62adc6 FINDING scripts/generate-colbert-tokenizer-reference.py:18 learn=none: The docs gate already enforces the prefix.

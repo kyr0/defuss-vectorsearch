@@ -31,3 +31,6 @@ __pycache__/
 feat-moederncolbert-onnx/
 # ONNX Runtime writes this telemetry session file into the CWD when it cannot persist its device ID
 :memory:.ses
+
+# Local weight-experiment workspace; its results live on the wip/weight-experiments-* branches.
+model-scratch/
