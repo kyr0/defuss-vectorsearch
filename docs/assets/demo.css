@@ -123,8 +123,14 @@
   /* between the intro and the demo: the viewport-high stage shows only its middle band, so pull its empty
      top and bottom into the neighbouring gaps */
   .vs-flythrough { padding-inline: 1rem; margin-block: calc(-1 * clamp(4rem, 12vh, 9rem)); }
-  .vs-flythrough .parallax-stage { clip-path: inset(max(0px, calc((100dvh - 28rem) / 2)) 0 round var(--radius-xl)); }
-  .vs-fly-word { margin: 0; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, #9db2ff, #e3a6ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .vs-flythrough .parallax-stage {
+    --fly-bg: #05060f; --fly-glow: 55%; --fly-from: #9db2ff; --fly-to: #e3a6ff;
+    clip-path: inset(max(0px, calc((100dvh - 28rem) / 2)) 0 round var(--radius-xl)); border-radius: var(--radius-xl); color: #fff;
+    background: radial-gradient(circle at 50% 50%, color-mix(in oklch, var(--chart-3) var(--fly-glow), var(--fly-bg)), var(--fly-bg) 72%);
+  }
+  /* Light mode inverts the flythrough (human request, 2026-11-09): a light stage, dark spokes, deeper word colours. */
+  :root:not(.dark) .vs-flythrough .parallax-stage { --fly-bg: #f4f5ff; --fly-glow: 30%; --fly-from: #3346d3; --fly-to: #8b2fc9; color: #05060f; }
+  .vs-fly-word { margin: 0; font-size: clamp(3rem, 10vw, 6rem); font-weight: 800; letter-spacing: -.04em; background: linear-gradient(90deg, var(--fly-from), var(--fly-to)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   .vs-recall { margin: 0; align-self: start; aspect-ratio: auto; overflow: visible; background: var(--card); }
   .vs-recall-list { display: grid; gap: .5rem 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }

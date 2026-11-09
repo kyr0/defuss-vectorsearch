@@ -76,9 +76,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-08T19:51:45Z s=6664d85b FINDING CHANGELOG.md:11 B09 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.ts:152 B02 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T19:51:45Z s=6664d85b FINDING README.md:487 B01 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
-2026-11-08T20:14:28Z s=6664d85b DONE fp=b8588d7b6251 cov=68.1% paths=ARCH.md,CHANGELOG.md,README.md,bench.json(+35)
-2026-11-08T20:14:28Z s=6664d85b FINDING package.json:3 learn=memory: Added a .vae/MEMORY.md line: check `npm view <pkg>@<version> gitHead` before labelling a change with a version. A gate rule would need a registry query, so it s
-2026-11-08T20:18:41Z s=6664d85b DONE fp=7fca3da35d5f cov=68.1% paths=.github/workflows/verify.yml,ARCH.md,CHANGELOG.md,README.md(+36)
 2026-11-08T20:18:41Z s=6664d85b FINDING .github/workflows/verify.yml:5 learn=none: Whether 24.04 fully fixes CI is only known after the run; a gate rule cannot observe GitHub runner images.
 2026-11-08T23:35:19Z s=8e62adc6 FAIL prose,lint,tests.unit,tests.e2e.1
 2026-11-08T23:40:02Z s=8e62adc6 FAIL prose,lint
@@ -105,3 +102,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-09T19:17:48Z s=8e62adc6 FINDING docs/assets/demo.css:.vs-mode-text a learn=none: A computed-colour assertion would pin a theme value; the cause was one missing selector, now fixed.
 2026-11-09T19:17:48Z s=8e62adc6 FINDING docs/index.html:486 [data-bench=recall-r1] learn=test: scripts/test-docs.ts equals the label text.
 2026-11-09T19:17:48Z s=8e62adc6 FINDING scripts/test-docs.ts:target-languages switch step learn=none: Test-only defect; the passing run proves the corrected step.
+2026-11-09T19:39:55Z s=8e62adc6 FAIL tests.e2e.1
+2026-11-09T19:46:45Z s=8e62adc6 DONE fp=0cbd6172b0b4 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+66)
+2026-11-09T19:46:45Z s=8e62adc6 FINDING scripts/test-docs.ts:My data (custom) click learn=none: Test-only flake from the floating header; the fix is in the test itself.

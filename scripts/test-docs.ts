@@ -213,7 +213,12 @@ try {
   assert.equal(await page.locator('.mk-footer-copy a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   assert.equal(await page.locator('.mk-footer-copy a[href$="/datasets/tiny-embedding-bench-v1"]').count(), 1);
   assert.equal(await page.locator('.mk-footer-nav a[href="https://huggingface.co/hotchpotch/bekko-embedding-v1-a8m"]').count(), 1);
-  assert.equal(await page.locator('.mk-footer-nav a[href="https://github.com/kyr0/defuss-vae"]').count(), 1, "Built with names defuss-vae");
+  // Footer links (human requests, 2026-11-09): the defuss projects' own sites, and both models under their page names.
+  const footerLink = (href: string) => visibleText(page, `.mk-footer-nav a[href="${href}"]`);
+  assert.equal(await footerLink("https://vae.defuss.org"), "defuss-vae");
+  assert.equal(await footerLink("https://shadcn.defuss.org"), "defuss-shadcn");
+  assert.equal(await footerLink("https://huggingface.co/kyr0/Winzling-Embed-a8m-64k"), "Winzling-embed");
+  assert.equal(await footerLink("https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming"), "Winzling-reranker");
   assert.equal(await page.locator('.vs-ad a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   assert.equal(await page.locator('#consulting a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   // Consulting CTA: portrait and heading share one row; the text sits to their right, in its own column.
@@ -254,14 +259,16 @@ try {
   const [downloadMb, rerankerMb] = [sum(manifest.modelFiles, "bytes"), sum(manifest.rerankerFiles, "bytes")];
   // The hero's title and text are the author's (human request, 2026-11-09); the figures sit in the flip line.
   assert.equal(await page.textContent(".mk-hero-title"), "Semantic search is now tiny, fast, and open source");
+  // Bun is a tested runtime (scripts/test-bun-consumer.ts in make e2e), so the hero names it (human request, 2026-11-09).
+  assert.ok(flips.includes("in your browser, Node.js and Bun"), flips.join(" | "));
+  assert.ok((await page.textContent(".mk-hero-desc") ?? "").startsWith("The Winzling embedding model family"));
+  assert.equal(await page.locator('.mk-hero-actions a[href="#bench"] use[href="#i-chart"]').count(), 1, "the benchmark button has its chart icon");
   assert.ok(!/\d(\.\d+)?\s*(MB|ms|%)/.test(await page.textContent(".mk-hero-desc") ?? ""), "the hero text carries no figures to keep in sync");
-  // "Pareto-optimal quality": the recall card's Chromium figures over the nine target languages, per mode, with each
-  // mode's download (human request, 2026-11-09).
+  // "Pareto-optimal quality": the recall card's Chromium figures over the nine target languages, short, without the
+  // downloads the hero already names (human request, 2026-11-09).
   const nineAt = (byLanguage: Record<string, Record<string, number>>, k: number) => (TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]![`@${k}`]!, 0) / TARGET_LANGUAGES.length).toFixed(1);
   for (const claim of [
-    `the right passage is in the top 25 for ${nineAt(bench.strategies.turboquant.recall.byLanguage, 25)}% of queries with kyr0/Winzling-embed (${downloadMb.toFixed(1)} MB, instead of 305 MB for the larger Harrier)`,
-    `in the top 5 for ${nineAt(bench.strategies.fused.recall.byLanguage, 5)}% once kyr0/Winzling-reranker reorders them (${(downloadMb + rerankerMb).toFixed(1)} MB in all)`,
-    `The ${rerankerMb.toFixed(2)} MB reranker alone still finds it in the top 25 for ${nineAt(benchReranker.maxsim.recall.byLanguage, 25)}%`,
+    `the right passage is in the top 25 for ${nineAt(bench.strategies.turboquant.recall.byLanguage, 25)}% of queries, and in the top 5 for ${nineAt(bench.strategies.fused.recall.byLanguage, 5)}% with the reranker`,
   ]) assert.ok(intro.includes(claim), `intro lacks "${claim}"`);
   const promptText = await page.textContent("#agent-prompt") ?? "";
   assert.ok(promptText.includes(`as Brotli files (${downloadMb.toFixed(1)} MB)`) && promptText.includes(`adds a ${rerankerMb.toFixed(2)} MB download`), promptText);
@@ -475,7 +482,11 @@ try {
   assert.ok((await hits(page)).some((hit) => hit.gold === "exact" || hit.gold === "translation"));
 
   // Tab 2: your own vector database. Notes are embedded 500 ms after typing stops or on blur, then searchable.
-  await page.click('#demo .mk-section-header [data-tab="1"]'); // the "My data (custom)" link in the intro opens the tab
+  // The "My data (custom)" link in the intro opens the tab. It sits just below the floating header, so a default
+  // scroll-into-view can leave it under the header (make e2e, 2026-11-09): centre it first.
+  const myData = page.locator('#demo .mk-section-header [data-tab="1"]');
+  await myData.evaluate((node) => node.scrollIntoView({ block: "center", behavior: "instant" }));
+  await myData.click();
   assert.ok(await page.locator("#panel-notes").isVisible());
   assert.ok(await page.locator("#notes-empty").isVisible());
   // "Add note" sits above the notes, so it is in view without scrolling the board.
@@ -600,8 +611,13 @@ try {
   assert.doesNotMatch(prompt, /⏎/);
   assert.equal(await page.textContent("#copy-prompt span"), "Copied");
   const dark = await page.evaluate(() => document.documentElement.classList.contains("dark"));
+  // The "Tokenize, Embed, Retrieve" stage inverts with the theme (human request, 2026-11-09): white on dark, dark on light.
+  const stageColor = () => page.$eval(".vs-flythrough .parallax-stage", (stage) => getComputedStyle(stage).color);
+  const stageFor = (isDark: boolean) => (isDark ? "rgb(255, 255, 255)" : "rgb(5, 6, 15)");
+  assert.equal(await stageColor(), stageFor(dark));
   await page.click(".mk-header .swap");
   assert.equal(await page.evaluate(() => document.documentElement.classList.contains("dark")), !dark);
+  assert.equal(await stageColor(), stageFor(!dark));
 
   // The palette lists example queries only, no actions.
   await page.keyboard.press("ControlOrMeta+k");
