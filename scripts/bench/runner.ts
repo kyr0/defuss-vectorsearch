@@ -1,10 +1,12 @@
 /**
- * One model, one environment: embed every passage and query, then search with both strategies.
+ * One model, one environment: embed every passage and query, then search with each strategy. `runRerankerBench` runs
+ * the reranker alone, once per environment, since it does not depend on the dense model.
  * Node and Chromium inject the embedder and probes; search code comes from the built dist/,
  * so the benchmark measures the published artifact, not the source tree.
  */
 import { buildTurboQuantIndex, scoreTurboQuantIndex, searchTurboQuantIndex } from "../../dist/turboquant.mjs";
 import type { SearchHit } from "../../dist/shared.mjs";
+import type { RerankedHit, TokenMatrix } from "../../dist/browser.mjs";
 import { dotProduct, normalizeVector, searchTopK } from "../../dist/vector-search.mjs";
 import type { BenchTasks } from "./dataset.ts";
 import {
@@ -38,6 +40,19 @@ export interface BenchReranker {
   rerankHits(query: string, hits: readonly SearchHit[], documents: readonly string[]): Promise<readonly { index: number }[]>;
 }
 
+/**
+ * The reranker-only strategy's model: token vectors for every passage, encoded once, and one query at a time.
+ * `rank` is the environment's own `rankEncoded`, so the scan runs the published MaxSim.
+ */
+export interface BenchColbert {
+  readonly modelId: string;
+  readonly device: string;
+  load(): Promise<void>;
+  encodeDocument(text: string): Promise<TokenMatrix>;
+  encodeQuery(text: string): Promise<TokenMatrix>;
+  rank(query: TokenMatrix, documents: readonly TokenMatrix[]): RerankedHit[];
+}
+
 export interface BenchProbes {
   /** Bytes the runtime holds after a forced GC; its definition differs per environment. */
   memoryBytes(): Promise<number>;
@@ -58,6 +73,19 @@ export interface StrategyResult {
   readonly recall: RecallMatrix;
   /** Like `recall`, but the gold passage in any language counts, so a translation in the top k is a hit. */
   readonly anyLanguageRecall: RecallMatrix;
+}
+
+/** The reranker alone: MaxSim of each query against every passage's token vectors, no dense first stage. */
+export interface RerankerResult {
+  readonly modelId: string;
+  readonly device: string;
+  readonly loadMs: number;
+  readonly embedMs: { readonly passage: Summary; readonly query: Summary };
+  /** Memory growth over load + encoding, minus the token vectors held at the probe. */
+  readonly modelRuntimeMiB: number;
+  /** Token vectors over all passages; `maxsim.indexMiB` is their size. */
+  readonly tokens: number;
+  readonly maxsim: StrategyResult;
 }
 
 export interface ModelResult {
@@ -88,13 +116,13 @@ const timed = async <T>(fn: () => Promise<T>): Promise<[T, number]> => {
   return [value, performance.now() - start];
 };
 
-const embedAll = async (
+const embedAll = async <T>(
   texts: readonly string[],
-  embed: (text: string) => Promise<Float32Array>,
+  embed: (text: string) => Promise<T>,
   label: string,
   log: (message: string) => void,
-): Promise<[Float32Array[], number[]]> => {
-  const vectors: Float32Array[] = [];
+): Promise<[T[], number[]]> => {
+  const vectors: T[] = [];
   const ms: number[] = [];
   for (const [i, text] of texts.entries()) {
     const [vector, elapsed] = await timed(() => embed(text));
@@ -248,5 +276,61 @@ export const runModelBench = async (
       },
     },
     sample: haystack.slice(0, SAMPLE_SIZE).map((vector) => Array.from(vector)),
+  };
+};
+
+/**
+ * The reranker alone over the whole haystack: every passage encoded once into token vectors (the index), each query
+ * ranked by MaxSim against all of them. One `rank` call per query yields both the timed top-k and the full scores, so
+ * the 2,000 MaxSim products run once per query.
+ */
+export const runRerankerBench = async (tasks: BenchTasks, colbert: BenchColbert, probes: BenchProbes): Promise<RerankerResult> => {
+  const { log } = probes;
+  const memoryBefore = await probes.memoryBytes();
+  const [, loadMs] = await timed(() => colbert.load());
+  log(`loaded ${colbert.modelId} on ${colbert.device} in ${loadMs.toFixed(0)} ms`);
+  const [documents, passageMs] = await embedAll(tasks.passages.map((p) => p.text), (t) => colbert.encodeDocument(t), "passages", log);
+  const [queries, queryMs] = await embedAll(tasks.queries.map((q) => q.text), (t) => colbert.encodeQuery(t), "queries", log);
+  const bytes = (matrices: readonly TokenMatrix[]) => matrices.reduce((sum, matrix) => sum + matrix.data.byteLength, 0);
+  const indexBytes = bytes(documents);
+  const modelRuntimeBytes = (await probes.memoryBytes()) - memoryBefore - indexBytes - bytes(queries);
+
+  const targets = tasks.queries.map((q) => q.target);
+  const size = tasks.languages.length;
+  const translations = targets.map((target) => Array.from({ length: size }, (_, language) => target - (target % size) + language));
+  const queryLanguages = tasks.queries.map((q) => q.language);
+  for (const query of queries.slice(0, WARMUP_QUERIES)) colbert.rank(query, documents);
+  const ranks: number[] = [];
+  const anyRanks: number[] = [];
+  const ms: number[] = [];
+  for (const [i, query] of queries.entries()) {
+    const start = performance.now();
+    const ranked = colbert.rank(query, documents);
+    ms.push(performance.now() - start);
+    const scores = new Float64Array(documents.length);
+    for (const hit of ranked) scores[hit.index] = hit.score;
+    const rank = rankOf(scores, targets[i]!);
+    const anyRank = bestRankOf(scores, translations[i]!);
+    // VERIFIED: rankEncoded breaks ties by lower index, as rankOf does, so its order must agree with the ranks.
+    if (ranked[rank - 1]?.index !== targets[i] || !translations[i]!.includes(ranked[anyRank - 1]?.index ?? -1)) {
+      throw new Error(`rank ${rank} or ${anyRank} disagrees with the MaxSim order for query ${i}`);
+    }
+    ranks.push(rank);
+    anyRanks.push(anyRank);
+    if ((i + 1) % 250 === 0 || i + 1 === queries.length) log(`ranked ${i + 1}/${queries.length} with MaxSim over all passages`);
+  }
+  return {
+    modelId: colbert.modelId,
+    device: colbert.device,
+    loadMs: Math.round(loadMs),
+    embedMs: { passage: summarize(passageMs), query: summarize(queryMs) },
+    modelRuntimeMiB: toMiB(modelRuntimeBytes),
+    tokens: documents.reduce((sum, matrix) => sum + matrix.tokenCount, 0),
+    // Encoding is the index build, so its time sits in passageMs and the separate build step is 0.
+    maxsim: {
+      ...strategyCost(0, indexBytes, ms, passageMs, queryMs, modelRuntimeBytes),
+      recall: recallMatrix(ranks, queryLanguages, tasks.languages),
+      anyLanguageRecall: recallMatrix(anyRanks, queryLanguages, tasks.languages),
+    },
   };
 };

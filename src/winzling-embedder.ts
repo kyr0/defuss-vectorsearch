@@ -7,7 +7,7 @@ import { Tokenizer } from "@huggingface/tokenizers";
 import type { InferenceSession, Tensor } from "onnxruntime-web";
 import { WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./model-profiles.js";
 import { loadOrtNode, loadOrtWeb, type Ort } from "./ort-runtime.js";
-import { readPinnedAsset, type PinnedAssetCache, type PinnedAssetLocation } from "./pinned-asset.js";
+import { readPinnedAsset, type PinnedAssetCache, type PinnedAssetLocation, type PinnedAssetOptions } from "./pinned-asset.js";
 import type { EmbedOptions, QueryEmbedOptions } from "./types.js";
 
 export { WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./model-profiles.js";
@@ -16,16 +16,10 @@ export { WINZLING_FILES, WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION 
 export type WinzlingAssetLocation = PinnedAssetLocation;
 export type WinzlingAssetCache = PinnedAssetCache;
 
-export interface WinzlingOptions {
+/** Asset options (`modelBaseUrl`, `brotliWasm`, `loadFile`, cache) come from the reader both models share. */
+export interface WinzlingOptions extends PinnedAssetOptions {
   /** Default: wasm (CPU), in both Node and browsers. cpu requires onnxruntime-node. */
   device?: "wasm" | "webgpu" | "cpu" | undefined;
-  /** Mirror of the pinned release. Assets are checked against their SHA-256 hashes. */
-  modelBaseUrl?: string | undefined;
-  /** Overrides ALL asset I/O, for local files, bundled bytes, or application storage. */
-  loadFile?: ((relativePath: string) => Promise<Uint8Array>) | undefined;
-  cache?: boolean | undefined;
-  cacheDir?: string | null | undefined;
-  allowRemoteModels?: boolean | undefined;
   /** Per-instance output normalization; defaults to true. */
   normalize?: boolean | undefined;
   batchSize?: number | undefined;
@@ -87,6 +81,11 @@ export const poolWinzling = (
 
 const readAsset = (name: keyof typeof WINZLING_FILES, options: WinzlingOptions, cache: WinzlingAssetCache): Promise<Uint8Array> =>
   readPinnedAsset(RELEASE, name, options, cache);
+
+/** Reads every pinned file into the cache (download as `.br`, decode, hash check) without creating a session. */
+export const prefetchWinzlingAssets = async (options: WinzlingOptions, cache: WinzlingAssetCache): Promise<void> => {
+  await Promise.all((Object.keys(WINZLING_FILES) as (keyof typeof WINZLING_FILES)[]).map(name => readAsset(name, options, cache)));
+};
 
 /** Standalone ONNX provider; it never imports Transformers.js. */
 export class WinzlingEmbedderCore {

@@ -1,0 +1,95 @@
+# defuss-vectorsearch
+
+> Multilingual semantic search that runs entirely on the user's device, in the browser and in Node.js or Bun, with the same API. The kyr0/Winzling model family is small enough to ship to every visitor: a 2.28 MB reranker, a 28.8 MB embedder, or both for 31.1 MB. A 4-bit TurboQuant index is the vector store. MIT-licensed, npm package `defuss-vectorsearch` 0.4.0.
+
+This file tells AI agents what the package does, when to choose it and how to use it. All figures are VERIFIED measurements from the repository's benchmark (`make bench`, `bench.json`, 2026-11-09): 50 questions in each of 20 languages against one haystack of 2,000 passages (100 passages in 20 languages each). Quality figures average the nine target languages (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish), measured in headless Chromium with ONNX Runtime Web on WASM with one thread, unless stated otherwise. R@k is the share of queries whose correct passage, in the query's language, ranks in the top k.
+
+## Why choose it
+
+- **Small downloads.** kyr0/Winzling-embed downloads 28.8 MB (Brotli, 39.8 MB unpacked; 384-dimensional vectors, 8,192-token context). kyr0/Winzling-reranker downloads 2.28 MB (3.83 MB unpacked; ColBERT-style token vectors, 128 dimensions). The larger Harrier model, which this package also supports, downloads 305 MB.
+- **Private by construction.** Queries are embedded and searched on the device: no server, no API key, no hosted-inference fallback. The live demo makes no network request while it searches.
+- **Isomorphic.** One API in browsers (`browser.js`), Node.js 22.18+ and Bun 1.4 (`onnx.js`). Node.js and Chromium produce the same Winzling vectors (minimum cosine 1 over 40 passages), so you can build the index on a server and search it in the browser.
+- **Tiny index.** TurboQuant stores 256 bytes per vector instead of 1,536 in float32; 2,000 passages take 0.49 MiB, 412 kB as a Brotli file. Its recall stays within 0.7 points of exact float32 search at every k.
+- **Modular quality.** Pick the size and quality you need. All three run in the live demo:
+
+  | Setup | Download | R@1 | R@5 | R@10 | R@25 | Time per query (p50, Chromium) |
+  |---|---:|---:|---:|---:|---:|---:|
+  | Embedder + TurboQuant | 28.8 MB | 66.2 | 90.4 | 96.2 | 98.7 | 23 ms (22.9 ms embedding, 0.4 ms search) |
+  | Embedder + TurboQuant, top 25 fused with the reranker | 31.1 MB | 78.7 | 94.9 | 97.6 | 98.7 | adds 169 ms |
+  | Reranker alone, MaxSim over prebuilt token vectors of all 2,000 passages | 2.28 MB + token vectors (8.5 MB as int4 for the demo's 2,000 passages) | 68.0 | 83.8 | 86.9 | 89.1 | 1.1 s |
+  | Harrier + TurboQuant, for comparison (Node.js) | 305 MB | 96.9 | 99.3 | 99.6 | 100.0 | - |
+
+- **Fast where it matters.** In Node.js on native CPU, a query embeds in 7.5 ms (p50) and Winzling with TurboQuant uses about 246 MB of RAM. Fusing the top 25 with the reranker adds 105 ms (p50).
+- **Pinned and checked.** Each model loads one pinned Hugging Face revision; every file's SHA-256 is checked, cache hits included. Files are cached in the Cache API and IndexedDB (browser) or on the filesystem (Node.js), so a reload makes no model request.
+- **Tested against references.** Token IDs match the Rust tokenizers exactly, and embeddings stay within `2e-5` of Python ONNX Runtime on 24 multilingual and adversarial cases. The reranker's scores stay within `1e-3` of its exporter's.
+- **Lean bundle.** `browser.js` builds to about 355 KB of JavaScript with no Transformers.js or Node.js code, plus the ONNX Runtime Web WASM (26.78 MB uncompressed; a server that compresses `.wasm` files sends much less) and a 185.5 kB Brotli decoder.
+
+## Know before you choose
+
+- **Measured scale.** Every figure comes from a 2,000-passage corpus. Recall, speed and memory beyond that are not measured yet.
+- **Languages.** The models target the nine languages above. Other languages work with lower recall; Winzling was pruned for its targets, so this is by design.
+- **Translations in the corpus.** When a corpus holds the same passage in several languages, Winzling sometimes ranks a translation above the query-language passage. Counting translations as hits, its exact-search R@1 is 94.2. Fusing with the reranker lifts R@1 to 78.7, mostly by ranking the query-language passage above its translations.
+- **TurboQuant saves memory and download, not time.** At 2,000 passages exact search is just as fast (both about 0.4 ms).
+- **Defaults.** WASM with one thread is the tested default, because browsers allow threads only on cross-origin-isolated pages. WebGPU is available but not verified on real hardware.
+- **Scope.** No automatic chunking (split long documents upstream) and no index file format: store the index and passages in your own format, as the live demo does. Vite is the only tested bundler.
+- **When to use something else.** If the passage in the query's language must rank first and a 305 MB download is acceptable, use Harrier through this package's `client.js` or `server.js`.
+
+## Install
+
+```sh
+bun add defuss-vectorsearch@0.4.0        # or: npm install defuss-vectorsearch@0.4.0
+bun add onnxruntime-node@1.21.0          # only for device: "cpu" in Node.js or Bun
+```
+
+## Use it
+
+Browser, embedder and TurboQuant (`onnx.js` is the same API in Node.js and adds `device: "cpu"`):
+
+```ts
+import { buildTurboQuantIndex, createWinzlingEmbedder, searchTurboQuantIndex } from "defuss-vectorsearch/browser.js";
+
+const embedder = createWinzlingEmbedder(); // downloads and caches the pinned model on first use
+const documents = ["The cat sleeps on the sofa.", "Die Börse schloss heute im Plus.", "Кошка спит на диване."];
+const index = buildTurboQuantIndex(await embedder.embedDocuments(documents));
+const hits = searchTurboQuantIndex(index, await embedder.embedQuery("A sleeping cat on a couch."), 25);
+```
+
+Fuse the top 25 with the reranker for the best quality:
+
+```ts
+import { createColbertReranker } from "defuss-vectorsearch/browser.js";
+
+const reranker = createColbertReranker({ model: "1.5m" });
+const fused = await reranker.rerankHits(query, hits, documents, { truncate: true }); // best first
+```
+
+The reranker alone, for the smallest download: encode the passages once, ahead of time, and cache their token vectors.
+
+```ts
+import { createColbertReranker, rankEncoded } from "defuss-vectorsearch/browser.js";
+
+const reranker = createColbertReranker({ model: "1.5m" });
+const passages = await reranker.encodeDocuments(documents, { truncate: true });
+const [q] = await reranker.encodeQueries([query], { truncate: true });
+const ranked = rankEncoded(q, passages); // [{ index, score }], best first
+```
+
+Practices that hold up: build the index ahead of time in Node.js and ship it as a static, Brotli-compressed file; embed documents and queries with the same model; run the models in a Web Worker; reuse one embedder or reranker instance and `dispose()` it when done; pass `truncate: true` from search boxes.
+
+## Docs
+
+- [README](https://github.com/kyr0/defuss-vectorsearch/blob/main/README.md): API, options, patterns, benchmark tables and findings
+- [Live demo](https://vectorsearch.defuss.org): all three setups on 2,000 passages in 20 languages, plus a notes board you fill yourself
+- [Architecture](https://github.com/kyr0/defuss-vectorsearch/blob/main/ARCH.md): design decisions, operations, security and privacy
+- [Model details and licensing](https://github.com/kyr0/defuss-vectorsearch/blob/main/docs/MODEL.md)
+
+## Models
+
+- [kyr0/Winzling-embed](https://huggingface.co/kyr0/Winzling-Embed-a8m-64k): the embedder, Hugging Face id `kyr0/Winzling-Embed-a8m-64k`
+- [kyr0/Winzling-reranker](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming): the reranker, Hugging Face id `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, `model: "1.5m"` in the API
+
+## Optional
+
+- [npm package](https://www.npmjs.com/package/defuss-vectorsearch)
+- [Benchmark dataset](https://github.com/kyr0/tiny-embedding-bench/tree/main/datasets/tiny-embedding-bench-v1): tiny-embedding-bench-v1, built from Belebele
+- [CHANGELOG](https://github.com/kyr0/defuss-vectorsearch/blob/main/CHANGELOG.md)

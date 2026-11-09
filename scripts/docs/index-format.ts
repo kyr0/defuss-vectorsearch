@@ -1,10 +1,11 @@
 /**
  * The docs demo's prebuilt index, in two parts: `documents` (JSON: provenance, passages, queries and the TurboQuant
  * header) and `vectors` (binary: the TurboQuant signs, then every code byte). Written by scripts/docs/build-index.ts in
- * Node (gzipped), read by examples/search-worker.ts in the browser (gunzipped with DecompressionStream), so it uses only
- * APIs both have. Columns instead of objects keep 2,000 rows small.
- * Why binary vectors instead of base64 inside the JSON: base64 adds a third and gzip cannot take it back.
- * VERIFIED: the vector index is 512,512 bytes raw and 436 kB gzipped; as one base64 string in JSON it gzips to 487 kB.
+ * Node (Brotli-compressed), read by examples/search-worker.ts in the browser (decoded with defuss-brotli), so it uses
+ * only APIs both have. Columns instead of objects keep 2,000 rows small.
+ * Why binary vectors instead of base64 inside the JSON: base64 adds a third and compression cannot take it back.
+ * VERIFIED: the vector index is 512,512 bytes raw and 412 kB as Brotli; as one base64 string in JSON it compresses to
+ * 442 kB (gzip: 436 kB against 487 kB; measured 2026-11-09).
  */
 import type { TurboQuantSearchIndex } from "../../src/types.ts";
 

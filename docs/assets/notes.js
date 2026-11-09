@@ -20,8 +20,8 @@ const motion = matchMedia("(prefers-reduced-motion: reduce)");
  * @param {() => void} options.onChange    the index changed
  */
 export const createNotesBoard = ({ list, empty, count, worker, isReady, needModel, onChange }) => {
-  const notes = new Map(); // id → { n, version, sent, timer }
-  const labels = new Map(); // id → "Note n", for result cards
+  const notes = new Map(); // id -> { n, version, sent, timer }
+  const labels = new Map(); // id -> "Note n", for result cards
   let next = 1;
   let embedded = 0;
 
@@ -97,7 +97,7 @@ export const createNotesBoard = ({ list, empty, count, worker, isReady, needMode
       embedded = data.count;
       if (data.removed) setStatus(data.id, "removed");
       else {
-        setStatus(data.id, "embedded", `384-d in ${formatMs(data.embedMs)} · index ${formatMs(data.indexMs)}`);
+        setStatus(data.id, "embedded", `${data.shape} in ${formatMs(data.embedMs)} · index ${formatMs(data.indexMs)}`);
         node.dataset.embedded = "";
         if (!motion.matches) node.animate([{ boxShadow: "0 0 0 0 var(--vs-note-pulse)" }, { boxShadow: "0 0 0 14px transparent" }], { duration: 900, easing: "ease-out" });
       }

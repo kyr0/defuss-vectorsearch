@@ -2,7 +2,7 @@
 // index in the worker ("bench" or "notes"). Both tabs use it, so both search the same way and animate the same way.
 // Why a factory over two copies: the stale-result checks, the transition queue and the before-the-model path are the
 // subtle parts; one implementation keeps them identical (VERIFIED: scripts/test-docs.ts drives both tabs).
-import { formatMs, renderSkeletons } from "./render.js";
+import { renderSkeletons, renderTimings } from "./render.js";
 
 const motion = matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -95,14 +95,13 @@ export const createSearchView = ({ index, root, worker, isReady, needModel, rend
       // VERIFIED: scripts/test-docs.ts waits for the busy flag to clear and then reads the fused strategy.
       if (data.final) results.removeAttribute("aria-busy");
       summary.querySelector(".vs-summary-count").textContent = count(data);
-      summary.querySelector(".vs-summary-query").textContent = data.query;
+      summary.dataset.query = data.query; // the query is in the box above; the e2e reads which one these results answer
       const extra = note(data);
       badge.hidden = !extra;
       badge.textContent = extra;
-      const rerank = data.rerankMs === undefined ? "" : ` · rerank ${formatMs(data.rerankMs)}`;
       // VERIFIED: fused cards keep the dense similarity, so the order can disagree with the scores; the suffix says which is which.
       const order = data.rerankMs === undefined ? "" : " (reranked order, Winzling scores)";
-      summary.querySelector(".mk-search-summary-time").textContent = `embed ${formatMs(data.embedMs)} · scan ${formatMs(data.scanMs)}${rerank} | strategy: ${data.strategy}${order}`;
+      summary.querySelector(".mk-search-summary-time").innerHTML = renderTimings(data, `${data.strategy}${order}`);
       summary.hidden = false;
       empty.hidden = true;
       onShown(data);

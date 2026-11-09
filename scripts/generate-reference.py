@@ -49,7 +49,7 @@ for text in texts:
     cases.append({"text": text, "ids": encoded.ids, "embedding": vector.tolist(),
                   "raw": raw.astype(np.float32).tolist()})
 fixture = {
-    "model_revision": "8f37defd53558efb7f2cc7febf5a9c19a8033bea",
+    "model_revision": "dc961ecc2773117fb67114aa7e40adc83730653d",
     "onnxruntime": ort.__version__, "tokenizers": tokenizers.__version__,
     "sha256": {name: hashlib.sha256((ASSETS / name).read_bytes()).hexdigest()
                for name in ["tokenizer.json", "tokenizer_config.json", "onnx/model_uint4.onnx"]},

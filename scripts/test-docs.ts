@@ -8,14 +8,16 @@
  * Alternative rejected: fetching 40 MB from Hugging Face and 27 MB from jsDelivr on every CI run.
  * Covers every section and component: header + sheet + links, the search CTA, boot (bars, ring, stats, log), the Search
  * button, palette (filter, pick by Enter and by click, actions) with a steady scroll position, live search with
- * re-ranking, gold badges, theme swap, backend switch, cached reload, both copy buttons, mobile width, reduced motion. Fails on any page error, console error, failed request or HTTP >= 400.
+ * re-ranking, gold badges, theme swap, backend switch, all three model modes (reranker alone by default, embedder
+ * alone, both), the recall card's mode and R@k tabs, cached reload, both copy buttons, mobile width, reduced motion.
+ * Fails on any page error, console error, failed request or HTTP >= 400.
  * Report: output/docs-demo.json + screenshots.
  */
 import assert from "node:assert/strict";
 import { createReadStream } from "node:fs";
 import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
-import { createGzip, gunzipSync } from "node:zlib";
+import { brotliDecompressSync, createGzip } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import path from "node:path";
 import { chromium, type BrowserContext, type Page } from "playwright";
@@ -35,7 +37,10 @@ const MIRRORS = [
   { prefix: "https://cdn.jsdelivr.net/npm/onnxruntime-web@", dir: path.resolve("node_modules/onnxruntime-web/dist"), strip: /^[^/]+\/dist\// },
 ];
 
+/** Paths the docs server answered, to see which static files the page and its worker fetch. */
+const served: string[] = [];
 const server = createServer(async (request, response) => {
+  served.push(new URL(request.url ?? "/", "http://x").pathname);
   const file = path.join(DOCS, decodeURIComponent(new URL(request.url ?? "/", "http://x").pathname).replace(/\/$/, "/index.html"));
   if (!file.startsWith(DOCS + path.sep) || !(await stat(file).then((s) => s.isFile(), () => false))) return void response.writeHead(404).end();
   // Like GitHub Pages: JSON goes out gzipped when the browser accepts it, so progress and transfer sizes face compression.
@@ -78,7 +83,7 @@ const visibleText = (page: Page, selector: string) => page.$eval(selector, (node
   return copy.textContent ?? "";
 });
 const summaryFor = (page: Page, query: string) =>
-  page.waitForFunction((q) => document.querySelector("#summary-query")?.textContent === q && !document.querySelector("#results")!.hasAttribute("aria-busy"), query, { timeout: 30_000 });
+  page.waitForFunction((q) => document.querySelector<HTMLElement>("#summary")?.dataset.query === q && !document.querySelector("#results")!.hasAttribute("aria-busy"), query, { timeout: 30_000 });
 const hits = (page: Page) => page.$$eval("#results .vs-hit", (items) => items.map((item) => ({
   id: item.id, gold: item.getAttribute("data-gold"), score: Number(item.querySelector(".vs-score")?.textContent),
   group: Number(/passage (\d+)/.exec(item.querySelector(".card-description")?.textContent ?? "")?.[1]),
@@ -106,10 +111,13 @@ const paletteOpen = (page: Page) => page.$eval("#cmd", (dialog) => (dialog as HT
 const stateOf = (page: Page, selector: string) => page.$eval(selector, (node) => (node as HTMLElement & { api: { getState(): { name: string } } }).api.getState().name);
 
 const manifest = JSON.parse(await readFile("docs/data/manifest.json", "utf8"));
-const unpack = async (file: string) => new Uint8Array(gunzipSync(await readFile(`docs/data/${file}`)));
+const unpack = async (file: string) => new Uint8Array(brotliDecompressSync(await readFile(`docs/data/${file}`)));
 const demo = decodeDemoIndex(JSON.parse(new TextDecoder().decode(await unpack(manifest.documents.file))), await unpack(manifest.vectors.file));
 const firstQuery = (code: string) => demo.queries.find((query) => demo.languages[query.language] === code)!.text;
-const bench = JSON.parse(await readFile("bench.json", "utf8")).environments.chromium.models.winzling;
+const benchReport = JSON.parse(await readFile("bench.json", "utf8"));
+const bench = benchReport.environments.chromium.models.winzling;
+/** The reranker alone over all passages in Chromium (scripts/bench/runner.ts runRerankerBench). */
+const benchReranker = benchReport.environments.chromium.reranker;
 const report: Record<string, unknown> = {};
 const browser = await chromium.launch({ headless: true });
 try {
@@ -126,28 +134,58 @@ try {
   // On load: the index and its 1,000 example queries arrive by themselves, the model does not; a CTA invites a search.
   await page.waitForFunction(() => document.querySelectorAll("#cmd .command-item[data-query]").length === 1000);
   await page.waitForFunction(() => /not cached yet/.test(document.querySelector("#log")!.textContent ?? ""));
-  assert.equal(await stateOf(page, "#p-index"), "complete", "progress counts the gzipped bytes against the manifest sizes");
-  // One set of figures everywhere: the index hint shows the manifest's raw and gzipped sizes (436 kB = the vector index).
+  assert.equal(await stateOf(page, "#p-index"), "complete", "progress counts the Brotli bytes against the manifest sizes");
+  // One set of figures everywhere: the index hint shows the manifest's raw and Brotli sizes (412 kB = the vector index).
   const kb = (bytes: number) => `${Math.round(bytes / 1e3)} kB`;
   const mb = (bytes: number) => `${(bytes / 1e6).toFixed(2)} MB`;
   assert.equal(await page.textContent("#p-index-hint"),
-    `vector index ${mb(manifest.vectors.rawBytes)} → ${kb(manifest.vectors.bytes)} gzip · passage text ${mb(manifest.documents.rawBytes)} → ${kb(manifest.documents.bytes)} gzip`);
-  assert.equal(await page.textContent('output[for="p-index"]'), `100% of ${kb(manifest.vectors.bytes + manifest.documents.bytes)} (gzip)`);
-  // VERIFIED: the demo loads both models, so its figure is the fused strategy's: Winzling, index and the reranker's growth.
-  const chromiumMiB = JSON.parse(await readFile("bench.json", "utf8")).environments.chromium.models.winzling.strategies.fused.runtimeMiB;
-  const ramMb = Math.round(chromiumMiB * 1.048576); // MiB → MB: the page uses decimal units only
-  assert.match(await page.textContent("#p-runtime-hint") ?? "", new RegExp(`~${ramMb} MB RAM reserved`));
-  // No stray figure: every model size reads 39.8 MB, no MiB anywhere visible.
+    `vector index ${mb(manifest.vectors.rawBytes)} -> ${kb(manifest.vectors.bytes)} Brotli · passage text ${mb(manifest.documents.rawBytes)} -> ${kb(manifest.documents.bytes)} Brotli`);
+  assert.equal(await page.textContent('output[for="p-index"]'), `100% of ${kb(manifest.vectors.bytes + manifest.documents.bytes)} (Brotli)`);
+  // The RAM hint follows the mode: the reranker alone (model + token vectors), the embedder with TurboQuant, or both fused.
+  const ramMb = (mib: number) => Math.round(mib * 1.048576); // MiB -> MB: the page uses decimal units only
+  const ram = { reranker: ramMb(benchReranker.maxsim.runtimeMiB), embedder: ramMb(bench.strategies.turboquant.runtimeMiB), both: ramMb(bench.strategies.fused.runtimeMiB) };
+  assert.match(await page.textContent("#p-runtime-hint") ?? "", new RegExp(`^~${ram.reranker} MB RAM reserved for the model`));
+  // The default mode is the reranker alone (human decision, 2026-11-09): one 2.28 MB model that encodes the passages itself.
+  const sizes = (files: object) => (Object.values(files) as { bytes: number }[]).reduce((a, b) => a + b.bytes, 0);
+  // The reranker alone also downloads the passages' prebuilt token vectors (docs/data/tokens.bin.br).
+  const downloads = { reranker: sizes(manifest.rerankerFiles) + manifest.tokens.bytes, embedder: sizes(manifest.modelFiles), both: sizes(manifest.rerankerFiles) + sizes(manifest.modelFiles) };
+  const label = (bytes: number) => `${(bytes / 1e6).toFixed(bytes >= 1e7 ? 1 : 2)} MB`;
+  // The modes are icon tabs (human decision, 2026-11-09), each naming its models and download.
+  const modeTabs = () => page.$$eval("#mode-tabs [role=tab]", (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected"), !!tab.querySelector(".vs-tab-icon")]));
+  // Each tab's "Quality" bar is its R@10 over the nine target languages in Chromium (bench.json), as the recall card's average.
+  const nineR10 = (byLanguage: Record<string, Record<string, number>>) => Number((TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@10"]!, 0) / TARGET_LANGUAGES.length).toFixed(1));
+  const quality = { reranker: nineR10(benchReranker.maxsim.recall.byLanguage), embedder: nineR10(bench.strategies.turboquant.recall.byLanguage), both: nineR10(bench.strategies.fused.recall.byLanguage) };
+  assert.deepEqual(await modeTabs(), [
+    [`kyr0/Winzling-rerankerReranker only · ${label(downloads.reranker)}Quality${quality.reranker}%`, "true", true],
+    [`kyr0/Winzling-embedEmbedder only · ${label(downloads.embedder)}Quality${quality.embedder}%`, "false", true],
+    [`FusedEmbedder + reranker · ${label(downloads.both)}Quality${quality.both}%`, "false", true],
+  ]);
+  assert.deepEqual(await page.$$eval("#mode-tabs .vs-mode-quality progress", (bars) => bars.map((bar) => Number(bar.getAttribute("value")))), [quality.reranker, quality.embedder, quality.both]);
+  assert.match(await page.textContent("#mode-panel-reranker") ?? "", /token vectors, prebuilt with the index/);
+  // Each mode names its models with their Hugging Face pages (human request, 2026-11-09).
+  for (const [panel, count] of [["reranker", 1], ["embedder", 1], ["both", 2]] as const) {
+    assert.equal(await page.locator(`#mode-panel-${panel} a[href^="https://huggingface.co/kyr0/"]`).count(), count, `${panel} model links`);
+  }
+  assert.equal(await page.textContent("#boot-start"), `Load the model · ${label(downloads.reranker)}`);
+  // Statuses are toasts (human request, 2026-11-09): nothing renders above the mode tabs.
+  assert.ok(await page.locator("#boot-status").isHidden());
+  assert.equal(await page.textContent("#p-model-name"), "Model · kyr0/Winzling-reranker q8");
+  assert.ok(await page.locator("#p-tokens-field").isVisible(), "the reranker alone shows its token-vector bar");
+  assert.ok(await page.locator("#backend").isDisabled(), "the reranker always runs on WASM");
+  // No stray figure: no 40 MB rounding and no MiB anywhere visible; the download figures are checked below.
   const bodyText = (await page.evaluate(() => document.body.innerText)).replace(/\u00a0/g, " ");
   assert.doesNotMatch(bodyText, /(?<![\d.])40 MB|MiB/, "a 40 MB or MiB figure is left");
   assert.equal(await page.textContent('[data-stat="languages"]'), "documents · 20 languages");
+  // Section labels are badges (human decision, 2026-11-09), not plain-text eyebrows.
+  assert.equal(await page.locator(".mk-section-header-eyebrow, .mk-features-eyebrow").count(), 0, "plain-text section eyebrow left");
+  assert.deepEqual(await page.$$eval(".mk-section-header-copy > .badge, .mk-features-head > .badge", (nodes) => nodes.map((node) => node.textContent)), ["Live demo", "How it works", "Use it"]);
   assert.equal(await page.textContent(".statistic:has([data-stat=passages]) .statistic-title"), "Vector Database Index");
   assert.equal(modelRequests.length + rerankerRequests.length, 0, "the models must not download before the user asks");
   assert.ok(await page.locator("#empty").isVisible(), "the search CTA shows first");
   assert.equal(await page.locator("#results .vs-hit").count(), 0, "no skeletons before a search");
   assert.equal(await page.locator("#empty-examples [data-query]").count(), 3);
-  // The hero's "Try it now! (Live)" only jumps to the demo: it never starts the download.
-  assert.deepEqual(await page.$$eval(".mk-hero-actions .btn", (nodes) => nodes.map((node) => node.textContent?.trim())), ["Try it now! (Live)", "Benchmark results"]);
+  // The hero's "Try it now!" only jumps to the demo: it never starts the download.
+  assert.deepEqual(await page.$$eval(".mk-hero-actions .btn", (nodes) => nodes.map((node) => node.textContent?.trim())), ["Try it now!", "Benchmark results"]);
   await page.click("#try-live");
   await page.waitForTimeout(300);
   assert.equal(modelRequests.length + rerankerRequests.length, 0, "Try it now does not download the models");
@@ -156,16 +194,26 @@ try {
   assert.ok(await paletteOpen(page), "the CTA opens the palette");
   await page.keyboard.press("Escape");
 
+  // The hero's neural shader (human request, 2026-11-09): defuss-shadcn's neuro-noise in the page's dark blues over a
+  // near-transparent background (2% alpha: the shader reads colours from one canvas pixel, so 0% would lose the page
+  // colour and mix toward black), bottom left, without a poster; it draws a frame, or stays empty without WebGL2.
+  await page.waitForFunction(() => { const node = document.querySelector(".vs-hero-shader"); return !!node && (node.hasAttribute("data-ready") || node.hasAttribute("data-fallback")); });
+  assert.deepEqual(await page.$eval(".vs-hero-shader", (node) => [node.getAttribute("data-effect"), node.getAttribute("data-colors"), node.getAttribute("data-background")]),
+    ["neuro-noise", "var(--chart-5) var(--chart-4) var(--chart-2)", "rgb(from var(--background) r g b / .02)"]);
+  const shaderBox = await page.$eval(".vs-hero-shader", (node) => { const box = node.getBoundingClientRect(); const hero = node.closest(".mk-hero")!.getBoundingClientRect(); return { left: box.left - hero.left, bottom: box.bottom - hero.bottom, center: box.left + box.width / 2 - (hero.left + hero.width / 2) }; });
+  assert.ok(shaderBox.center < 0 && shaderBox.bottom >= 0, `shader at the hero's bottom left: ${JSON.stringify(shaderBox)}`);
   // Headline copy is the author's to change; the page keeps one h1 that names the topic.
   assert.equal(await page.locator("h1").count(), 1);
   assert.match(await page.textContent("h1") ?? "", /^Semantic search\b/);
   // Links: the model page opens in a new tab; the hero and footer credit the author and the dataset.
   assert.equal(await page.getAttribute('.mk-header a[href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k"]', "target"), "_blank");
-  assert.match(await visibleText(page, ".mk-hero-note"), /brought to you by Aron Homberg \(kyr0\) – Open Source \(MIT\)/);
+  assert.match(await visibleText(page, ".mk-hero-note"), /implemented by Aron Homberg \(kyr0\) - Open Source \(MIT\)Models: kyr0\/Winzling-embed · kyr0\/Winzling-reranker$/);
+  assert.equal(await page.locator(`.mk-hero-note a[href="https://huggingface.co/${RERANKER.id}"]`).count(), 1, "the hero links both models");
   assert.equal(await page.locator('.mk-hero-note a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   assert.equal(await page.locator('.mk-footer-copy a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   assert.equal(await page.locator('.mk-footer-copy a[href$="/datasets/tiny-embedding-bench-v1"]').count(), 1);
   assert.equal(await page.locator('.mk-footer-nav a[href="https://huggingface.co/hotchpotch/bekko-embedding-v1-a8m"]').count(), 1);
+  assert.equal(await page.locator('.mk-footer-nav a[href="https://github.com/kyr0/defuss-vae"]').count(), 1, "Built with names defuss-vae");
   assert.equal(await page.locator('.vs-ad a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   assert.equal(await page.locator('#consulting a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   // Consulting CTA: portrait and heading share one row; the text sits to their right, in its own column.
@@ -184,35 +232,58 @@ try {
 
   // The hero intro's figures follow bench.json: R@5 of the three best languages (bruteforce) and the index size ratio.
   const node = JSON.parse(await readFile("bench.json", "utf8")).environments.node.models.winzling.strategies;
-  const top3 = ["deu_Latn", "eng_Latn", "rus_Cyrl"].map((code) => node.bruteforce.recall.byLanguage[code]["@5"] as number);
   const intro = `${await visibleText(page, ".mk-hero-desc")} ${await visibleText(page, "#intro")}`.replace(/\u00a0/g, " ");
-  assert.ok(intro.includes(`~${Math.round(top3.reduce((a, b) => a + b) / 3)}% recall`), `R@5 of ${top3} in: ${intro.slice(0, 200)}`);
+  // The hero's R@25 figures are the recall card's: Fused (its default tab) and the reranker alone, the nine target
+  // languages' mean (human request, 2026-11-09); the flip line below carries them.
+  const nineR25 = (byLanguage: Record<string, Record<string, number>>) => TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]!["@25"]!, 0) / TARGET_LANGUAGES.length;
+  const [fusedR25, rerankerR25] = [nineR25(bench.strategies.fused.recall.byLanguage), nineR25(benchReranker.maxsim.recall.byLanguage)];
+  assert.equal(Number(await page.getAttribute("#recall-panel-both-25 [data-recall-average] progress", "value")), Number(fusedR25.toFixed(1)));
   assert.ok(intro.includes(`${demo.index.codeBytes} bytes`), "bytes per document = TurboQuant code bytes");
   assert.ok(intro.includes(`${WINZLING_PROFILE.maxTokens.toLocaleString("en")} tokens`), "context = the profile's maxTokens");
   assert.equal(await page.locator("#intro .vs-intro-icon svg").count(), 6);
   // Six titled blocks; their wording is the author's, their figures are checked below.
   assert.equal((await page.$$eval("#intro h3", (nodes) => nodes.map((node) => node.textContent?.trim()).filter(Boolean))).length, 6);
-  // R@25 in the nine target languages, Node.js bruteforce (the README's figure), recomputed from bench.json.
-  const r25 = TARGET_LANGUAGES.reduce((sum, code) => sum + node.bruteforce.recall.byLanguage[code]["@25"], 0) / TARGET_LANGUAGES.length;
-  const r5nine = TARGET_LANGUAGES.reduce((sum, code) => sum + node.bruteforce.recall.byLanguage[code]["@5"], 0) / TARGET_LANGUAGES.length;
-  // Each recall figure carries its scope: ~97% top 5 is German/English/Russian only; the nine-language figures follow.
-  assert.ok(intro.includes(`top 5 for ~${Math.round(top3.reduce((a, b) => a + b) / 3)}% of German, English and Russian queries`), "R@5, three languages");
-  assert.ok(intro.includes(`(${r5nine.toFixed(1)}% across all nine target languages)`), `R@5 nine languages ${r5nine}`);
-  assert.ok(intro.includes(`top 25 for ${r25.toFixed(1)}%`), `R@25 ${r25}`);
   assert.ok(intro.includes(`< ${100} ms to the first results`) && bench.strategies.turboquant.queryMs.p95 < 100, "first results: p95 under 100 ms");
   assert.ok(intro.includes(`about ${Math.round(node.turboquant.runtimeMiB * 1.048576)} MB RAM in Node.js`), `Node.js RAM ${node.turboquant.runtimeMiB} MiB`);
   assert.ok(intro.includes(`adds ~${Math.round(bench.strategies.fused.searchMs.p50)} ms in the browser`), `rerank p50 ${bench.strategies.fused.searchMs.p50}`);
   assert.equal(await page.locator('#intro a[href="https://www.linkedin.com/in/aronhomberg/"]').count(), 1);
   // The flip line's figures come from the data: model files (manifest), index bytes, bench R@5 and p95 latency.
   const flips = (await page.$$eval(".vs-flip .text-rotate > span > span", (nodes) => nodes.map((node) => node.textContent))).map((text) => text?.replace(/\u00a0/g, " "));
-  const modelMb = (Object.values(manifest.modelFiles) as number[]).reduce((a, b) => a + b, 0) / 1e6;
+  // Download figures: the `.br` bytes the worker fetches (manifest `bytes`), unpacked sizes only where the page says so.
+  const sum = (files: object, key: "bytes" | "rawBytes") => (Object.values(files) as Record<typeof key, number>[]).reduce((a, b) => a + b[key], 0) / 1e6;
+  const [downloadMb, rerankerMb] = [sum(manifest.modelFiles, "bytes"), sum(manifest.rerankerFiles, "bytes")];
+  // The hero's title and text are the author's (human request, 2026-11-09); the figures sit in the flip line.
+  assert.equal(await page.textContent(".mk-hero-title"), "Semantic search is now tiny, fast, and open source");
+  assert.ok(!/\d(\.\d+)?\s*(MB|ms|%)/.test(await page.textContent(".mk-hero-desc") ?? ""), "the hero text carries no figures to keep in sync");
+  // "Pareto-optimal quality": the recall card's Chromium figures over the nine target languages, per mode, with each
+  // mode's download (human request, 2026-11-09).
+  const nineAt = (byLanguage: Record<string, Record<string, number>>, k: number) => (TARGET_LANGUAGES.reduce((sum, code) => sum + byLanguage[code]![`@${k}`]!, 0) / TARGET_LANGUAGES.length).toFixed(1);
+  for (const claim of [
+    `the right passage is in the top 25 for ${nineAt(bench.strategies.turboquant.recall.byLanguage, 25)}% of queries with kyr0/Winzling-embed (${downloadMb.toFixed(1)} MB, instead of 305 MB for the larger Harrier)`,
+    `in the top 5 for ${nineAt(bench.strategies.fused.recall.byLanguage, 5)}% once kyr0/Winzling-reranker reorders them (${(downloadMb + rerankerMb).toFixed(1)} MB in all)`,
+    `The ${rerankerMb.toFixed(2)} MB reranker alone still finds it in the top 25 for ${nineAt(benchReranker.maxsim.recall.byLanguage, 25)}%`,
+  ]) assert.ok(intro.includes(claim), `intro lacks "${claim}"`);
+  const promptText = await page.textContent("#agent-prompt") ?? "";
+  assert.ok(promptText.includes(`as Brotli files (${downloadMb.toFixed(1)} MB)`) && promptText.includes(`adds a ${rerankerMb.toFixed(2)} MB download`), promptText);
   // The wording is the author's; its figures must match the data (decimal comma or point alike).
   const flipText = flips.join(" | ").replace(/(\d),(\d)/g, "$1.$2");
-  const per100 = (manifest.vectors.bytes / demo.passages.length * 100 / 1000).toFixed(1);
   assert.equal(flips.length, 6);
-  for (const figure of ["< 100 ms", `~${Math.round(top3.reduce((a, b) => a + b) / 3)}% recall`, `${modelMb.toFixed(1)} MB model`, `~${per100} kB index for 100 docs`]) {
+  for (const figure of ["< 100 ms", `for ${Math.round(fusedR25)}% recall R@25`, `with only ${rerankerMb.toFixed(2)} MB still ${Math.round(rerankerR25)}% R@25`, "TurboQuant index, Brotli compressed"]) {
     assert.ok(flipText.includes(figure), `flip line lacks "${figure}": ${flipText}`);
   }
+  // llms.txt (human request, 2026-11-09) is served from the site root; its quality table and downloads are bench.json's
+  // nine-language Chromium figures and the manifest's `.br` bytes.
+  const llms = await (await fetch(`${origin}/llms.txt`)).text();
+  assert.ok(llms.startsWith("# defuss-vectorsearch\n\n> "), "llms.txt: H1, then the summary blockquote");
+  const row = (byLanguage: Record<string, Record<string, number>>) => [1, 5, 10, 25].map((k) => nineAt(byLanguage, k)).join(" | ");
+  for (const claim of [
+    `| ${downloadMb.toFixed(1)} MB | ${row(bench.strategies.turboquant.recall.byLanguage)} |`,
+    `| ${(downloadMb + rerankerMb).toFixed(1)} MB | ${row(bench.strategies.fused.recall.byLanguage)} |`,
+    `| ${rerankerMb.toFixed(2)} MB + token vectors (${(manifest.tokens.bytes / 1e6).toFixed(1)} MB as int4 for the demo's 2,000 passages) | ${row(benchReranker.maxsim.recall.byLanguage)} |`,
+    `${bench.embedMs.query.p50} ms embedding, ${bench.strategies.turboquant.searchMs.p50} ms search`,
+    `adds ${Math.round(bench.strategies.fused.searchMs.p50)} ms`,
+    `about ${Math.round(node.turboquant.runtimeMiB * 1.048576)} MB of RAM`,
+  ]) assert.ok(llms.includes(claim), `llms.txt lacks "${claim}"`);
 
   // External links outside the header bar open in a new tab and carry the arrow; the header's own links do not.
   const external = await page.$$eval('a[href^="http"]', (links) => links.map((link) => ({
@@ -236,37 +307,78 @@ try {
 
   // Benchmark figures on the page are the ones in bench.json.
   const figures = await page.$$eval("[data-bench] .mk-stat-value", (nodes) => nodes.map((node) => node.textContent));
-  // The index figure is the gzipped vector file the page itself downloads (docs/data/manifest.json).
-  // VERIFIED: R@1 over the nine target languages, with and without reranking, is the default pipeline's main gain.
-  const nineR1 = (strategy: string) => (TARGET_LANGUAGES.reduce((sum, code) => sum + bench.strategies[strategy].recall.byLanguage[code]["@1"], 0) / TARGET_LANGUAGES.length).toFixed(1);
+  // The index figure is the Brotli vector file the page itself downloads (docs/data/manifest.json).
+  // VERIFIED: R@1 over the nine target languages, fused; the "without" figure was dropped (human request, 2026-11-09).
+  const nineR1 = (strategy: string) => Math.round(TARGET_LANGUAGES.reduce((sum, code) => sum + bench.strategies[strategy].recall.byLanguage[code]["@1"], 0) / TARGET_LANGUAGES.length);
+  // The R@10 card names the languages where the fused pipeline finds every gold passage in the top 10.
+  const perfect = ["eng_Latn", "deu_Latn", "por_Latn", "ita_Latn"];
+  for (const code of perfect) assert.equal(bench.strategies.fused.recall.byLanguage[code]["@10"], 100, `${code} fused R@10`);
   assert.deepEqual(figures, [`${bench.embedMs.query.p50} ms`, `${bench.strategies.turboquant.searchMs.p50} ms`, `${bench.strategies.fused.searchMs.p50} ms`,
-    `${Math.round(manifest.vectors.bytes / 1000)} kB gzip`, `${nineR1("fused")}%`, `${bench.strategies.fused.recall.byLanguage.eng_Latn["@5"]}%`]);
-  assert.match(await page.textContent('[data-bench="recall-r1"] .mk-stat-label') ?? "", new RegExp(`${nineR1("turboquant").replace(".", "\\.")}% without`));
-  assert.match(await page.textContent('[data-bench="index-gzip"] .mk-stat-label') ?? "", new RegExp(`${(manifest.vectors.rawBytes / 1e6).toFixed(2)} MB raw`));
+    `${Math.round(manifest.vectors.bytes / 1000)} kB Brotli`, `${nineR1("fused")}%`, "100%"]);
+  assert.equal(await page.textContent('[data-bench="recall-r1"] .mk-stat-label'), "R@1 over the nine target languages, reranked");
+  assert.equal(await page.textContent('[data-bench="recall-r10"] .mk-stat-label'), "R@10 for English, German, Portuguese and Italian");
+  assert.match(await page.textContent('[data-bench="index-br"] .mk-stat-label') ?? "", new RegExp(`${(manifest.vectors.rawBytes / 1e6).toFixed(2)} MB raw`));
   assert.equal(await page.textContent("#bench .vs-footnote"), "* measured on an Apple MacBook Air M4 in a Chromium-based browser.");
-  // Low recall outside the target languages is framed as the design it is, with the model page linked.
-  assert.match(await visibleText(page, "#bench .mk-stats-desc"), /Winzling-Embed-a8m-64k is a pruned model .* low performance in non-target languages is by design\./);
-  assert.equal(await page.locator('#bench .mk-stats-desc a[href="https://huggingface.co/kyr0/Winzling-Embed-a8m-64k"]').count(), 1);
-  // VERIFIED: the recall card shows the demo's default pipeline (Chromium, TurboQuant + MoEdernColBERT): one tab per k,
-  // R@5 open first, every bar the figure in bench.json; switching tabs shows exactly one list.
-  const fusedRecall = bench.strategies.fused.recall.byLanguage as Record<string, Record<string, number>>;
-  assert.deepEqual(await page.$$eval("#recall-tabs [role=tab]", (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])),
-    [["R@1", "false"], ["R@5", "true"], ["R@10", "false"], ["R@25", "false"]]);
-  await page.locator("#recall-tabs").scrollIntoViewIfNeeded();
-  for (const k of [1, 5, 10, 25]) {
-    await page.click(`#recall-tab-${k}`);
-    await page.locator(`#recall-panel-${k}`).waitFor({ state: "visible" });
-    assert.equal(await page.locator("#bench .vs-recall-list:visible").count(), 1, `one visible list for R@${k}`);
-    const bars = await page.$$eval(`#recall-panel-${k} [data-recall] progress`, (nodes) => nodes.map((bar) => [bar.closest("[data-recall]")!.getAttribute("data-recall"), Number(bar.getAttribute("value"))]));
-    assert.deepEqual(Object.fromEntries(bars), Object.fromEntries(Object.entries(fusedRecall).map(([code, value]) => [code, value[`@${k}`]])), `R@${k} bars`);
+  // VERIFIED: the recall card has one tab per demo mode, Fused open first, and in each one tab per k, R@25 open first,
+  // to match the hero (human request, 2026-11-09); every bar is the figure in bench.json
+  // (Chromium); switching tabs shows exactly one list.
+  const modeRecall: Record<string, Record<string, Record<string, number>>> = {
+    reranker: benchReranker.maxsim.recall.byLanguage, embedder: bench.strategies.turboquant.recall.byLanguage, both: bench.strategies.fused.recall.byLanguage,
+  };
+  const tabsOf = (list: string) => page.$$eval(`${list} > [role=tab]`, (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected")]));
+  // Each mode panel opens with its model download size, not the tab label (human request, 2026-11-09).
+  assert.deepEqual(await tabsOf("#recall-modes"), [["Fused", "true"], ["Embedder", "false"], ["Reranker", "false"]]);
+  const modeDownload: Record<string, number> = { both: downloads.both, embedder: downloads.embedder, reranker: sizes(manifest.rerankerFiles) };
+  await page.locator("#recall-modes").scrollIntoViewIfNeeded();
+  for (const mode of ["reranker", "embedder", "both"]) {
+    await page.click(`#recall-mode-tab-${mode}`);
+    await page.locator(`#recall-mode-panel-${mode}`).waitFor({ state: "visible" });
+    assert.equal(await page.locator("#bench .vs-recall-tabs:visible").count(), 1, `one visible mode panel for ${mode}`);
+    assert.equal(await page.textContent(`#recall-mode-panel-${mode} .vs-recall-download`), `Download size: ${label(modeDownload[mode]!)}`);
+    assert.deepEqual(await tabsOf(`#recall-tabs-${mode}`), [["R@25", "true"], ["R@10", "false"], ["R@5", "false"], ["R@1", "false"]]);
+    for (const k of [10, 1, 5, 25]) {
+      await page.click(`#recall-tab-${mode}-${k}`);
+      await page.locator(`#recall-panel-${mode}-${k}`).waitFor({ state: "visible" });
+      assert.equal(await page.locator("#bench .vs-recall-list:visible").count(), 1, `one visible list for ${mode} R@${k}`);
+      const bars = await page.$$eval(`#recall-panel-${mode}-${k} [data-recall] progress`, (nodes) => nodes.map((bar) => [bar.closest("[data-recall]")!.getAttribute("data-recall"), Number(bar.getAttribute("value"))]));
+      assert.deepEqual(Object.fromEntries(bars), Object.fromEntries(Object.entries(modeRecall[mode]!).map(([code, value]) => [code, value[`@${k}`]])), `${mode} R@${k} bars`);
+      const values = bars.map(([, value]) => value as number);
+      assert.deepEqual(values, [...values].sort((a, b) => b - a), `${mode} R@${k} best first`);
+    }
   }
-  await page.click("#recall-tab-5");
-  // "Pruned" marks exactly the non-target languages below 70% R@5.
-  const pruned = await page.$$eval("#recall-panel-5 [data-recall]", (rows) => rows.filter((row) => /Pruned/.test(row.querySelector(".progress-label")!.textContent ?? "")).map((row) => row.getAttribute("data-recall")));
-  assert.deepEqual(pruned.sort(), Object.entries(fusedRecall)
+  await page.click("#recall-mode-tab-reranker");
+  // "Target languages only", right of each panel's k tabs, is on by default (human request, 2026-11-09): the nine
+  // targets show; switched off in one panel, every panel shows all 20.
+  const switches = () => page.$$eval(".vs-recall-filter .switch", (inputs) => inputs.map((input) => (input as HTMLInputElement).checked));
+  const visibleRows = (mode: string) => page.locator(`#recall-mode-panel-${mode} .vs-recall-list:visible [data-recall]:visible`).count();
+  assert.deepEqual(await switches(), [true, true, true]);
+  assert.equal(await visibleRows("reranker"), TARGET_LANGUAGES.length);
+  await page.click("#recall-targets-reranker");
+  assert.deepEqual(await switches(), [false, false, false]);
+  assert.equal(await visibleRows("reranker"), demo.languages.length);
+  await page.click("#recall-mode-tab-embedder");
+  assert.equal(await visibleRows("embedder"), demo.languages.length);
+  await page.click("#recall-targets-embedder");
+  assert.equal(await visibleRows("embedder"), TARGET_LANGUAGES.length);
+  await page.click("#recall-mode-tab-reranker");
+  // "Pruned" marks exactly the non-target languages below 70% R@5 with both models, in every tab.
+  const pruned = await page.$$eval("#recall-panel-reranker-10 [data-recall]", (rows) => rows.filter((row) => /Pruned/.test(row.querySelector(".progress-label")!.textContent ?? "")).map((row) => row.getAttribute("data-recall")));
+  assert.deepEqual(pruned.sort(), Object.entries(modeRecall.both!)
     .filter(([code, value]) => !(TARGET_LANGUAGES as readonly string[]).includes(code) && value["@5"]! < 70).map(([code]) => code).sort());
 
-  // Typing alone never starts the 39.8 MB download; the Search button does, and the query waits for the model.
+  // Choosing "Fused" before any load only relabels the page: no download until the first search.
+  await page.click("#mode-tab-both");
+  assert.ok(await page.locator("#mode-panel-both").isVisible() && await page.locator("#mode-panel-reranker").isHidden());
+  await page.waitForFunction(() => /kyr0\/Winzling-embed \+ kyr0\/Winzling-reranker not cached yet/.test(document.querySelector("#log")!.textContent ?? ""));
+  assert.equal(await page.textContent("#boot-start"), `Load the models · ${label(downloads.both)}`);
+  assert.equal(await page.textContent("#p-model-name"), "Models · kyr0/Winzling-embed uint4 + kyr0/Winzling-reranker q8");
+  assert.ok(await page.locator("#p-tokens-field").isHidden(), "no token-vector bar without the reranker alone");
+  assert.ok(await page.locator("#backend").isEnabled());
+  assert.equal(await page.inputValue("#backend"), "webgpu", "WebGPU is pre-selected");
+  assert.match(await page.textContent("#p-runtime-hint") ?? "", new RegExp(`^~${ram.both} MB RAM reserved for models`));
+  assert.equal(modelRequests.length + rerankerRequests.length, 0, "a mode change alone downloads nothing");
+
+  // Typing alone never starts the model download; the Search button does, and the query waits for the model.
   const giza = "How tall are the pyramids of Giza?";
   await page.fill("#q", giza);
   await page.waitForTimeout(300);
@@ -277,20 +389,29 @@ try {
   await ready(page);
   report.bootMs = Date.now() - started;
   for (const bar of ["#p-model", "#p-runtime", "#p-index", "#ring"]) assert.equal(await stateOf(page, bar), "complete", bar);
-  assert.match(await page.textContent("#boot-status") ?? "", /^Ready in .* WASM/);
+  // The page's first load shows no toast (human request, 2026-11-09); later loads do (the "Embedder" step below).
+  assert.equal(await page.locator(".toast", { hasText: "Ready in" }).count(), 0, "no toast for the page's first load");
+  // WebGPU is pre-selected (human decision, 2026-11-09): it runs, or the load falls back to WASM with a notice, and the
+  // select then shows the device that ran.
+  report.webgpu = { device: await page.textContent('[data-stat="device"]'), notice: await page.locator("#boot-notice").isVisible() };
+  assert.ok((report.webgpu as { device: string }).device === "WebGPU" || (report.webgpu as { notice: boolean }).notice, JSON.stringify(report.webgpu));
+  assert.match(await page.textContent("#boot-status") ?? "", /^Ready in .* (WASM|WebGPU)/);
   assert.equal(await page.textContent('[data-stat="passages"]'), "2,000");
   assert.equal(await page.locator('#boot-start use[href="#i-reload"]').count(), 1, "Reload the model carries a reload icon");
-  assert.deepEqual(modelRequests.sort(), ["onnx/model_uint4.onnx", "tokenizer.json", "tokenizer_config.json"]);
-  assert.deepEqual(rerankerRequests.sort(), ["model_q8.onnx", "runtime.json", "tokenizer.json", "tokenizer_config.json"]);
-  // The model bar counts both models' bytes against the manifest, which names every file the worker loads.
-  const modelBytes = [...Object.values(manifest.modelFiles), ...Object.values(manifest.rerankerFiles)].reduce((a: number, b) => a + (b as number), 0);
+  // Every model file crosses the network as its `.br`, decoded in the worker by defuss-brotli's slim decoder, whose
+  // WASM comes from docs/assets as its own file.
+  assert.ok(served.includes("/assets/decompressor.wasm"), "the worker loads defuss-brotli's decompressor.wasm");
+  assert.deepEqual(modelRequests.sort(), ["onnx/model_uint4.onnx.br", "tokenizer.json.br", "tokenizer_config.json.br"]);
+  assert.deepEqual(rerankerRequests.sort(), ["model_q8.onnx.br", "runtime.json.br", "tokenizer.json.br", "tokenizer_config.json.br"]);
+  // The model bar counts both models' `.br` bytes against the manifest, which names every file the worker loads.
+  const modelBytes = [...Object.values(manifest.modelFiles), ...Object.values(manifest.rerankerFiles)].reduce((a: number, b) => a + (b as { bytes: number }).bytes, 0);
   assert.equal(await page.textContent('output[for="p-model"]'), `100% of ${(modelBytes / 1e6).toFixed(1)} MB`);
   await summaryFor(page, giza);
   let top = await hits(page);
   assert.equal(top.length, 12);
   assert.equal(new Set(top.map((hit) => hit.id)).size, 12, "twelve different passages");
   // Busy ends with the fused order, which replaces the TurboQuant hits; cards keep their dense similarity.
-  assert.match(await page.textContent("#summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
+  assert.match(await page.textContent("#summary-time") ?? "", / strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
   await assertMoves(page, "#results");
   assert.ok(top.slice(0, 3).some((hit) => hit.group === 1), `the Giza passage (1) in the top 3: ${JSON.stringify(top.slice(0, 3))}`);
 
@@ -318,8 +439,12 @@ try {
   const exact = top.findIndex((hit) => hit.gold === "exact");
   assert.ok(exact >= 0 && exact < 5, `gold passage rank ${exact + 1}`);
   assert.match(await page.textContent("#summary-gold") ?? "", /Gold answer at #\d/);
-  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms · scan [\d.]+ ms · rerank [\d.]+ ms \| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
-  assert.match(await page.textContent('[data-stat="scan"]') ?? "", /^embed [\d.]+ ms \+ scan [\d.]+ ms \+ rerank [\d.]+ ms$/);
+  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms scan [\d.]+ ms rerank [\d.]+ ms strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
+  // The summary (human request, 2026-11-09): steps as badges with bold durations, no second copy of the query, and
+  // "Clear search" as a button with an icon.
+  assert.equal(await page.locator("#summary-time .badge strong").count(), 3, "embed, scan and rerank badges");
+  assert.equal(await page.locator("#summary q, #summary .vs-summary-query").count(), 0, "the query shows only in the search box");
+  assert.equal(await page.locator('button#summary-clear use[href="#i-x"]').count(), 1);
   // The gold badge sits in a gold aura at the end of its card header; the first card alone wears an aura frame.
   const gold = await page.$eval('#results .vs-hit[data-gold="exact"]', (hit) => {
     const badge = hit.querySelector(".aura-gold .badge")!.getBoundingClientRect();
@@ -373,12 +498,12 @@ try {
   assert.equal(await page.textContent("#notes-count"), "3 notes · 3 embedded");
   await page.fill("#notes-q", "A sleeping cat on a couch");
   await page.click("#notes-submit");
-  await page.waitForFunction(() => document.querySelector(".vs-notes-search .vs-summary-query")?.textContent === "A sleeping cat on a couch"
+  await page.waitForFunction(() => document.querySelector<HTMLElement>("#notes-summary")?.dataset.query === "A sleeping cat on a couch"
     && !document.querySelector("#notes-results")!.hasAttribute("aria-busy"));
   const noteTitles = () => page.$$eval("#notes-results .card-title", (nodes) => nodes.map((node) => node.textContent));
   assert.deepEqual((await noteTitles()).slice(0, 2).sort(), ["Note 1", "Note 3"], "both cat notes, across languages, rank first");
   assert.equal(await page.locator("#notes-results .vs-hit:first-child > .aura").count(), 1);
-  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", /\| strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
+  assert.match(await page.textContent("#notes-summary .mk-search-summary-time") ?? "", / strategy: TurboQuant \+ MoEdernColBERT \(reranked order, Winzling scores\)$/);
   await assertMoves(page, "#notes-results");
   // Emptying a note takes it out of the index; the open search refreshes by itself.
   await page.fill("#note-2-text", "");
@@ -401,13 +526,13 @@ try {
   for (const note of added) assert.ok(pool.some((sample) => sample.text === note.text && sample.lang === note.lang), JSON.stringify(note));
   assert.equal(await page.textContent("#notes-count"), "8 notes · 7 embedded");
   const afterY = await scrollY(page);
-  assert.ok(Math.abs(afterY - pageY) < 2, `adding notes does not move the page: ${pageY} → ${afterY}`);
+  assert.ok(Math.abs(afterY - pageY) < 2, `adding notes does not move the page: ${pageY} -> ${afterY}`);
   // The border layout's divider resizes the notes board from the keyboard.
   const boardWidth = () => page.$eval(".vs-board", (node) => node.getBoundingClientRect().width);
   const widthBefore = await boardWidth();
   await page.focus("#notes-layout > .resizer > .resizer-handle");
   await page.keyboard.press("ArrowRight");
-  assert.ok(Math.abs((await boardWidth()) - widthBefore - 10) < 2, `board ${widthBefore} → ${await boardWidth()}`);
+  assert.ok(Math.abs((await boardWidth()) - widthBefore - 10) < 2, `board ${widthBefore} -> ${await boardWidth()}`);
   // A bench query picked while tab 2 shows switches back to tab 1.
   await page.keyboard.press("ControlOrMeta+k");
   await page.keyboard.type(english.slice(0, 24));
@@ -432,7 +557,7 @@ try {
   await summaryFor(page, "Sternwarte zqx");
   assert.equal(await paletteOpen(page), false, "Enter on free text closes the palette");
 
-  // Once ready, the hero's "Try it now! (Live)" link still only scrolls to the demo: no second load.
+  // Once ready, the hero's "Try it now!" link still only scrolls to the demo: no second load.
   const loads = await page.locator("#log pre", { hasText: "load · device=" }).count();
   await page.click("#try-live");
   assert.equal(await page.locator("#log pre", { hasText: "load · device=" }).count(), loads);
@@ -444,7 +569,7 @@ try {
   await page.locator("#log").waitFor({ state: "visible" }); // the panel animates open
   assert.ok(await page.locator("#log pre", { hasText: "SHA-256 verified" }).count() >= 1);
 
-  // Clear → the CTA with example queries; an example runs a search again.
+  // Clear -> the CTA with example queries; an example runs a search again.
   await page.click("#summary-clear");
   await page.waitForSelector("#empty:not([hidden])");
   assert.equal(await page.locator("#results .vs-hit").count(), 0);
@@ -483,21 +608,76 @@ try {
   assert.equal(await page.locator("#cmd .command-item:not([data-query])").count(), 0);
   await page.keyboard.press("Escape");
 
-  // Backend switch: WebGPU, or WASM with a notice where no adapter exists. The model comes from cache.
-  await page.selectOption("#backend", "webgpu");
+  // Backend switch to WASM: the models come from the cache.
+  await page.selectOption("#backend", "wasm");
   await page.waitForFunction(() => (document.querySelector("#boot-status")?.textContent ?? "").startsWith("Ready in"), null, { timeout: 120_000 });
-  report.webgpu = { device: await page.textContent('[data-stat="device"]'), notice: await page.locator("#boot-notice").isVisible() };
-  assert.ok(report.webgpu && ((report.webgpu as { device: string }).device === "WebGPU" || (report.webgpu as { notice: boolean }).notice));
+  assert.equal(await page.textContent('[data-stat="device"]'), "WASM");
   assert.equal(modelRequests.length, 3, "a backend switch reads the model from the Cache API");
   assert.equal(rerankerRequests.length, 4, "and the reranker too");
 
-  // Reload: the cached model loads by itself.
+  // "Embedder" mode: Winzling alone, read from the cache; the TurboQuant hits are final, nothing is reranked.
+  await page.click("#mode-tab-embedder");
+  await ready(page);
+  await page.locator(".toast", { hasText: /kyr0\/Winzling-embed · / }).waitFor();
+  assert.match(await page.textContent("#boot-status") ?? "", /^Ready in .* · kyr0\/Winzling-embed · /);
+  assert.equal(await page.textContent("#p-model-name"), "Model · kyr0/Winzling-embed uint4");
+  await page.fill("#q", giza);
+  await summaryFor(page, giza);
+  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms scan [\d.]+ ms strategy: TurboQuant$/);
+  assert.equal(await page.locator("#results .vs-moved").count(), 0, "no rerank badges without the reranker");
+  assert.equal((await hits(page)).length, 12);
+
+  // "Reranker" mode: the reranker alone downloads the passages' prebuilt token vectors, then ranks each query against
+  // all of them. VERIFIED (tmp/colbert-demo-probe.ts, 2026-11-09): the English example's gold passage ranks first and
+  // the Giza passage tops the pyramid question; the cat notes outrank the web-app note.
+  await page.click("#mode-tab-reranker");
+  await ready(page);
+  assert.equal(await stateOf(page, "#p-tokens"), "complete", "token vectors for every passage");
+  assert.equal(served.filter((file) => file === "/data/tokens.bin.br").length, 1, "the prebuilt token vectors, downloaded once");
+  assert.ok(await page.locator("#p-tokens-field").isVisible());
+  assert.equal(modelRequests.length, 3, "the mode switches read both models from the Cache API");
+  assert.equal(rerankerRequests.length, 4);
+  // The open query re-runs by itself once the mode is ready.
+  await page.waitForFunction(() => /MaxSim/.test(document.querySelector("#summary-time")?.textContent ?? "") && !document.querySelector("#results")!.hasAttribute("aria-busy"));
+  assert.match(await page.textContent("#summary-time") ?? "", /^embed [\d.]+ ms scan [\d.]+ ms strategy: MoEdernColBERT MaxSim, all passages$/);
+  assert.equal((await hits(page))[0]!.group, 1, "the Giza passage first");
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type(english.slice(0, 24));
+  await page.keyboard.press("Enter");
+  await summaryFor(page, english);
+  assert.equal((await hits(page)).findIndex((hit) => hit.gold === "exact"), 0, "the English example's gold passage first");
+  // The notes were re-encoded into token vectors by the switch; their cards say so.
+  await page.click("#tab-notes");
+  await page.waitForFunction(() => /\d+ x 128-d in/.test(document.querySelector("#note-1 .vs-note-status")?.textContent ?? ""));
+  await page.fill("#notes-q", "A sleeping cat on a couch");
+  await page.click("#notes-submit");
+  await page.waitForFunction(() => /MaxSim/.test(document.querySelector("#notes-summary .mk-search-summary-time")?.textContent ?? "")
+    && !document.querySelector("#notes-results")!.hasAttribute("aria-busy"));
+  assert.equal((await noteTitles()).length, 7, "every embedded note is ranked");
+  await page.click("#tab-bench");
+
+  // "Re-embed the index": the reranker encodes all 2,000 passages again, in the browser, and the page shows how long
+  // that took; searches keep working on the new vectors.
+  await page.click("#reembed");
+  await page.waitForFunction(() => /in [\d.]+ s, in this browser/.test(document.querySelector("#p-reembed-hint")?.textContent ?? ""), null, { timeout: 120_000 });
+  assert.match(await page.textContent("#p-reembed-hint") ?? "", /^2,000 passages with kyr0\/Winzling-reranker in [\d.]+ s, in this browser/);
+  assert.equal(await stateOf(page, "#p-reembed"), "complete");
+  assert.ok(await page.locator(".toast", { hasText: "Re-embedded the index" }).count() >= 1);
+  await page.fill("#q", "");
+  await page.fill("#q", giza);
+  await summaryFor(page, giza);
+  assert.equal((await hits(page))[0]!.group, 1, "the Giza passage first, on the re-encoded vectors");
+
+  // Reload: the default mode's cached model and token vectors load by themselves.
   await page.reload();
   await ready(page);
-  assert.equal(modelRequests.length + rerankerRequests.length, 7, "a reload reads both models from the Cache API");
+  assert.equal(await page.getAttribute("#mode-tab-reranker", "aria-selected"), "true");
+  assert.equal(modelRequests.length + rerankerRequests.length, 7, "a reload reads the model from the Cache API");
+  assert.equal(served.filter((file) => file === "/data/tokens.bin.br").length, 1, "and the token vectors");
   assert.match(await page.textContent('[data-stat="source"]') ?? "", /cache/);
 
   // Clearing the cache: the next load would download again.
+  assert.equal(await page.textContent("#clear-cache"), "Clear stored AI model cache"); // the human's wording (2026-11-09)
   await page.click("#clear-cache");
   await page.waitForFunction(() => /model cache cleared/.test(document.querySelector("#log")!.textContent ?? ""));
   await context.close();
@@ -506,7 +686,7 @@ try {
   const noIndex = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await prepare(noIndex);
   let indexDown = true;
-  await noIndex.route(`${origin}/data/vectors.bin.gz`, (route) => (indexDown ? route.fulfill({ status: 500, body: "down" }) : route.fallback()));
+  await noIndex.route(`${origin}/data/vectors.bin.br`, (route) => (indexDown ? route.fulfill({ status: 500, body: "down" }) : route.fallback()));
   const indexPage = await noIndex.newPage();
   const indexErrors: string[] = [];
   indexPage.on("pageerror", (error) => indexErrors.push(error.message));
@@ -514,7 +694,7 @@ try {
   await indexPage.goto(`${origin}/`);
   await indexPage.waitForSelector("#boot-error:not([hidden])");
   assert.equal(await indexPage.textContent("#boot-error-title"), "Loading failed");
-  assert.match(await indexPage.textContent("#boot-error-text") ?? "", /vectors\.bin\.gz: HTTP 500/);
+  assert.match(await indexPage.textContent("#boot-error-text") ?? "", /vectors\.bin\.br: HTTP 500/);
   indexDown = false;
   await indexPage.click("#boot-retry");
   await indexPage.waitForFunction(() => document.querySelectorAll("#cmd .command-item[data-query]").length === 1000);
@@ -527,7 +707,7 @@ try {
   const flaky = await browser.newContext({ viewport: { width: 1280, height: 900 } });
   await prepare(flaky);
   let failing = true;
-  await flaky.route("https://huggingface.co/**/tokenizer.json", (route) => (failing ? route.fulfill({ status: 500, body: "down" }) : route.fallback()));
+  await flaky.route("https://huggingface.co/**/tokenizer.json.br", (route) => (failing ? route.fulfill({ status: 500, body: "down" }) : route.fallback()));
   const broken = await flaky.newPage();
   const brokenErrors: string[] = [];
   broken.on("pageerror", (error) => brokenErrors.push(error.message));
@@ -535,7 +715,7 @@ try {
   await broken.waitForFunction(() => /not cached yet/.test(document.querySelector("#log")!.textContent ?? ""));
   await broken.click("#boot-start");
   await broken.waitForSelector("#boot-error:not([hidden])");
-  assert.match(await broken.textContent("#boot-error-text") ?? "", /tokenizer\.json: HTTP 500/);
+  assert.match(await broken.textContent("#boot-error-text") ?? "", /tokenizer\.json\.br: HTTP 500/);
   failing = false;
   await broken.click("#boot-retry");
   await ready(broken);

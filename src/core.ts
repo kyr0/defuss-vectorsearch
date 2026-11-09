@@ -2,10 +2,10 @@ import { WINZLING_MODEL_ID, WINZLING_PROFILE, WINZLING_REVISION } from "./model-
 import { clearModelCache, inspectModelCache } from "./model-cache-management.js";
 import { normalizeVector } from "./vector-search.js";
 import { prefetchModel } from "./model-prefetch.js";
-import { DEFAULT_MODEL_ID, resolveModelSource } from "./model-source.js";
+import { buildNodeCacheKey, buildRemoteModelFileUrl, DEFAULT_MODEL_ID, resolveModelSource } from "./model-source.js";
 import { fetchOpenAICompatibleEmbeddings } from "./openai-compatible.js";
 // VERIFIED: static, not lazy (scripts/test-browser-bundle.ts); see model-cache.ts for the top-level-await deadlock.
-import { createWinzlingExtractor } from "./onnx.js";
+import { createWinzlingExtractor, prefetchWinzling } from "./onnx.js";
 import { formatInstructionQuery } from "./prompts.js";
 import type {
   EmbedOptions,
@@ -121,6 +121,18 @@ export class BaseEmbeddingRuntime implements Embedder {
     return this.options.openAICompatible !== undefined;
   }
 
+  /**
+   * Winzling runs only its pinned release, from Hugging Face or an HTTP(S) mirror of it. The returned source carries
+   * WINZLING_REVISION, under which the embedder caches every file, mirrors included.
+   */
+  private winzlingSource(urlOrRepoId: string, revision: string | undefined): ResolvedModelSource {
+    const source = resolveModelSource(urlOrRepoId, { revision: WINZLING_REVISION });
+    // VERIFIED: modelProfile outlives loadModel(); without this a different repo ID would silently run Winzling.
+    if (source.kind === "repo" && source.input !== WINZLING_MODEL_ID) throw new Error(`modelProfile "winzling" accepts only ${WINZLING_MODEL_ID} or an HTTP(S) mirror, not ${source.input}`);
+    if (source.kind === "repo" && (revision ?? WINZLING_REVISION) !== WINZLING_REVISION) throw new Error("Winzling support is pinned to the audited WINZLING_REVISION");
+    return source;
+  }
+
   private getLocalModelSource(operation: string): ResolvedModelSource {
     if (this.resolvedModelSource === null) {
       throw new Error(
@@ -161,6 +173,16 @@ export class BaseEmbeddingRuntime implements Embedder {
     options: ModelPrefetchOptions = {},
   ): Promise<ModelPrefetchResult> {
     const source = this.getLocalModelSource("prefetchModel");
+    if (this.isWinzling()) {
+      const winzling = this.winzlingSource(urlOrRepoId, options.revision);
+      await prefetchWinzling({
+        ...this.options.winzling,
+        cacheDir: options.cacheDir ?? this.options.winzling?.cacheDir ?? this.options.cacheDir,
+        ...(winzling.kind === "url" ? { modelBaseUrl: winzling.input } : {}),
+      });
+      return { source: winzling, files: WINZLING_PROFILE.requiredFiles.map((fileName) =>
+        ({ fileName, remoteUrl: buildRemoteModelFileUrl(winzling, fileName), cacheKey: buildNodeCacheKey(winzling, fileName) })) };
+    }
     return prefetchModel(urlOrRepoId, {
       revision: options.revision ?? source.revision,
       dtype: options.dtype ?? this.dtype,
@@ -295,9 +317,7 @@ export class BaseEmbeddingRuntime implements Embedder {
       const source = this.getLocalModelSource("getExtractor");
       if (this.isWinzling()) {
         if (this.dtype !== "q4") throw new Error("Winzling requires dtype: q4 (the model_uint4.onnx artifact)");
-        // VERIFIED: modelProfile outlives loadModel(); without this a different repo ID would silently run Winzling.
-        if (source.kind === "repo" && source.input !== WINZLING_MODEL_ID) throw new Error(`modelProfile "winzling" accepts only ${WINZLING_MODEL_ID} or an HTTP(S) mirror, not ${source.input}`);
-        if (source.kind === "repo" && source.revision !== WINZLING_REVISION) throw new Error("Winzling support is pinned to the audited WINZLING_REVISION");
+        this.winzlingSource(source.input, source.revision);
         return createWinzlingExtractor({
           ...this.options.winzling,
           device: (this.options.device ?? this.options.winzling?.device ?? "wasm") as "wasm" | "cpu" | "webgpu",

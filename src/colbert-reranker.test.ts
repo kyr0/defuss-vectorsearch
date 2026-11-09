@@ -1,11 +1,12 @@
 import { createServer } from "node:http";
+import { brotliCompressSync } from "node:zlib";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Tokenizer } from "@huggingface/tokenizers";
 import { fuseRanks, maxSim, rankEncoded, tokenIds, type TokenMatrix } from "./colbert-reranker.js";
 import { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
 import { createColbertReranker } from "./onnx.js";
-import { describeOrt, loadOrtNode, loadOrtWeb } from "./ort-runtime.js";
+import { loadOrtWeb } from "./ort-runtime.js";
 import { readPinnedAsset, sha256Hex, type PinnedAssetCache } from "./pinned-asset.js";
 
 const matrix = (data: number[], fingerprint = "test"): TokenMatrix =>
@@ -95,15 +96,14 @@ describe("reciprocal rank fusion", () => {
 
 describe("reranker options", () => {
   it("rejects unknown models, unshipped precisions and invalid settings before loading anything", () => {
-    expect(() => createColbertReranker({ model: "115m" as "27m" })).toThrow(/Unknown MoEdernColBERT model/);
-    // VERIFIED in the exporter: 1.5M q4 fails the 0.98 quality gate, so no q4 graph is pinned.
-    expect(() => createColbertReranker({ model: "1.5m-original", precision: "q4" })).toThrow(/ships no q4 graph; available: fp32, fp16, q8, int8/);
+    // 0.4.0 dropped the unedited 1.5M and 27M exports; JavaScript callers still passing them get the one model left.
+    expect(() => createColbertReranker({ model: "27m" as "1.5m" })).toThrow(/Unknown MoEdernColBERT model: 27m; use 1.5m$/);
     // The round-4 weight edit exists only as a q8 graph.
-    expect(() => createColbertReranker({ model: "1.5m", precision: "fp32" })).toThrow(/ships no fp32 graph; available: q8$/);
-    expect(() => createColbertReranker({ model: "27m", device: "webgpu" as "wasm" })).toThrow(/Unsupported reranker device/);
-    expect(() => createColbertReranker({ model: "27m", batchSize: 0 })).toThrow(/batchSize/);
-    expect(() => createColbertReranker({ model: "27m", modelBaseUrl: "/models" })).toThrow(/HTTP\(S\)/);
-    expect(createColbertReranker({ model: "27m" }).precision).toBe("q8");
+    expect(() => createColbertReranker({ model: "1.5m", precision: "fp32" as "q8" })).toThrow(/ships no fp32 graph; available: q8$/);
+    expect(() => createColbertReranker({ model: "1.5m", device: "webgpu" as "wasm" })).toThrow(/Unsupported reranker device/);
+    expect(() => createColbertReranker({ model: "1.5m", batchSize: 0 })).toThrow(/batchSize/);
+    expect(() => createColbertReranker({ model: "1.5m", modelBaseUrl: "/models" })).toThrow(/HTTP\(S\)/);
+    expect(createColbertReranker({ model: "1.5m" }).precision).toBe("q8");
   });
 
   it("checks every asset's SHA-256 before creating a session", async () => {
@@ -124,10 +124,19 @@ describe("reranker options", () => {
 
 describe("pinned asset reader", () => {
   const payload = new TextEncoder().encode('{"ok":true}');
+  // node:zlib's encoder, not Hugging Face's: the reader must accept any encoder's `.br` that decodes to the pinned bytes.
+  const files: Record<string, Uint8Array> = {
+    "/mirror/runtime.json.br": brotliCompressSync(payload),
+    "/mirror/other.json.br": brotliCompressSync(new TextEncoder().encode('{"ok":false}')),
+    "/mirror/broken.json.br": new Uint8Array([1, 2, 3]),
+  };
   let hits = 0;
   const server = createServer((request, response) => {
     hits++;
-    if (request.url?.endsWith("/runtime.json")) response.writeHead(200).end(payload);
+    const body = files[request.url ?? ""];
+    // Like Vite's dev server: the `.br` file labelled as transport-compressed, so fetch decodes it on arrival.
+    if (request.url === "/mirror/labelled.json.br") response.writeHead(200, { "content-encoding": "br" }).end(brotliCompressSync(payload));
+    else if (body) response.writeHead(200).end(body);
     else response.writeHead(404).end();
   });
   let origin = "";
@@ -144,26 +153,34 @@ describe("pinned asset reader", () => {
     store: async (location, file) => { memory.set(location.cacheKey, file.bytes); },
   };
 
-  it("downloads from a mirror, verifies, caches, then serves the cache without the network", async () => {
-    const release = { label: "Test", modelId: "kyr0/test", revision: "abc", files: { "runtime.json": await sha256Hex(payload), "other.json": "0".repeat(64) } };
+  it("downloads `.br` from a mirror, decodes, verifies, caches the decoded bytes, then serves the cache offline", async () => {
+    const release = { label: "Test", modelId: "kyr0/test", revision: "abc", files: {
+      "runtime.json": await sha256Hex(payload), "other.json": await sha256Hex(payload), "broken.json": "0".repeat(64),
+      "labelled.json": await sha256Hex(payload), "onnx/model.onnx": "0".repeat(64) } };
     const options = { modelBaseUrl: `${origin}/mirror` };
     expect(await readPinnedAsset(release, "runtime.json", options, cache)).toEqual(payload);
     expect(hits).toBe(1);
+    expect([...memory.values()]).toEqual([payload]);
     expect(await readPinnedAsset(release, "runtime.json", { ...options, allowRemoteModels: false }, cache)).toEqual(payload);
     expect(hits).toBe(1);
-    await expect(readPinnedAsset(release, "other.json", options, cache)).rejects.toThrow(/Test download failed: other.json \(HTTP 404\)/);
+    // A `.br` that decodes to other bytes fails the pinned hash and is not cached.
+    await expect(readPinnedAsset(release, "other.json", options, cache)).rejects.toThrow(/Test SHA-256 mismatch: other.json/);
+    await expect(readPinnedAsset(release, "broken.json", options, cache)).rejects.toThrow(/Test could not decode broken.json.br/);
+    expect(await readPinnedAsset(release, "labelled.json", options, cache)).toEqual(payload);
+    // A mirror without `.br` files gets the command that creates them for every pinned file.
+    await expect(readPinnedAsset(release, "onnx/model.onnx", options, cache)).rejects.toThrow(
+      "Test download failed: onnx/model.onnx.br (HTTP 404). Model files are served Brotli-compressed; in a mirror's model directory, create them with: bunx defuss-brotli compress runtime.json other.json broken.json labelled.json onnx/model.onnx");
     await expect(readPinnedAsset(release, "other.json", { ...options, allowRemoteModels: false }, cache)).rejects.toThrow(/missing from cache/);
     await expect(readPinnedAsset(release, "missing.json", options, cache)).rejects.toThrow(/pins no file named missing.json/);
+    expect(memory.size).toBe(2);
     memory.set([...memory.keys()][0]!, new Uint8Array([9]));
     await expect(readPinnedAsset(release, "runtime.json", { ...options, allowRemoteModels: false }, cache)).rejects.toThrow(/SHA-256 mismatch/);
   });
 });
 
 describe("ONNX Runtime loading", () => {
-  it("names engine, version and device, and keeps ORT Web's global configuration consistent", async () => {
-    expect(describeOrt(await loadOrtNode(), "cpu")).toMatch(/^onnxruntime-node@\d+\.\d+\.\d+\/cpu$/);
-    const web = await loadOrtWeb({ numThreads: 1 });
-    expect(describeOrt(web, "wasm")).toMatch(/^onnxruntime-web@\d+\.\d+\.\d+\/wasm$/);
+  it("keeps ORT Web's global configuration consistent", async () => {
+    await loadOrtWeb({ numThreads: 1 });
     await expect(loadOrtWeb({ numThreads: 2 })).rejects.toThrow(/global/);
   });
 });

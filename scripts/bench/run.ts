@@ -1,6 +1,6 @@
 /**
- * `make bench` driver: Node child process per model, then Chromium page per model, then bench.json
- * and the README section. Node runs first because it fills bench/cache, which Chromium loads over HTTP.
+ * `make bench` driver: Node child process per model and one for the reranker alone, then a Chromium page for each,
+ * then bench.json and the README section. Node runs first because it fills bench/cache, which Chromium loads over HTTP.
  */
 import { execFile, spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
@@ -10,21 +10,24 @@ import { createServer } from "vite";
 import { buildBenchTasks, DATASET_SHA256, loadDataset } from "./dataset.ts";
 import { cosine, KS, round } from "./metrics.ts";
 import { MOEDERNCOLBERT_MODELS } from "../../dist/shared.mjs";
-import { logLine, MODEL_KEYS, RERANKER_MODEL, type ModelKey } from "./models.ts";
+import { logLine, MODEL_KEYS, RERANKER_KEY, RERANKER_MODEL, type ModelKey } from "./models.ts";
 import { BENCH_SCHEMA, renderReadmeSection, replaceReadmeSection, type BenchReport, type PublishedModelResult } from "./report.ts";
-import type { ModelResult } from "./runner.ts";
+import type { ModelResult, RerankerResult } from "./runner.ts";
 
 const BROWSER_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const log = (message: string, fields?: Record<string, string>) => console.error(logLine("INFO", message, fields));
 
-const runNode = (key: ModelKey): Promise<ModelResult> =>
+type RunKey = ModelKey | typeof RERANKER_KEY;
+type ResultOf<K extends RunKey> = K extends ModelKey ? ModelResult : RerankerResult;
+
+const runNode = <K extends RunKey>(key: K): Promise<ResultOf<K>> =>
   new Promise((resolve, reject) => {
     const out = `bench/node-${key}.json`;
     const child = spawn(process.execPath, ["--expose-gc", "scripts/bench/node.ts", key, out], { stdio: "inherit" });
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code !== 0) return reject(new Error(`node bench for ${key} exited with ${code}`));
-      readFile(out, "utf8").then((json) => resolve(JSON.parse(json) as ModelResult), reject);
+      readFile(out, "utf8").then((json) => resolve(JSON.parse(json) as ResultOf<K>), reject);
     });
   });
 
@@ -40,7 +43,7 @@ const rendererRss = (pids: number[]): Promise<number> =>
     });
   });
 
-const runChromium = async (origin: string, key: ModelKey): Promise<{ result: ModelResult; version: string }> => {
+const runChromium = async <K extends RunKey>(origin: string, key: K): Promise<{ result: ResultOf<K>; version: string }> => {
   // A fresh browser per model keeps the memory probe from seeing the previous model's heap.
   const browser = await chromium.launch({ headless: true });
   try {
@@ -61,7 +64,7 @@ const runChromium = async (origin: string, key: ModelKey): Promise<{ result: Mod
       null,
       { timeout: BROWSER_TIMEOUT_MS, polling: 1000 },
     );
-    const { result, error } = (await done.jsonValue()) as { result?: ModelResult; error?: string };
+    const { result, error } = (await done.jsonValue()) as { result?: ResultOf<K>; error?: string };
     if (!result) throw new Error(`chromium bench for ${key} failed: ${error}`);
     return { result, version: browser.version() };
   } finally {
@@ -84,11 +87,13 @@ const dataset = await loadDataset(new Uint8Array(await readFile("bench/dataset.j
 const tasks = buildBenchTasks(dataset);
 const nodeResults = {} as Record<ModelKey, ModelResult>;
 for (const key of MODEL_KEYS) nodeResults[key] = await runNode(key);
+const nodeReranker = await runNode(RERANKER_KEY);
 
 const server = await createServer({ appType: "mpa", server: { host: "127.0.0.1", port: 0 }, logLevel: "warn" });
 await server.listen();
 const chromiumResults = {} as Record<ModelKey, ModelResult>;
 let chromiumVersion = "";
+let chromiumReranker: RerankerResult;
 try {
   const origin = server.resolvedUrls!.local[0]!.replace(/\/$/, "");
   for (const key of MODEL_KEYS) {
@@ -96,6 +101,7 @@ try {
     chromiumResults[key] = result;
     chromiumVersion = version;
   }
+  chromiumReranker = (await runChromium(origin, RERANKER_KEY)).result;
 } finally {
   await server.close();
 }
@@ -116,8 +122,8 @@ const report: BenchReport = {
   ks: [...KS],
   reranker: { model: RERANKER_MODEL, id: MOEDERNCOLBERT_MODELS[RERANKER_MODEL].id, revision: MOEDERNCOLBERT_MODELS[RERANKER_MODEL].revision },
   environments: {
-    node: { runtime: process.version, models: map((key) => publish(nodeResults[key])) },
-    chromium: { runtime: `${chromiumVersion} headless (Playwright)`, models: map((key) => publish(chromiumResults[key])) },
+    node: { runtime: process.version, models: map((key) => publish(nodeResults[key])), reranker: nodeReranker },
+    chromium: { runtime: `${chromiumVersion} headless (Playwright)`, models: map((key) => publish(chromiumResults[key])), reranker: chromiumReranker },
   },
   crossEnvironment: map((key) => agreement(nodeResults[key], chromiumResults[key])),
 };

@@ -1,7 +1,11 @@
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
+import os from "node:os";
+import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { Tokenizer } from "@huggingface/tokenizers";
-import { createWinzlingEmbedder, WINZLING_MODEL_ID } from "./onnx.js";
+import { createWinzlingEmbedder, WINZLING_FILES, WINZLING_MODEL_ID } from "./onnx.js";
 import { createEmbeddingServer } from "./server.js";
 
 const loadFile = async (name: string) => new Uint8Array(await readFile(new URL(`../public/models/winzling/${name}`, import.meta.url)));
@@ -48,6 +52,34 @@ describe("real Winzling inference", () => {
       await expect(server.embedQuery("hello", { instruction: "search" })).rejects.toThrow(/unprefixed/);
       await expect(server.embed("hello", { pooling: "last_token" })).rejects.toThrow(/mean/);
     } finally { await server.dispose(); }
+  });
+
+  it("prefetches through the client API from a `.br` mirror, then embeds offline from that cache", async () => {
+    // The mirror serves only the `.br` files that scripts/download-model.ts keeps next to the decoded ones.
+    const requests: string[] = [];
+    const mirror = createServer(async (request, response) => {
+      const name = new URL(request.url ?? "/", "http://localhost").pathname.replace(/^\/winzling\//, "");
+      requests.push(name);
+      if (!name.endsWith(".br") || !(name.slice(0, -3) in WINZLING_FILES)) return void response.writeHead(404).end();
+      response.writeHead(200).end(await readFile(new URL(`../public/models/winzling/${name}`, import.meta.url)));
+    });
+    await new Promise<void>(resolve => mirror.listen(0, "127.0.0.1", resolve));
+    const cacheDir = await mkdtemp(path.join(os.tmpdir(), "winzling-prefetch-"));
+    const model = `http://127.0.0.1:${(mirror.address() as AddressInfo).port}/winzling`;
+    try {
+      const online = createEmbeddingServer({ model, modelProfile: "winzling", device: "cpu", cacheDir });
+      const result = await online.prefetchModel();
+      await online.dispose();
+      expect(result.files.map(file => file.fileName).sort()).toEqual(Object.keys(WINZLING_FILES).sort());
+      expect(requests.sort()).toEqual(Object.keys(WINZLING_FILES).map(name => `${name}.br`).sort());
+      const offline = createEmbeddingServer({ model, modelProfile: "winzling", device: "cpu", cacheDir, allowRemoteModels: false });
+      try { expect(maxError(await offline.embedQuery(fixture.cases[0]!.text), fixture.cases[0]!.embedding)).toBeLessThan(2e-5); }
+      finally { await offline.dispose(); }
+      expect(requests).toHaveLength(3);
+    } finally {
+      mirror.close();
+      await rm(cacheDir, { recursive: true, force: true });
+    }
   });
 
   it("fails on overflow unless truncation is explicitly enabled; preserves EOS", async () => {

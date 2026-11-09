@@ -1,23 +1,56 @@
 {
   "documents": {
-    "file": "documents.json.gz",
-    "bytes": 434194,
+    "file": "documents.json.br",
+    "bytes": 317838,
     "rawBytes": 955378
   },
   "vectors": {
-    "file": "vectors.bin.gz",
-    "bytes": 436261,
+    "file": "vectors.bin.br",
+    "bytes": 412159,
     "rawBytes": 512512
   },
   "modelFiles": {
-    "tokenizer.json": 9292544,
-    "tokenizer_config.json": 2448,
-    "onnx/model_uint4.onnx": 30464606
+    "tokenizer.json": {
+      "bytes": 862957,
+      "rawBytes": 9292544
+    },
+    "tokenizer_config.json": {
+      "bytes": 413,
+      "rawBytes": 2448
+    },
+    "onnx/model_uint4.onnx": {
+      "bytes": 27942930,
+      "rawBytes": 30464606
+    }
   },
   "rerankerFiles": {
-    "tokenizer.json": 1568412,
-    "tokenizer_config.json": 730,
-    "runtime.json": 946,
-    "model_q8.onnx": 2256923
+    "tokenizer.json": {
+      "bytes": 411367,
+      "rawBytes": 1568412
+    },
+    "tokenizer_config.json": {
+      "bytes": 303,
+      "rawBytes": 730
+    },
+    "runtime.json": {
+      "bytes": 431,
+      "rawBytes": 946
+    },
+    "model_q8.onnx": {
+      "bytes": 1868325,
+      "rawBytes": 2256923
+    }
+  },
+  "tokens": {
+    "file": "tokens.bin.br",
+    "bytes": 8504817,
+    "rawBytes": 12288568,
+    "sha256": "71d8153440f1a1b4bd611cc6c44acac2ef17942c0efb7356b9759eaf61c6ee76",
+    "format": "defuss-vectorsearch-demo-tokens.v1",
+    "bits": 4,
+    "dims": 128,
+    "passages": 2000,
+    "tokens": 180626,
+    "fingerprint": "kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming@bd312dffe70801e6aa4a53b287f35018aa5dd88e:162a2b7cf814940cc79cfc154ae33309063fc9d0dde8d5f067373a6ba35be09b"
   }
 }

@@ -6,7 +6,7 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { Tokenizer } from "@huggingface/tokenizers";
 import { tokenIds } from "./colbert-reranker.js";
-import { createColbertReranker, fuseRanks, maxSim, MOEDERNCOLBERT_MODELS, rankEncoded, type ColbertModel, type ColbertPrecision, type TokenMatrix } from "./onnx.js";
+import { createColbertReranker, fuseRanks, maxSim, MOEDERNCOLBERT_MODELS, rankEncoded, type ColbertModel } from "./onnx.js";
 
 // Assets come from `make setup` (scripts/download-model.ts), already checked against the pinned SHA-256.
 const repoName = (model: ColbertModel) => MOEDERNCOLBERT_MODELS[model].id.split("/")[1]!;
@@ -17,65 +17,31 @@ interface Reference {
   queries: string[];
   documents: string[];
   exact_tolerance: { token: number; score: number };
-  precisions: Record<string, {
-    contract: { parity: "exact" | "quality"; mean_token_cosine?: number };
-    document_token_counts: number[];
-    scores: number[][];
-  }>;
+  precisions: Record<string, { document_token_counts: number[]; scores: number[][] }>;
 }
 const reference = async (model: ColbertModel) =>
   JSON.parse(await readFile(new URL(`../fixtures/moederncolbert-${model}-reference.json`, import.meta.url), "utf8")) as Reference;
 const top1 = (row: number[]) => row.indexOf(Math.max(...row));
-const meanTokenCosine = (a: TokenMatrix[], b: TokenMatrix[]) => {
-  let sum = 0, count = 0;
-  a.forEach((m, i) => {
-    for (let t = 0; t < m.tokenCount; t++) {
-      let dot = 0, x = 0, y = 0;
-      for (let k = 0; k < m.dimensions; k++) {
-        const p = m.data[t * m.dimensions + k]!, q = b[i]!.data[t * m.dimensions + k]!;
-        dot += p * q; x += p * p; y += q * q;
-      }
-      sum += dot / Math.sqrt(x * y); count++;
-    }
-  });
-  return sum / count;
-};
 
-const encodeAll = async (model: ColbertModel, precision: ColbertPrecision, device: "cpu" | "wasm", fixture: Reference) => {
-  const reranker = createColbertReranker({ model, precision, device, loadFile: loadFileFor(model) });
-  try {
-    const queries = await reranker.encodeQueries(fixture.queries);
-    const documents = await reranker.encodeDocuments(fixture.documents);
-    return { queries, documents, scores: queries.map(q => documents.map(d => maxSim(q, d))), fingerprint: await reranker.fingerprint() };
-  } finally { await reranker.dispose(); }
-};
-
-// The edited 1.5M q8 graph, every original 1.5M graph and the recommended 27M q8 graph, on native CPU and WASM.
-const PLAN: [ColbertModel, ColbertPrecision[]][] = [["1.5m", ["q8"]], ["1.5m-original", ["fp32", "fp16", "q8", "int8"]], ["27m", ["q8"]]];
-
+// The pinned q8 graph on native CPU and WASM: identical vectors in every runtime, so both meet the Python scores.
 describe("MoEdernColBERT against Python ONNX Runtime reference scores", () => {
-  for (const [model, precisions] of PLAN) for (const device of ["cpu", "wasm"] as const) {
-    it(`${model} ${device}: ${precisions.join(", ")}`, async () => {
-      const fixture = await reference(model);
-      const fp32 = precisions.includes("fp32") ? await encodeAll(model, "fp32", device, fixture) : undefined;
-      for (const precision of precisions) {
-        const expected = fixture.precisions[precision]!;
-        const run = precision === "fp32" ? fp32! : await encodeAll(model, precision, device, fixture);
-        expect(run.documents.map(d => d.tokenCount), precision).toEqual(expected.document_token_counts);
-        expect(run.queries.every(q => q.tokenCount === 32)).toBe(true);
-        if (expected.contract.parity === "exact") {
-          const error = Math.max(...run.scores.flatMap((row, q) => row.map((s, d) => Math.abs(s - expected.scores[q]![d]!))));
-          expect(error, `${precision} max score error`).toBeLessThanOrEqual(fixture.exact_tolerance.score);
-          expect(run.scores.map(top1), precision).toEqual(expected.scores.map(top1));
-          expect(run.fingerprint).toBe(`${MOEDERNCOLBERT_MODELS[model].id}@${MOEDERNCOLBERT_MODELS[model].revision}:${MOEDERNCOLBERT_MODELS[model].files[`model_${precision}.onnx` as "model_q8.onnx"]}`);
-        } else {
-          // Quality graphs: runtime-specific vectors, so compare with this runtime's own FP32 output.
-          const cosine = meanTokenCosine([...fp32!.queries, ...fp32!.documents], [...run.queries, ...run.documents]);
-          expect(cosine, `${precision} mean token cosine`).toBeGreaterThanOrEqual(expected.contract.mean_token_cosine!);
-          expect(run.scores.map(top1), precision).toEqual(fp32!.scores.map(top1));
-          expect(run.fingerprint).toMatch(device === "cpu" ? /:onnxruntime-node@\d+\.\d+\.\d+\/cpu$/ : /:onnxruntime-web@\d+\.\d+\.\d+\/wasm$/);
-        }
-      }
+  for (const device of ["cpu", "wasm"] as const) {
+    it(`1.5m q8 ${device}`, async () => {
+      const fixture = await reference("1.5m");
+      const expected = fixture.precisions.q8!;
+      const reranker = createColbertReranker({ model: "1.5m", device, loadFile: loadFileFor("1.5m") });
+      try {
+        const queries = await reranker.encodeQueries(fixture.queries);
+        const documents = await reranker.encodeDocuments(fixture.documents);
+        const scores = queries.map(q => documents.map(d => maxSim(q, d)));
+        expect(documents.map(d => d.tokenCount)).toEqual(expected.document_token_counts);
+        expect(queries.every(q => q.tokenCount === 32)).toBe(true);
+        const error = Math.max(...scores.flatMap((row, q) => row.map((s, d) => Math.abs(s - expected.scores[q]![d]!))));
+        expect(error, "max score error").toBeLessThanOrEqual(fixture.exact_tolerance.score);
+        expect(scores.map(top1)).toEqual(expected.scores.map(top1));
+        const profile = MOEDERNCOLBERT_MODELS["1.5m"];
+        expect(await reranker.fingerprint()).toBe(`${profile.id}@${profile.revision}:${profile.files["model_q8.onnx"]}`);
+      } finally { await reranker.dispose(); }
     }, 120_000);
   }
 });
@@ -85,7 +51,7 @@ interface TokenizerReference { texts: string[]; tokenizers: Record<string, { que
 // Rust-tokenizer ids from scripts/generate-colbert-tokenizer-reference.py. Six texts contain U+FEFF or U+0085, which
 // @huggingface/tokenizers 0.2.0 splits differently on its own; two contain neither.
 describe("MoEdernColBERT token ids against Rust tokenizers", () => {
-  for (const model of ["1.5m", "1.5m-original", "27m"] as const) {
+  for (const model of Object.keys(MOEDERNCOLBERT_MODELS) as ColbertModel[]) {
     it(`${model}: exact ids, and matching document token counts from the reranker`, async () => {
       const fixture = JSON.parse(await readFile(new URL("../fixtures/moederncolbert-tokenizer-reference.json", import.meta.url), "utf8")) as TokenizerReference;
       const expected = fixture.tokenizers[MOEDERNCOLBERT_MODELS[model].files["tokenizer.json"]]!;
@@ -150,16 +116,6 @@ describe("MoEdernColBERT reranker behavior", () => {
     await expect(reranker.encodeDocuments(["x"], { documentLength: 600 })).rejects.toThrow(/documentLength/);
   });
 
-  it("refuses to compare quality-contract vectors from different runtimes", async () => {
-    const cpu = createColbertReranker({ model: "1.5m-original", precision: "fp16", device: "cpu", loadFile: loadFileFor("1.5m-original") });
-    const wasm = createColbertReranker({ model: "1.5m-original", precision: "fp16", device: "wasm", loadFile: loadFileFor("1.5m-original") });
-    try {
-      const [a] = await cpu.encodeQueries(["Zugspitze"]);
-      const [b] = await wasm.encodeDocuments(["Zugspitze"]);
-      expect(() => maxSim(a!, b!)).toThrow(/fingerprints/);
-    } finally { await cpu.dispose(); await wasm.dispose(); }
-  });
-
   it("can retry after a transient asset failure and finishes accepted work before disposal", async () => {
     let fail = true;
     const retry = createColbertReranker({ model: "1.5m", device: "cpu", loadFile: async name => {
@@ -181,8 +137,9 @@ describe("MoEdernColBERT reranker behavior", () => {
     let requests = 0;
     const server = createServer(async (request, response) => {
       requests++;
+      // The mirror serves the `.br` files that scripts/download-model.ts keeps next to the decoded ones.
       const name = path.basename(new URL(request.url ?? "/", "http://localhost").pathname);
-      if (!files.has(name)) return void response.writeHead(404).end();
+      if (!name.endsWith(".br") || !files.has(name.slice(0, -3))) return void response.writeHead(404).end();
       response.writeHead(200).end(await readFile(new URL(name, modelDir("1.5m"))));
     });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -192,7 +149,7 @@ describe("MoEdernColBERT reranker behavior", () => {
       const online = createColbertReranker({ model: "1.5m", device: "cpu", modelBaseUrl, cacheDir });
       const expected = await online.rerank("Wie hoch ist die Zugspitze?", passages);
       await online.dispose();
-      expect(requests).toBe(4); // tokenizer.json, tokenizer_config.json, runtime.json, model_q8.onnx
+      expect(requests).toBe(4); // the .br of tokenizer.json, tokenizer_config.json, runtime.json, model_q8.onnx
       const offline = createColbertReranker({ model: "1.5m", device: "cpu", modelBaseUrl, cacheDir, allowRemoteModels: false });
       try { expect(await offline.rerank("Wie hoch ist die Zugspitze?", passages)).toEqual(expected); }
       finally { await offline.dispose(); }

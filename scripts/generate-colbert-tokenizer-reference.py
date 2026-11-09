@@ -13,8 +13,6 @@ from tokenizers import Tokenizer
 ROOT = Path(__file__).resolve().parent.parent
 REPOS = {
     "1.5m": "winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming",
-    "1.5m-original": "SauerkrautLM-MoEdernColBERT-1.5M-ONNX",
-    "27m": "SauerkrautLM-MoEdernColBERT-27M-ONNX",
 }
 # VERIFIED: @huggingface/tokenizers 0.2.0 drops U+FEFF (byte-order mark), which Rust keeps, and does not split at
 # U+0085 (next line), where Rust does; src/colbert-reranker.live.test.ts checks the reranker against this fixture.

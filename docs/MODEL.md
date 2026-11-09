@@ -1,12 +1,13 @@
 # Audited model contract
 
 - Model: https://huggingface.co/kyr0/Winzling-Embed-a8m-64k
-- Pinned release: https://huggingface.co/kyr0/Winzling-Embed-a8m-64k/tree/8f37defd53558efb7f2cc7febf5a9c19a8033bea
+- Pinned release: https://huggingface.co/kyr0/Winzling-Embed-a8m-64k/tree/dc961ecc2773117fb67114aa7e40adc83730653d
 - Upstream package: https://github.com/kyr0/defuss/tree/4ddb290567db95aa97eb1594d99f7b2afa6c2b8a/packages/embeddings
 - ORT deployment guidance: https://onnxruntime.ai/docs/tutorials/web/env-flags-and-session-options.html
 - Tokenizer implementation: https://github.com/huggingface/tokenizers.js
 
-Inspected 2026-10-06 and, for the pinned release, 2026-11-08. The graph has ONNX IR 8, standard opset 17 and
+Inspected 2026-10-06 and, for the pinned release, 2026-11-08 at commit `8f37def`. Commit `dc961ec` only adds `.br`
+files, and its graph is byte-identical (same SHA-256, 2026-11-09). The graph has ONNX IR 8, standard opset 17 and
 `com.microsoft` opset 1, including 16 `MatMulNBits` nodes. Both inputs,
 `input_ids` and `attention_mask`, are int64 `[batch, sequence]`.
 `last_hidden_state` is float32 `[batch, sequence, 384]`.

@@ -93,9 +93,15 @@ describe("benchmark report", () => {
       fused: { ...strategy, searchMs: { mean: 160, p50: 150, p95: 210 }, runtimeMiB: 9 },
     },
   };
-  const env = { runtime: "v24", models: { winzling: model, harrier: model } };
+  const reranker = {
+    modelId: "kyr0/reranker", device: "cpu", loadMs: 20, modelRuntimeMiB: 4, tokens: 540,
+    embedMs: { passage: { mean: 3, p50: 3, p95: 4 }, query: { mean: 1, p50: 1, p95: 2 } },
+    maxsim: { ...strategy, indexMs: 0, indexMiB: 0.3, searchMs: { mean: 550, p50: 540, p95: 600 }, runtimeMiB: 4.3,
+      recall: { overall: recall, byLanguage: { ...byLanguage, eng_Latn: { "@1": 30, "@3": 40, "@5": 50, "@10": 60, "@25": 70, "@100": 90 } } } },
+  };
+  const env = { runtime: "v24", models: { winzling: model, harrier: model }, reranker };
   const report: BenchReport = {
-    schema: "defuss-vectorsearch-bench.v2", generatedAt: "2026-10-07T00:00:00.000Z",
+    schema: "defuss-vectorsearch-bench.v3", generatedAt: "2026-10-07T00:00:00.000Z",
     host: { cpu: "cpu", cores: 8, platform: "darwin arm64" },
     dataset: { name: "unit", sha256: "x", languages: ["eng_Latn", "deu_Latn", "tha_Thai"], haystack: 6, queries: 3 },
     ks: [1, 3, 5, 10, 25, 100], reranker: { model: "1.5m", id: "kyr0/reranker", revision: "abc" }, environments: { node: env, chromium: env },
@@ -110,6 +116,16 @@ describe("benchmark report", () => {
     for (const heading of ["Embedding", "Retrieval Quality", "Any-Language Recall", "Cost per Method", "Per Language, Node.js"]) {
       expect(section).toContain(`\n### ${heading}\n\n`);
     }
+  });
+
+  it("adds the reranker alone as its own rows and per-language column", () => {
+    const section = renderReadmeSection(report, targets);
+    expect(section).toContain("| Node.js | MoEdernColBERT | cpu | 20 | 3.0 (p95 4.0) | 1.0 (p95 2.0) | 4 |");
+    expect(section).toContain("| Chromium | MoEdernColBERT | MaxSim, all passages | 45 | 55 | 65 | 72.5 | 80 | 95 | n/a |");
+    expect(section).toContain("| Node.js | MoEdernColBERT | MaxSim, all passages | 2.4 (p95 3.5) | 2.4 (p95 3.5) | 550.000 | 0.0 | 4.3 | 0.3 |");
+    expect(section).toContain("| `eng_Latn` | 40 / 50 / 60 / 70 / 80 / 100 |");
+    expect(section).toMatch(/\| MoEdernColBERT MaxSim, all passages \|\n/);
+    expect(section.split("\n").find((line) => line.startsWith("| `eng_Latn`"))).toMatch(/ \| 30 \/ 40 \/ 50 \/ 60 \/ 70 \/ 90 \|$/);
   });
 
   it("averages overall recall and rank reproduction over the target languages only", () => {

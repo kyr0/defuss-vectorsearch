@@ -5,7 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue)](tsconfig.json)
 [![Live demo](https://img.shields.io/badge/demo-vectorsearch.defuss.org-success)](https://vectorsearch.defuss.org)
 
-**Vector** search for JavaScript: a 39.76 MB (all-in) multilingual embedding model and a 4-bit index, in the browser and in Node.js.
+**Vector** search for JavaScript: a multilingual embedding model of 28.81 MB to download (39.76 MB unpacked, all-in) and a 4-bit index, in the browser and in Node.js.
 
 The Winzling embedding model runs on ONNX Runtime Web (WASM, experimental WebGPU) in the browser and on ONNX Runtime (WASM or native CPU) in Node.js, behind the same API. TurboQuant stores each vector as 4-bit codes, so 2,000 passages take 0.49 MiB instead of 2.93 MiB in float32.
 
@@ -14,8 +14,8 @@ The Winzling embedding model runs on ONNX Runtime Web (WASM, experimental WebGPU
 Build the index server-side and publish it. The browser downloads the index, embeds the search query locally and searches the TurboQuant index locally. Once the model is cached, a reload loads it in ~0.4 s; embedding a query then takes 28.8 ms and searching 2,000 passages 0.36 ms (headless Chromium, see [Quick start](#quick-start) and [Benchmark](#benchmark)).
 
 - 🔁 **Isomorphic:** one embedder API in browsers and in Node.js; both produce the same Winzling vectors (minimum cosine 1 over 40 passages)
-- 🪶 **Small model:** 39.76 MB to download (30.46 MB ONNX graph, 9.29 MB tokenizer) instead of 304.68 MB for Harrier, and 168 to 609 MiB of memory at runtime in Chromium 140 (eight runs)
-- 🗜️ **4-bit index:** TurboQuant keeps 256 B per vector instead of 1,536 B in float32; the live demo's 2,000 passages are 436 kB gzipped
+- 🪶 **Small model:** 28.81 MB to download as Brotli files, 39.76 MB unpacked (30.46 MB ONNX graph, 9.29 MB tokenizer), instead of 304.68 MB for Harrier, and 168 to 609 MiB of memory at runtime in Chromium 140 (eight runs)
+- 🗜️ **4-bit index:** TurboQuant keeps 256 B per vector instead of 1,536 B in float32; the live demo's 2,000 passages are 412 kB as a Brotli file
 - 🎯 **Multilingual recall:** R@5 of 90.7% over nine languages for the passage in the query's language (98.0% counting its translations), 96 to 98% for German, Russian and English, against a 2,000-passage haystack in 20 languages
 - ⚡ **Fast queries:** 28.8 ms to embed a query, 0.36 ms to search 2,000 passages (means, Chromium, WASM, 1 thread)
 - 🔒 **Pinned and checked:** one pinned model revision; every file is SHA-256 checked, cache hits included, and cached in the Cache API and IndexedDB (browser) or on the filesystem (Node.js)
@@ -32,7 +32,7 @@ flowchart LR
         E1["embedDocuments<br/>Winzling, native CPU"] --> B["buildTurboQuantIndex<br/>4-bit codes"]
     end
 
-    B -->|"your format + gzip"| H[("static host")]
+    B -->|"your format + Brotli"| H[("static host")]
 
     subgraph browser ["🌐 per query, browser"]
         Q(["🙋 query"]) --> E2["embedQuery<br/>ONNX Runtime Web"]
@@ -56,7 +56,7 @@ The package does not serialize indexes; the live demo writes its own format (`sc
 ## Install
 
 ```sh
-bun add defuss-vectorsearch@0.3.1        # or: npm install defuss-vectorsearch@0.3.1
+bun add defuss-vectorsearch@0.4.0        # or: npm install defuss-vectorsearch@0.4.0
 bun add onnxruntime-node@1.21.0          # only for device: "cpu" in Node.js or Bun
 ```
 
@@ -78,19 +78,19 @@ console.log(hits.map((hit) => documents[hit.index])); // both cat sentences
 
 VERIFIED by `scripts/test-browser-bundle.ts` (part of `make e2e`) and one run against huggingface.co:
 
-- **Auto-download and cache.** The first call downloads the pinned Winzling release from Hugging Face (39.76 MB) and checks every file's SHA-256. It stores the files in the Cache API and IndexedDB. A reload makes no model request: 3.7 s cold, 0.4 s warm in headless Chromium.
-- **Bundle contents.** `browser.js` holds the Winzling embedder, TurboQuant search and `normalizeVector`. A Vite production build of the snippet contains no Transformers.js, `defuss-multicore`, `onnxruntime-node` or Node built-in code. It is 340 KB of JavaScript plus the 26.78 MB ONNX Runtime Web WASM, which Vite emits next to the bundle by itself.
-- **Bundlers.** Only Vite was tested. Under Vite's dev server, keep `onnxruntime-web` out of dependency pre-bundling (`optimizeDeps: { exclude: ["onnxruntime-web"] }`), as this repo's `vite.config.ts` does. With another bundler, pass `wasmPaths` pointing at a copy of `onnxruntime-web/dist/`, as the demo does with `"/ort/"`.
+- **Auto-download and cache.** The first call downloads the pinned Winzling release from Hugging Face as Brotli `.br` files (28.81 MB), decodes them with the decoder of [defuss-brotli](https://www.npmjs.com/package/defuss-brotli) (a 185.5 kB WASM file) and checks every decoded file's SHA-256. It stores the decoded files (39.76 MB) in the Cache API and IndexedDB, so a cached start loads no decoder. A reload makes no model request: 3.7 s cold, 0.4 s warm in headless Chromium.
+- **Bundle contents.** `browser.js` holds the Winzling embedder, TurboQuant search and `normalizeVector`. A Vite production build of the snippet contains no Transformers.js, `defuss-multicore`, `onnxruntime-node` or Node built-in code. It is 355 KB of JavaScript plus two WASM files Vite emits next to the bundle by itself: ONNX Runtime Web (26.78 MB) and the Brotli decoder (185.5 kB).
+- **Bundlers.** Only Vite was tested. Under Vite's dev server, keep `onnxruntime-web` and `defuss-brotli` out of dependency pre-bundling (`optimizeDeps: { exclude: ["onnxruntime-web", "defuss-brotli"] }`), as this repo's `vite.config.ts` does. Pre-bundled, the decoder looks for its WASM file in Vite's cache and gets the page instead. With another bundler, pass `wasmPaths` pointing at a copy of `onnxruntime-web/dist/`, as the demo does with `"/ort/"`, and `brotliWasm` pointing at a copy of `defuss-brotli/decompressor.wasm`. `bun build` needs this, because it leaves the decoder's `new URL("./decompressor.wasm", import.meta.url)` unchanged.
 - **Format.** The entry is ESM-only and accepts `device: "wasm"` (default) or `"webgpu"`.
 
-This is the smallest and fastest setup in the [benchmark](#benchmark): 39.8 MB instead of 305 MB to download, 2.9× faster passage embedding in Chromium, and a TurboQuant index 6× smaller than float32. The benchmark holds each passage in 20 languages. In the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish), Winzling ranks the passage or one of its translations in the top 3 for 97.3% of queries, against 99.3% for Harrier (Node.js, bruteforce). The passage in the query's language reaches the top 3 for 83.3% of queries, against 98.9%: Winzling often ranks a translation above it. Spanish and Italian show this most, at 68% and 76% R@3, and 100% and 98% when a translation counts. When the top 3 must hold the passage in the query's language, use Harrier through `client.js`.
+This is the smallest and fastest setup in the [benchmark](#benchmark): 28.8 MB instead of 305 MB to download, 2.9× faster passage embedding in Chromium, and a TurboQuant index 6× smaller than float32. The benchmark holds each passage in 20 languages. In the nine languages both models target (German, Russian, English, French, Indonesian, Dutch, Italian, Portuguese, Spanish), Winzling ranks the passage or one of its translations in the top 3 for 97.3% of queries, against 99.3% for Harrier (Node.js, bruteforce). The passage in the query's language reaches the top 3 for 83.3% of queries, against 98.9%: Winzling often ranks a translation above it. Spanish and Italian show this most, at 68% and 76% R@3, and 100% and 98% when a translation counts. When the top 3 must hold the passage in the query's language, use Harrier through `client.js`.
 
 ### Rerank dense hits with MoEdernColBERT
 
 ```ts
 import { createColbertReranker } from "defuss-vectorsearch/browser.js"; // or onnx.js in Node.js
 
-const reranker = createColbertReranker({ model: "1.5m" }); // q8 by default: 3.83 MB, cached like Winzling
+const reranker = createColbertReranker({ model: "1.5m" }); // 2.28 MB to download, cached like Winzling
 const query = "A sleeping cat on a couch.";
 const hits = searchTurboQuantIndex(index, await embedder.embedQuery(query), 25);
 const fused = await reranker.rerankHits(query, hits, documents, { truncate: true }); // best first
@@ -110,25 +110,23 @@ VERIFIED by `make bench` (2026-11-08, the nine target languages; Winzling's rows
 
 Use the reranker with Winzling only: it is weaker than Harrier and pulls Harrier's ranking down. Chromium's Harrier rows and the per-language effect are in the [benchmark](#benchmark). Counting a translation as a hit, Winzling's R@1 rises only from 94.2 to 96.2: most of the gain is ranking the passage in the query's language above its translations.
 
-| `model` | Hugging Face release | q8 download | Graphs |
-|---|---|---|---|
-| `"1.5m"` | [`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming) | 3.83 MB | `q8` |
-| `"1.5m-original"` | [`kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX) | 3.97 MB | `fp32`, `fp16`, `q8`, `int8` |
-| `"27m"` | [`kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX`](https://huggingface.co/kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX) | 29.77 MB | `fp32`, `fp16`, `q8`, `int8`, `q4` |
+| `model` | Hugging Face release | Download (`.br`) | Unpacked | Graph |
+|---|---|---|---|---|
+| `"1.5m"` | [`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming) | 2.28 MB | 3.83 MB | `q8` |
 
 `"1.5m"` is a weight edit of SauerkrautLM-MoEdernColBERT-1.5M that adds 11,998 Cyrillic tokens. It ships as `q8` only. VERIFIED in [its model card](https://huggingface.co/kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming), with exhaustive MaxSim on the upstream card's nine benchmarks:
 - **Card benchmarks.** The macro nDCG@10 is +0.0015 against the original (95% CI −0.0026 to +0.0054). GermanDPR (+0.008) and GermanQuAD (+0.003) improve significantly, and no benchmark gets significantly worse.
 - **Russian.** The original tokenizer maps Russian to `<unk>` and scores 0.01 to 0.16 nDCG@10 on six Russian tasks. The edit scores 0.35 to 0.86.
 - **Other text.** Text without Cyrillic letters keeps its token ids.
 
-`"1.5m-original"` is the unedited export, with all four precisions. Token vectors cached with 0.2.x carry the original release's fingerprint, and `maxSim` refuses to compare them with new vectors, so re-encode cached passages.
+0.4.0 dropped `"1.5m-original"` and `"27m"`, the unedited 1.5M and 27M exports: their repos serve no `.br` files. A token vector's fingerprint names the pinned commit, which moved in 0.4.0, so `maxSim` refuses to compare vectors cached with 0.3.x with new ones: re-encode cached passages.
 
-Use `q8`, the default, for every model. It stores INT8 weights and computes in FP32. Its scores match the exporter's Python ONNX Runtime within `1e-3` in native Node.js CPU, Node.js WASM and Chromium WASM. `int8` and `fp16` round differently on each runtime, and `int8` is larger than `q8`. The original 1.5M release has no `q4` graph because it failed the exporter's quality gate (mean token cosine 0.954 to 0.961 against FP32, gate 0.98).
+`q8`, the only graph, stores INT8 weights and computes in FP32. Its scores match the exporter's Python ONNX Runtime within `1e-3` in native Node.js CPU, Node.js WASM and Chromium WASM.
 
 VERIFIED by `src/colbert-reranker.live.test.ts`, `src/colbert-reranker.live.browser.test.ts` (`make test`), `scripts/test-browser-bundle.ts` (`make e2e`) and one run against huggingface.co:
 
-- **Reference scores.** Every 1.5M graph and the 27M `q8` graph run on 6 queries against 8 passages. `fp32` and `q8` stay within `1e-3` of the exporter's Python scores and keep its top-ranked passage. `fp16` and `int8` keep the top-ranked passage of the same runtime's `fp32` output. They also stay above their mean token cosine gate (0.999 for `fp16`, 0.98 for `int8`).
-- **Auto-download and cache.** The first call downloads 4 files and checks their SHA-256: from the pinned commit on huggingface.co (one Node.js run, both models) or from `modelBaseUrl`. A reload of the e2e page, which serves a local mirror, makes no reranker request.
+- **Reference scores.** The `q8` graph runs on 6 queries against 8 passages. It stays within `1e-3` of the exporter's Python scores and keeps its top-ranked passage.
+- **Auto-download and cache.** The first call downloads the `.br` of 4 files, decodes them and checks their SHA-256: from the pinned commit on huggingface.co (one Node.js run, both models) or from `modelBaseUrl`. A reload of the e2e page, which serves a local mirror, makes no reranker request.
 - **Bundle contents.** The Vite build of `browser.js` with the reranker still contains no Node.js, Transformers.js or `onnxruntime-node` code.
 - **Fusion.** `src/colbert-reranker.live.browser.test.ts` fuses Winzling's TurboQuant hits in Chromium and ranks each fixture query's labeled passage first.
 
@@ -174,7 +172,26 @@ Without `make` (e.g. Windows PowerShell), set `$env:ONNXRUNTIME_NODE_INSTALL_CUD
 
 ## Live demo
 
-[vectorsearch.defuss.org](https://vectorsearch.defuss.org) serves `docs/index.html`, a standalone page built with defuss-shadcn from its CDN. On page load it fetches a prebuilt index of the 2,000 benchmark passages; the first search loads the pinned Winzling model and the MoEdernColBERT 1.5M reranker (43.6 MB together) with byte progress, and later searches run as you type. Each search shows TurboQuant's hits at once, then their order fused with the reranker over the top 25. The ⌘K palette lists the 1,000 benchmark questions by language; for those, the results mark the gold passage and its translations. A second tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it. The "Use it" section gives a prompt that points a coding agent at this repository.
+[vectorsearch.defuss.org](https://vectorsearch.defuss.org) serves `docs/index.html`, a standalone page built with defuss-shadcn from its CDN. On page load it fetches a prebuilt index of the 2,000 benchmark passages. Tabs pick the models that search, under the names the page gives them:
+
+| Mode | Models | Download | Search |
+|---|---|---:|---|
+| `kyr0/Winzling-reranker` (default) | the MoEdernColBERT 1.5M reranker | 2.28 MB + 8.5 MB token vectors | the passages' token vectors, prebuilt with the index; MaxSim over all 2,000 per query (`rankEncoded`) |
+| `kyr0/Winzling-embed` | Winzling | 28.8 MB | the prebuilt TurboQuant index |
+| Fused | both | 31.1 MB | TurboQuant's hits at once, then their order fused with the reranker over the top 25 |
+
+The first search downloads the chosen models with byte progress; later searches run as you type. `make docs` encodes the passages for the reranker too, so the browser downloads their token vectors (`docs/data/tokens.bin.br`) instead of encoding them; "Re-embed the index" does the encoding in the browser anyway, to show what it costs. VERIFIED (`tmp/mode-probe.ts`, Chromium, 2026-11-09): encoding the 2,000 passages there takes 16.4 s and yields 92.5 MB of float32 token vectors.
+
+VERIFIED (`tmp/token-store-probe.ts`, the 450 target-language queries, 2026-11-09), the stored precision against download and recall:
+
+| Token vectors | Brotli | R@1 | R@5 | R@10 |
+|---|---:|---:|---:|---:|
+| float32 | 85.6 MB | 68.0 | 83.8 | 86.9 |
+| float16 | 42.1 MB | 68.2 | 83.8 | 86.9 |
+| int8, scale per token | 21.4 MB | 68.4 | 83.8 | 86.9 |
+| int4, scale per token (the demo; 8.5 MB with scales and header) | 8.2 MB | 67.3 | 83.8 | 87.3 |
+
+The reranker alone stays slower per query than the other modes: each query scores all 180,626 token vectors, 1.1 s in Chromium (p50, `bench.json`), against 23 ms for Winzling with TurboQuant. The ⌘K palette lists the 1,000 benchmark questions by language; for those, the results mark the gold passage and its translations. A second tab is a vector database you fill yourself: each note you write is embedded in the browser 500 ms after you stop typing (or when it loses focus) into a TurboQuant index you can search right beside it. The "Use it" section gives a prompt that points a coding agent at this repository, and [`llms.txt`](https://vectorsearch.defuss.org/llms.txt) (`docs/llms.txt`) tells AI agents when to choose the package and how to use it; `scripts/test-docs.ts` checks its figures against `bench.json`.
 
 ```sh
 python3 -m http.server -d docs 8080   # serves docs/ at http://localhost:8080/
@@ -183,10 +200,12 @@ make docs                            # rebuilds docs/data/ (~9 min) and docs/ass
 
 VERIFIED by `scripts/test-docs.ts` (part of `make e2e`), which serves the model and ONNX Runtime from the local mirrors:
 
-- **Prebuilt index.** In Chromium, Winzling embeds a passage in 111 ms on average and a query in 21 ms (p50, `bench.json`). Indexing 2,000 passages in the browser would take about 4 minutes, so `make docs` embeds them once in Node.js. `docs/data/vectors.bin.gz` holds the 4-bit TurboQuant index (0.51 MB raw, 436 kB gzipped); `docs/data/documents.json.gz` the passages and questions (434 kB gzipped). They are gzipped at build time, so every host sends the same bytes, and the worker unpacks them with the browser's `DecompressionStream`.
+- **Prebuilt index.** In Chromium, Winzling embeds a passage in 111 ms on average and a query in 21 ms (p50, `bench.json`). Indexing 2,000 passages in the browser would take about 4 minutes, so `make docs` embeds them once in Node.js. `docs/data/vectors.bin.br` holds the 4-bit TurboQuant index (0.51 MB raw, 412 kB as Brotli); `docs/data/documents.json.br` the passages and questions (318 kB as Brotli, 434 kB if gzipped). They are compressed at build time, so every host sends the same bytes, and the worker decodes them with the same defuss-brotli decoder as the model files.
 - **No bundler on the page.** `examples/search-worker.ts` becomes one 294 KB file, `docs/assets/search-worker.js`. ONNX Runtime's `onnxruntime-web-use-extern-wasm` export condition keeps its WASM out of the bundle; the worker fetches it from jsDelivr at the installed version, and the model from Hugging Face. Both answer cross-origin requests.
-- **Downloads on request.** Typing alone downloads nothing; the models download with the first search (the Search button, an example query) or "Load the models". The worker keeps their seven files in the Cache API, and a reload loads them from there with no model request.
-- **Fused results.** After the TurboQuant hits, the summary switches to `strategy: TurboQuant + MoEdernColBERT` and names the rerank time; the cards keep their dense similarity bars while their order changes.
+- **Downloads on request.** Typing alone downloads nothing, and neither does choosing a mode; the chosen models download with the first search (the Search button, an example query) or "Load the model". The worker keeps their files and the token vectors in the Cache API, so switching modes and reloading the page load them from there with no model request.
+- **Re-embed the index.** In the reranker mode, the button encodes all 2,000 passages again in the browser, shows the time it took, and the searches use the result.
+- **Three modes.** The reranker alone reports `strategy: MoEdernColBERT MaxSim, all passages` and ranks the English example's gold passage first; Winzling alone reports `strategy: TurboQuant`; both report TurboQuant's hits, then `strategy: TurboQuant + MoEdernColBERT` with the rerank time, and the cards keep their dense similarity bars while their order changes.
+- **Recall card.** One tab per mode, each with R@25, R@10, R@5 and R@1 tabs (Fused at R@25 open, the hero's figure); every bar, and the average over the nine target languages above them, is the Chromium figure in `bench.json`.
 - **Steady scroll.** Picking an example query keeps the scroll position, so the re-ranked results stay in view.
 
 ## API
@@ -211,7 +230,8 @@ Methods: `load()`, `embed()`, `embedOne()`, `embedDocuments()`, `embedQuery()`, 
 | `maxLength` | 8192 tokens including BOS/EOS; valid range 2–8192 |
 | `truncate` | `false`; excess length throws. `true` preserves terminal EOS |
 | `normalize` | `true`; per-call `normalize: false` returns the mean vector |
-| `modelBaseUrl` | Optional HTTP(S) mirror of the pinned release |
+| `modelBaseUrl` | Optional HTTP(S) mirror of the pinned release; it serves each file as `<file>.br` ([Mirrors](#mirrors)) |
+| `brotliWasm` | `defuss-brotli/decompressor.wasm` next to the decoder's module; a URL, `Response`, bytes or compiled module for bundles that do not carry it. Global: the first download's value wins |
 | `loadFile` | Optional `(relativePath) => Promise<Uint8Array>` overriding all asset I/O |
 | `cache` | `true`; filesystem in Node; Cache API + IndexedDB in browsers |
 | `cacheDir` | Node OS temporary directory / `defuss-vectorsearch` |
@@ -246,17 +266,17 @@ VERIFIED: `colbertWeight` sets the reranker's share of rank fusion, from 0 to 1 
 
 | Option | Default / behavior |
 |---|---|
-| `model` | Required: `"1.5m"`, `"1.5m-original"` or `"27m"` |
-| `precision` | `"q8"`; a graph the release does not ship throws |
+| `model` | Required: `"1.5m"` |
+| `precision` | `"q8"`, the only graph |
 | `device` | `"wasm"`; `"cpu"` is Node-only and needs `onnxruntime-node` |
 | `batchSize` | 4 |
 | `truncate` | `false`; excess length throws. `true` keeps the final `[SEP]` and sets `matrix.truncated` |
-| `modelBaseUrl`, `loadFile`, `cache`, `cacheDir`, `allowRemoteModels` | As for `createWinzlingEmbedder` |
+| `modelBaseUrl`, `brotliWasm`, `loadFile`, `cache`, `cacheDir`, `allowRemoteModels` | As for `createWinzlingEmbedder` |
 | `wasmPaths`, `numThreads` | As for `createWinzlingEmbedder`; ORT Web holds them globally, so a second, different setting throws |
 
 Per call, `encodeDocuments`, `rerank` and `rerankHits` accept `documentLength` (3 to 512) and `truncate`; `rerank` and `rerankHits` also accept `topK`, and `rerankHits` accepts `candidates`, `denseMargin` and `colbertWeight`. Search boxes should pass `truncate: true`: a query longer than 32 tokens otherwise throws.
 
-**Cache keys:** each `TokenMatrix` carries `fingerprint`: model, commit and graph hash, plus the runtime for `fp16` and `int8`. `maxSim` refuses to compare matrices with different fingerprints. Key cached passage vectors by fingerprint, passage text and `documentLength`.
+**Cache keys:** each `TokenMatrix` carries `fingerprint`: model, commit and graph hash. `maxSim` refuses to compare matrices with different fingerprints. Key cached passage vectors by fingerprint, passage text and `documentLength`.
 
 **Concurrency and lifecycle:** as for `createWinzlingEmbedder`. Each `rerank()` and `rerankHits()` call runs as one queued operation, so `dispose()` waits for it to finish.
 
@@ -294,13 +314,13 @@ try {
 }
 ```
 
-The browser equivalent is `createEmbeddingClient` from `client.js`. Known model IDs select their profile automatically. A Winzling mirror can use `{ model: "https://example.com/models/winzling", modelProfile: "winzling" }`. The folder must contain the unchanged pinned files at their original paths. Use `WINZLING_MODEL_ID`, `WINZLING_PROFILE`, and `SUPPORTED_MODELS` for discovery.
+The browser equivalent is `createEmbeddingClient` from `client.js`. Known model IDs select their profile automatically. A Winzling mirror can use `{ model: "https://example.com/models/winzling", modelProfile: "winzling" }`. The folder must contain the `.br` files of the pinned files at their original paths ([Mirrors](#mirrors)). Use `WINZLING_MODEL_ID`, `WINZLING_PROFILE`, and `SUPPORTED_MODELS` for discovery.
 
 Winzling's `dtype: "q4"` is selected automatically; its exact graph filename is `onnx/model_uint4.onnx`. There is no external `.onnx_data` file. Arbitrary model revisions, other dtypes, and non-mean pooling are not supported by this preset.
 
 The wrapper APIs take the `createWinzlingEmbedder` options inside `winzling: { ... }`; their existing top-level `device`, `normalize`, `cacheDir`, and `allowRemoteModels` settings are also supported. Prefer the top-level settings when using the wrapper APIs. For filesystem assets, use `winzling.loadFile`, not the legacy Transformers.js `localModelPath` option.
 
-Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know the Winzling asset manifest. Actual inference verifies all three asset hashes, including cache hits. `loadFile` bypasses this cache, so cache-management methods do not inspect an application's custom loader/storage.
+Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know the Winzling asset manifest. For Winzling, `prefetchModel()` downloads the `.br` files and checks the decoded files' hashes, as inference does. Actual inference verifies all three asset hashes, including cache hits. `loadFile` bypasses this cache, so cache-management methods do not inspect an application's custom loader/storage.
 
 ### Supported models
 
@@ -309,7 +329,7 @@ Legacy `prefetchModel()`, `inspectModelCache()`, and `clearModelCache()` know th
 | `kyr0/Winzling-Embed-a8m-64k` | Direct ONNX + `@huggingface/tokenizers` | Masked mean; unchanged, unprefixed input |
 | `tss-deposium/harrier-oss-v1-270m-onnx-int8` | Existing Transformers.js pipeline | Existing last-token pooling and instruction formatting |
 | `onnx-community/harrier-oss-v1-270m-ONNX` | Existing Transformers.js pipeline, `dtype: "q4"` | Existing Harrier behavior |
-| `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, `kyr0/SauerkrautLM-MoEdernColBERT-1.5M-ONNX`, `kyr0/SauerkrautLM-MoEdernColBERT-27M-ONNX` | Direct ONNX + `@huggingface/tokenizers`, through `createColbertReranker` only | Reranker: `[Q] ` and `[D] ` prefixes, MaxSim over token vectors |
+| `kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming` | Direct ONNX + `@huggingface/tokenizers`, through `createColbertReranker` only | Reranker: `[Q] ` and `[D] ` prefixes, MaxSim over token vectors |
 
 The no-argument client/server factory defaults to Harrier. Explicit OpenAI-compatible endpoints and the vector-search exports are retained. See [the preserved upstream README](docs/UPSTREAM_README.md) for those APIs and historical benchmarks; those benchmark results were not reproduced for this release.
 
@@ -355,7 +375,7 @@ The benchmark uses [tiny-embedding-bench-v1](https://github.com/kyr0/tiny-embedd
   - Chromium runs the same build on ONNX Runtime Web (`device: "wasm"`, 1 thread) in headless Playwright. It loads the model files the Node run cached in `bench/cache/`.
 
 <!-- bench:start -->
-Generated by `make bench` on 2026-11-08 · Apple M5 Max, 18 cores, darwin arm64.
+Generated by `make bench` on 2026-11-09 · Apple M5 Max, 18 cores, darwin arm64.
 Runtimes: Node.js v26.11.1; Chromium 140.0.7339.186 headless (Playwright).
 
 ### Embedding
@@ -364,16 +384,18 @@ One text per call, warm session; model runtime = memory growth over load + embed
 
 | Environment | Model | Device | Load ms | Embed passage ms | Embed query ms | Model runtime MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| Node.js | Winzling | cpu | 178 | 55.1 (p95 174.3) | 10.5 (p95 28.5) | 222.05 |
-| Node.js | Harrier | cpu | 1028 | 17.8 (p95 24.2) | 10.2 (p95 12.3) | 1100.48 |
-| Chromium | Winzling | wasm | 539 | 111.4 (p95 338.2) | 28.8 (p95 63.7) | 306.07 |
-| Chromium | Harrier | wasm | 1975 | 325.9 (p95 452.9) | 143.5 (p95 181.8) | 506.32 |
+| Node.js | Winzling | cpu | 237 | 58.1 (p95 183.9) | 11.7 (p95 31.1) | 234.3 |
+| Node.js | Harrier | cpu | 1545 | 20.9 (p95 31.5) | 11.8 (p95 14.7) | 937.83 |
+| Chromium | Winzling | wasm | 662 | 128.5 (p95 397.9) | 31.1 (p95 69.0) | 311.28 |
+| Chromium | Harrier | wasm | 2442 | 343.0 (p95 476.3) | 161.1 (p95 204.5) | 352.33 |
+| Node.js | MoEdernColBERT | cpu | 109 | 3.2 (p95 5.0) | 1.1 (p95 1.6) | 113.36 |
+| Chromium | MoEdernColBERT | wasm | 364 | 5.6 (p95 8.9) | 1.9 (p95 2.4) | 418.05 |
 
 ### Retrieval Quality
 
 The 9 target languages: `deu_Latn`, `rus_Cyrl`, `eng_Latn`, `fra_Latn`, `ind_Latn`, `nld_Latn`, `ita_Latn`, `por_Latn`, `spa_Latn`; their 450 queries against all 2000 passages in 20 languages; R@k = % of queries whose gold passage ranks in the top k:
 
-TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the `"1.5m"` reranker (`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's.
+TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the `"1.5m"` reranker (`kyr0/winzling-embed-SauerkrautLM-MoEdernColBERT-1.5M-weight-space-programming`, q8, `rerankHits`), so its R@25 and R@100 equal TurboQuant's. MoEdernColBERT MaxSim, all passages uses that reranker alone: every passage encoded once into token vectors, each query ranked by MaxSim against all of them (`rankEncoded`).
 
 | Environment | Model | Strategy | R@1 | R@3 | R@5 | R@10 | R@25 | R@100 | Rank ±10% |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -389,6 +411,8 @@ TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusi
 | Chromium | Harrier | bruteforce | 96.7 | 98.4 | 99.3 | 99.8 | 100 | 100 | n/a |
 | Chromium | Harrier | TurboQuant | 96.9 | 98.9 | 99.1 | 99.8 | 100 | 100 | 97.3% |
 | Chromium | Harrier | TurboQuant + MoEdernColBERT | 91.8 | 97.3 | 98.9 | 100 | 100 | 100 | n/a |
+| Node.js | MoEdernColBERT | MaxSim, all passages | 68 | 81.3 | 83.8 | 86.9 | 89.1 | 91.3 | n/a |
+| Chromium | MoEdernColBERT | MaxSim, all passages | 68 | 81.3 | 83.8 | 86.9 | 89.1 | 91.3 | n/a |
 
 ### Any-Language Recall
 
@@ -408,41 +432,45 @@ The same queries, but the gold passage in any of the 20 languages counts as a hi
 | Chromium | Harrier | bruteforce | 97.8 | 99.1 | 99.6 | 99.8 | 100 | 100 |
 | Chromium | Harrier | TurboQuant | 98 | 99.3 | 99.6 | 99.8 | 100 | 100 |
 | Chromium | Harrier | TurboQuant + MoEdernColBERT | 98.2 | 99.8 | 99.8 | 100 | 100 | 100 |
+| Node.js | MoEdernColBERT | MaxSim, all passages | 86.9 | 89.1 | 90.2 | 91.3 | 93.3 | 98.4 |
+| Chromium | MoEdernColBERT | MaxSim, all passages | 86.9 | 89.1 | 90.2 | 91.3 | 93.3 | 98.4 |
 
 ### Cost per Method
 
-Passage = embed + share of the index build; query = embed + top-100 search, plus reranking 25 candidates for TurboQuant + MoEdernColBERT; runtime = model runtime + index, plus the reranker's memory growth:
+Passage = embed + share of the index build; query = embed + top-100 search, plus reranking 25 candidates for TurboQuant + MoEdernColBERT; runtime = model runtime + index, plus the reranker's memory growth. For MoEdernColBERT MaxSim, all passages, passage = encoding its token vectors (the index), search = MaxSim against all of them:
 
 | Environment | Model | Strategy | Passage ms | Query ms | Search ms mean | Index build ms | Runtime MiB | Index MiB |
 | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Node.js | Winzling | bruteforce | 55.1 (p95 174.3) | 10.8 (p95 28.9) | 0.335 | 1.7 | 224.98 | 2.93 |
-| Node.js | Winzling | TurboQuant | 55.1 (p95 174.3) | 10.8 (p95 29.1) | 0.353 | 11.1 | 222.54 | 0.49 |
-| Node.js | Winzling | TurboQuant + MoEdernColBERT | 55.1 (p95 174.3) | 93.4 (p95 122.6) | 82.956 | 11.1 | 217.42 | 0.49 |
-| Node.js | Harrier | bruteforce | 17.8 (p95 24.2) | 10.8 (p95 12.9) | 0.562 | 3.1 | 1105.37 | 4.88 |
-| Node.js | Harrier | TurboQuant | 17.8 (p95 24.2) | 11.1 (p95 13.5) | 0.868 | 22.7 | 1101.46 | 0.98 |
-| Node.js | Harrier | TurboQuant + MoEdernColBERT | 17.8 (p95 24.2) | 105.4 (p95 130.2) | 95.188 | 22.7 | 898.28 | 0.98 |
-| Chromium | Winzling | bruteforce | 111.4 (p95 338.2) | 29.2 (p95 64.1) | 0.364 | 1.7 | 309 | 2.93 |
-| Chromium | Winzling | TurboQuant | 111.4 (p95 338.2) | 29.2 (p95 64.1) | 0.364 | 9.4 | 306.56 | 0.49 |
-| Chromium | Winzling | TurboQuant + MoEdernColBERT | 111.4 (p95 338.2) | 176.3 (p95 227.7) | 147.468 | 9.4 | 654.3 | 0.49 |
-| Chromium | Harrier | bruteforce | 325.9 (p95 452.9) | 144.1 (p95 182.4) | 0.564 | 2.2 | 511.2 | 4.88 |
-| Chromium | Harrier | TurboQuant | 325.9 (p95 452.9) | 144.2 (p95 182.5) | 0.705 | 23.4 | 507.29 | 0.98 |
-| Chromium | Harrier | TurboQuant + MoEdernColBERT | 325.9 (p95 452.9) | 301.0 (p95 350.3) | 157.493 | 23.4 | 883.98 | 0.98 |
+| Node.js | Winzling | bruteforce | 58.1 (p95 183.9) | 12.0 (p95 31.4) | 0.377 | 1.9 | 237.23 | 2.93 |
+| Node.js | Winzling | TurboQuant | 58.1 (p95 183.9) | 12.1 (p95 31.5) | 0.406 | 12.8 | 234.79 | 0.49 |
+| Node.js | Winzling | TurboQuant + MoEdernColBERT | 58.1 (p95 183.9) | 105.6 (p95 137.7) | 93.933 | 12.8 | 259.41 | 0.49 |
+| Node.js | Harrier | bruteforce | 20.9 (p95 31.5) | 12.4 (p95 15.6) | 0.638 | 3.9 | 942.71 | 4.88 |
+| Node.js | Harrier | TurboQuant | 20.9 (p95 31.5) | 12.7 (p95 16.0) | 0.867 | 23.9 | 938.81 | 0.98 |
+| Node.js | Harrier | TurboQuant + MoEdernColBERT | 20.9 (p95 31.5) | 114.3 (p95 137.6) | 102.512 | 23.9 | 934.52 | 0.98 |
+| Chromium | Winzling | bruteforce | 128.5 (p95 397.9) | 31.5 (p95 69.4) | 0.363 | 1.9 | 314.21 | 2.93 |
+| Chromium | Winzling | TurboQuant | 128.5 (p95 397.9) | 31.5 (p95 69.5) | 0.376 | 12.6 | 311.77 | 0.49 |
+| Chromium | Winzling | TurboQuant + MoEdernColBERT | 128.5 (p95 397.9) | 181.6 (p95 233.2) | 150.458 | 12.6 | 674.47 | 0.49 |
+| Chromium | Harrier | bruteforce | 343.0 (p95 476.3) | 161.8 (p95 205.2) | 0.624 | 4.0 | 357.21 | 4.88 |
+| Chromium | Harrier | TurboQuant | 343.0 (p95 476.3) | 161.9 (p95 205.2) | 0.806 | 27.7 | 353.31 | 0.98 |
+| Chromium | Harrier | TurboQuant + MoEdernColBERT | 343.0 (p95 476.3) | 341.7 (p95 399.7) | 180.581 | 27.7 | 357.39 | 0.98 |
+| Node.js | MoEdernColBERT | MaxSim, all passages | 3.2 (p95 5.0) | 670.0 (p95 710.6) | 668.835 | 0.0 | 201.56 | 88.2 |
+| Chromium | MoEdernColBERT | MaxSim, all passages | 5.6 (p95 8.9) | 1089.2 (p95 1179.7) | 1087.264 | 0.0 | 506.25 | 88.2 |
 
 ### Per Language, Node.js
 
 Target languages, best first by Winzling bruteforce; cells: R@1 / R@3 / R@5 / R@10 / R@25 / R@100; Chromium and all 20 languages are in `bench.json`:
 
-| Language | Winzling bruteforce | Winzling TurboQuant | Winzling TurboQuant + MoEdernColBERT | Harrier bruteforce | Harrier TurboQuant | Harrier TurboQuant + MoEdernColBERT |
-| --- | --- | --- | --- | --- | --- | --- |
-| `rus_Cyrl` | 80 / 92 / 96 / 98 / 98 / 100 | 76 / 92 / 96 / 98 / 98 / 100 | 90 / 94 / 96 / 98 / 98 / 100 | 96 / 98 / 98 / 98 / 100 / 100 | 94 / 98 / 98 / 98 / 100 / 100 | 90 / 96 / 98 / 100 / 100 / 100 |
-| `fra_Latn` | 78 / 82 / 90 / 96 / 100 / 100 | 78 / 84 / 90 / 96 / 100 / 100 | 82 / 92 / 94 / 98 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 86 / 94 / 98 / 100 / 100 / 100 |
-| `deu_Latn` | 76 / 90 / 96 / 98 / 100 / 100 | 74 / 88 / 96 / 98 / 100 / 100 | 84 / 92 / 96 / 100 / 100 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 98 / 98 / 98 / 98 / 100 / 100 | 92 / 100 / 100 / 100 / 100 / 100 |
-| `eng_Latn` | 72 / 92 / 98 / 100 / 100 / 100 | 74 / 92 / 98 / 100 / 100 / 100 | 92 / 98 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 |
-| `nld_Latn` | 72 / 84 / 90 / 98 / 98 / 98 | 72 / 84 / 92 / 98 / 98 / 98 | 80 / 90 / 96 / 96 / 98 / 98 | 94 / 98 / 100 / 100 / 100 / 100 | 94 / 98 / 100 / 100 / 100 / 100 | 92 / 98 / 100 / 100 / 100 / 100 |
-| `ita_Latn` | 60 / 76 / 90 / 96 / 100 / 100 | 58 / 74 / 90 / 98 / 100 / 100 | 64 / 82 / 92 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 84 / 94 / 96 / 100 / 100 / 100 |
-| `ind_Latn` | 58 / 78 / 88 / 90 / 94 / 96 | 58 / 80 / 86 / 90 / 94 / 96 | 80 / 90 / 92 / 94 / 94 / 96 | 94 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 |
-| `por_Latn` | 56 / 88 / 94 / 98 / 100 / 100 | 58 / 80 / 94 / 98 / 100 / 100 | 78 / 96 / 98 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 |
-| `spa_Latn` | 48 / 68 / 74 / 88 / 98 / 100 | 48 / 70 / 72 / 90 / 98 / 100 | 58 / 78 / 90 / 92 / 98 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 96 / 98 / 98 / 100 / 100 / 100 | 88 / 96 / 96 / 100 / 100 / 100 |
+| Language | Winzling bruteforce | Winzling TurboQuant | Winzling TurboQuant + MoEdernColBERT | Harrier bruteforce | Harrier TurboQuant | Harrier TurboQuant + MoEdernColBERT | MoEdernColBERT MaxSim, all passages |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `rus_Cyrl` | 80 / 92 / 96 / 98 / 98 / 100 | 76 / 92 / 96 / 98 / 98 / 100 | 90 / 94 / 96 / 98 / 98 / 100 | 96 / 98 / 98 / 98 / 100 / 100 | 94 / 98 / 98 / 98 / 100 / 100 | 90 / 96 / 98 / 100 / 100 / 100 | 66 / 76 / 76 / 78 / 84 / 86 |
+| `fra_Latn` | 78 / 82 / 90 / 96 / 100 / 100 | 78 / 84 / 90 / 96 / 100 / 100 | 82 / 92 / 94 / 98 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 98 / 100 / 100 / 100 / 100 / 100 | 86 / 94 / 98 / 100 / 100 / 100 | 56 / 68 / 72 / 78 / 82 / 84 |
+| `deu_Latn` | 76 / 90 / 96 / 98 / 100 / 100 | 74 / 88 / 96 / 98 / 100 / 100 | 84 / 92 / 96 / 100 / 100 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 98 / 98 / 98 / 98 / 100 / 100 | 92 / 100 / 100 / 100 / 100 / 100 | 78 / 90 / 92 / 94 / 94 / 94 |
+| `eng_Latn` | 72 / 92 / 98 / 100 / 100 / 100 | 74 / 92 / 98 / 100 / 100 / 100 | 92 / 98 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 |
+| `nld_Latn` | 72 / 84 / 90 / 98 / 98 / 98 | 72 / 84 / 92 / 98 / 98 / 98 | 80 / 90 / 96 / 96 / 98 / 98 | 94 / 98 / 100 / 100 / 100 / 100 | 94 / 98 / 100 / 100 / 100 / 100 | 92 / 98 / 100 / 100 / 100 / 100 | 80 / 88 / 90 / 92 / 96 / 98 |
+| `ita_Latn` | 60 / 76 / 90 / 96 / 100 / 100 | 58 / 74 / 90 / 98 / 100 / 100 | 64 / 82 / 92 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 84 / 94 / 96 / 100 / 100 / 100 | 54 / 62 / 66 / 76 / 78 / 86 |
+| `ind_Latn` | 58 / 78 / 88 / 90 / 94 / 96 | 58 / 80 / 86 / 90 / 94 / 96 | 80 / 90 / 92 / 94 / 94 / 96 | 94 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 | 96 / 98 / 100 / 100 / 100 / 100 | 66 / 80 / 84 / 86 / 86 / 90 |
+| `por_Latn` | 56 / 88 / 94 / 98 / 100 / 100 | 58 / 80 / 94 / 98 / 100 / 100 | 78 / 96 / 98 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 100 / 100 / 100 / 100 / 100 / 100 | 96 / 100 / 100 / 100 / 100 / 100 | 70 / 86 / 90 / 92 / 96 / 96 |
+| `spa_Latn` | 48 / 68 / 74 / 88 / 98 / 100 | 48 / 70 / 72 / 90 / 98 / 100 | 58 / 78 / 90 / 92 / 98 / 100 | 98 / 98 / 98 / 100 / 100 / 100 | 96 / 98 / 98 / 100 / 100 / 100 | 88 / 96 / 96 / 100 / 100 / 100 | 46 / 82 / 84 / 86 / 86 / 88 |
 
 Node.js vs Chromium vectors for the same passages: Winzling min cosine 1 over 40 passages; Harrier min cosine 0.98881 over 40 passages.
 <!-- bench:end -->
@@ -500,7 +528,7 @@ On the benchmark, Winzling ranks the right passage or one of its translations in
 ### Use it for
 
 - **Search on the visitor's device:** the browser embeds and searches the query itself; the live demo makes no network request during a search
-- **Corpora you can index ahead of time:** the demo embeds its 2,000 passages once at build time (`make docs`) instead of in each visitor's browser, where that would take about 4 minutes, and ships them as a 436 kB index
+- **Corpora you can index ahead of time:** the demo embeds its 2,000 passages once at build time (`make docs`) instead of in each visitor's browser, where that would take about 4 minutes, and ships them as a 412 kB index
 - **German, Russian and English:** R@5 of 96, 96 and 98% for the passage in the query's language (Node.js, bruteforce); the other six target languages reach 74 to 94%. Counting a translation, all nine reach 92 to 100%
 - **Hybrid search:** combined with `defuss-search`, which offers exact, phonetic and fuzzy search plus rank fusion with vector search, it covers structured and unstructured data in the browser and in Node.js
 
@@ -516,7 +544,7 @@ On the benchmark, Winzling ranks the right passage or one of its translations in
 ### Key principles
 
 1. **Embed documents and queries with the same model.** The demo's index records the model ID, revision and fingerprint its passages were embedded with, and its queries use that model.
-2. **Load the model before the first query when 39.8 MB is acceptable.** `load()` starts the download and session; otherwise the first `embedQuery` pays for it. The live demo waits for the first search, so typing alone downloads nothing.
+2. **Load the model before the first query when a 28.8 MB download is acceptable.** `load()` starts the download and session; otherwise the first `embedQuery` pays for it. The live demo waits for the first search, so typing alone downloads nothing.
 3. **Run the model in a Worker.** Both demos run tokenization and inference in a dedicated module Worker and post results to the page. The live demo's worker keeps only the newest pending query instead of queueing every keystroke.
 4. **Reuse one embedder.** Each instance holds one ONNX Runtime session and serializes its calls; `dispose()` releases it.
 
@@ -528,12 +556,12 @@ The live demo indexes in Node.js and searches in the browser:
 
 ```mermaid
 flowchart LR
-    A["scripts/docs/build-index.ts<br/>Node.js, native CPU"] -->|"encodeDemoIndex + gzip"| B[("docs/data/<br/>documents.json.gz<br/>vectors.bin.gz")]
-    B -->|"fetch + DecompressionStream"| C["examples/search-worker.ts<br/>decodeDemoIndex"]
+    A["scripts/docs/build-index.ts<br/>Node.js, native CPU"] -->|"encodeDemoIndex + Brotli"| B[("docs/data/<br/>documents.json.br<br/>vectors.bin.br")]
+    B -->|"fetch + defuss-brotli"| C["examples/search-worker.ts<br/>decodeDemoIndex"]
     C --> D["searchTurboQuantIndex"]
 ```
 
-`scripts/docs/index-format.ts` stores the passages and the TurboQuant header as JSON, and the signs and code bytes as one binary file. Binary instead of base64 in JSON keeps the vectors at 436 kB gzipped instead of 487 kB. `scripts/docs/index-format.test.ts` checks the round trip.
+`scripts/docs/index-format.ts` stores the passages and the TurboQuant header as JSON, and the signs and code bytes as one binary file. Binary instead of base64 in JSON keeps the vectors at 412 kB as Brotli instead of 442 kB. `scripts/docs/index-format.test.ts` checks the round trip.
 
 ### Model files from disk
 
@@ -547,7 +575,18 @@ const embedder = createWinzlingEmbedder({
 });
 ```
 
-`loadFile` replaces all asset I/O, and the embedder still checks every file's SHA-256. `scripts/test-package.ts` runs this against both the ESM and the CJS build. In the browser, `modelBaseUrl` and `wasmPaths` serve the same purpose for a self-hosted mirror (`examples/browser-worker.ts`).
+`loadFile` replaces all asset I/O and returns decoded files, and the embedder still checks every file's SHA-256. `scripts/test-package.ts` runs this against both the ESM and the CJS build. In the browser, `modelBaseUrl` and `wasmPaths` serve the same purpose for a self-hosted mirror (`examples/browser-worker.ts`).
+
+### Mirrors
+
+A mirror (`modelBaseUrl`) serves each pinned file Brotli-compressed as `<file>.br`, as Hugging Face does; the package requests nothing else. Create the `.br` files with the [defuss-brotli](https://www.npmjs.com/package/defuss-brotli) command, in the mirror's model directory:
+
+```sh
+bunx defuss-brotli compress onnx/model_uint4.onnx tokenizer.json tokenizer_config.json          # Winzling
+bunx defuss-brotli compress model_q8.onnx tokenizer.json tokenizer_config.json runtime.json     # MoEdernColBERT 1.5M
+```
+
+A missing `.br` file fails with this command in the error message. The package checks the decoded bytes, not the `.br` bytes, so any Brotli encoder works. A server may also send the `.br` files with `Content-Encoding: br`, as Vite's dev server does; the runtime then decodes them on arrival, and the package accepts bytes that already match the pin.
 
 ## What "verified" means
 
@@ -598,7 +637,7 @@ If you use defuss-vectorsearch in research or want to reference it, cite it as:
   affiliation  = {Independent Researcher},
   title        = {defuss-vectorsearch: Isomorphic Multilingual Embeddings and 4-Bit TurboQuant Vector Search for JavaScript},
   year         = {2026},
-  version      = {0.3.1},
+  version      = {0.4.0},
   howpublished = {\url{https://github.com/kyr0/defuss-vectorsearch}},
   note         = {MIT License}
 }

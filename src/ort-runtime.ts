@@ -35,9 +35,3 @@ export const loadOrtWeb = async (options: OrtWebOptions): Promise<Ort> => {
     ? options.wasmPaths : new URL(options.wasmPaths, location.href).href;
   return web;
 };
-
-/** Engine, version and device, e.g. `onnxruntime-web@1.30.0/wasm`; names the runtime in fingerprints. */
-export const describeOrt = (ort: Ort, device: string): string => {
-  const versions = ort.env.versions as { node?: string; web?: string; common?: string };
-  return versions.node ? `onnxruntime-node@${versions.node}/${device}` : `onnxruntime-web@${versions.web ?? versions.common}/${device}`;
-};

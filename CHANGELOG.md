@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 (2026-11-09)
+
+### Changed
+
+- Model files download as Brotli files: `<file>.br` from the pinned commit, decoded with `defuss-brotli/decompressor/slim` (defuss-brotli 0.3.0, a 185.5 kB WASM decoder). Winzling downloads 28.81 MB instead of 39.76 MB, the reranker 2.28 MB instead of 3.83 MB, and the live demo 31.1 MB instead of 43.6 MB; the website quotes these download sizes. The demo's prebuilt index ships as Brotli files too (`documents.json.br`, `vectors.bin.br`), 730 kB instead of 870 kB gzipped, decoded by the same decoder. Hugging Face sends these files without transport compression. The SHA-256 check and the caches use the decoded files, so a cached model loads without the decoder.
+- The pins move to the commits that add the `.br` files: Winzling `dc961ecc2773117fb67114aa7e40adc83730653d`, the reranker `bd312dffe70801e6aa4a53b287f35018aa5dd88e`. Every pinned file is byte-identical, so embeddings and token vectors do not change. Fingerprints name the commit, so `WINZLING_PROFILE.fingerprint` and the reranker's token-vector fingerprint change: caches keyed by fingerprint re-embed once.
+- A `modelBaseUrl` mirror must serve each file as `<file>.br`. A missing one fails with the command that creates them, such as `bunx defuss-brotli compress onnx/model_uint4.onnx tokenizer.json tokenizer_config.json`. A server that sends the `.br` files with `Content-Encoding: br`, as Vite's dev server does, works too.
+- For Winzling, the client and server `prefetchModel()` downloads the `.br` files and checks each decoded file's SHA-256, as inference does. Before, it fetched the raw files without a hash check.
+- Under Vite's dev server, exclude `defuss-brotli` from dependency pre-bundling, as for `onnxruntime-web`. Bundlers that do not carry `defuss-brotli/decompressor.wasm` along, such as `bun build`, pass its location as the new `brotliWasm` option.
+
+### Added
+
+- `make bench` runs the reranker alone over the whole haystack: every passage encoded once into token vectors, each query ranked by MaxSim against all of them (`rankEncoded`), in Node.js and Chromium. `bench.json` moves to schema v3, with `environments.<env>.reranker`. Over the nine target languages in Chromium it reaches R@1 68.0 and R@10 86.9 (Winzling with TurboQuant: 66.2 and 96.2; fused: 78.7 and 97.6), at 1.1 s per query, since each query scores all 180,626 token vectors. Every timing of this run is 8–14% slower than the 0.3.1 run on the same machine, the Node.js runs included; recall is unchanged.
+- The live demo has three modes, chosen with icon tabs that show each mode's download and R@10: the reranker alone (the default), Winzling alone or both fused. The reranker alone downloads the passages' token vectors, prebuilt with the index as `docs/data/tokens.bin.br` (int4 with a scale per token, 8.5 MB as Brotli), and ranks all passages by MaxSim. "Re-embed the index" encodes the passages in the browser instead, to show the cost. The page calls the models `kyr0/Winzling-embed` and `kyr0/Winzling-reranker`; the library keeps their Hugging Face repo ids. Notes are re-encoded when the mode changes. WebGPU is pre-selected and falls back to WASM.
+- The website's recall card has a tab per mode above the R@k tabs, an average bar over the nine target languages, a download-size line and a "Target languages only" switch (on by default); Fused at R@25 opens first, the figure the hero now states (99% over the target languages). Status changes show as toasts, except the page's first model load, and the search summary shows its steps as badges. The hero shows defuss-shadcn's neuro-noise shader in the page's dark blues; the page moves to defuss-shadcn 0.9.13. "Built with" links defuss-vae, and the cache button reads "Clear stored AI model cache". The site serves `llms.txt` for AI agents: benefits, limits and usage, its figures checked against `bench.json`.
+
+### Removed
+
+- The rerankers `"1.5m-original"` and `"27m"` and their `fp32`, `fp16`, `int8` and `q4` graphs: their repos serve no `.br` files. `"1.5m"` with its `q8` graph remains, and `ColbertPrecision` is `"q8"`.
+
 ## 0.3.1 (2026-11-08)
 
 ### Changed

@@ -59,39 +59,20 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:24-26 L01 learn=none: stated that graphs, manifest, fixture and card must come from one build
 2026-10-30T22:41:04Z s=8e62adc6 FINDING plans/2026-10-30_22-37_moederncolbert-onnx-two-models.md:111 B01 learn=none: claim removed; file name stays as a plan choice
 2026-10-30T23:49:22Z s=8e62adc6 FINDING .gitignore:30 learn=none: split back onto its own line; git check-ignore confirms the folder is ignored again
-2026-10-31T00:22:31Z s=8e62adc6 FAIL prose
-2026-10-31T00:34:03Z s=8e62adc6 DONE fp=335ecdd14b2e cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)
-2026-10-31T00:34:03Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerank learn=test: src/colbert-reranker.live.test.ts asserts two pending reranks complete across dispose()
-2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:109 B01 learn=verifier: prose gate B01 already rejects it
-2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:240,393-398 T06 learn=verifier: prose gate T06 already rejects it
 2026-10-31T00:34:03Z s=8e62adc6 FINDING ARCH.md:How it works learn=none: a wiring claim in prose is not mechanically checkable; caught by reading imports
 2026-10-31T00:34:03Z s=8e62adc6 FINDING README.md:Auto-download and cache learn=none: network-dependent; the gate must not depend on huggingface.co
 2026-10-31T00:34:03Z s=8e62adc6 FINDING CHANGELOG.md:Fixed learn=none: evidence judgement, not mechanically checkable
 2026-10-31T00:34:03Z s=8e62adc6 FINDING src/colbert-reranker.live.test.ts:1-3 learn=none: style; oxlint does not flag duplicate module imports in this config
-2026-10-31T00:34:25Z s=8e62adc6 DONE fp=64bc2aedaf2a cov=67.4% paths=AGENTS.md,ARCH.md,CHANGELOG.md,Makefile(+23)
-2026-10-31T01:30:06Z s=8e62adc6 FAIL env.example,tests.e2e.1
-2026-10-31T02:10:31Z s=8e62adc6 DONE fp=142a1d6a7a7b cov=67.6% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+45)
-2026-10-31T02:10:31Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerank vs rerankHits learn=test: make bench now reports the fused strategy; colbert-reranker tests pin fuseRanks' order and ties
 2026-10-31T02:10:31Z s=8e62adc6 FINDING README.md:Rerank dense hits (Harrier) learn=none: a product recommendation backed by bench.json, which make bench regenerates
-2026-10-31T02:10:31Z s=8e62adc6 FINDING examples/search-worker.ts:modelLoader learn=test: scripts/test-docs.ts asserts the model bar's total equals both manifests' sums
 2026-10-31T02:10:31Z s=8e62adc6 FINDING examples/search-worker.ts:modelLoader log learn=none: log wording, not mechanically checked
-2026-10-31T02:10:31Z s=8e62adc6 FINDING scripts/test-package.ts:rerankHits assertion learn=test: the assertion itself encodes the tie rule
-2026-10-31T02:10:31Z s=8e62adc6 FINDING src/colbert-reranker.ts:rerankHits signature learn=test: scripts/test-package.ts passes literal SearchHit objects and runs under tsc in make e2e
 2026-10-31T02:10:31Z s=8e62adc6 FINDING src/onnx.ts, src/browser.ts: Core types learn=none: a build warning, not a gate rule; worth a verifier rule only if it recurs
-2026-10-31T02:10:31Z s=8e62adc6 FINDING bench.json run 1 learn=memory: agent memory stop-hook-runs-gate: keep the turn open while make bench runs
 2026-10-31T02:10:31Z s=8e62adc6 FINDING README.md:Findings memory learn=none: environment-dependent measurement; documented, not pinned
 2026-10-31T02:10:31Z s=8e62adc6 FINDING .github/workflows/verify.yml:setup-bun learn=none: falsifier: the CI run's setup-bun step log names the installed Bun version
-2026-10-31T15:11:42Z s=8e62adc6 FAIL prose
-2026-10-31T15:18:51Z s=8e62adc6 DONE fp=a8d32d3adc02 cov=67.9% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+49)
 2026-10-31T15:18:51Z s=8e62adc6 FINDING scripts/test-package.ts:28 rerankHits learn=none: Fixed in place; the same pattern in src/colbert-reranker.live.test.ts (0.9/0.8) was already changed to a 0.05 lead, and git grep finds no other literal hit scor
-2026-10-31T15:18:51Z s=8e62adc6 FINDING README.md:463 B01 / plans/2026-10-31_01-16_rerank-fusion-default.md learn=memory: .vae/MEMORY.md line: Chromium runtimeMiB swings between runs on identical builds; never attribute a change to code or builds from one run.
-2026-11-08T17:05:30Z s=6664d85b DONE fp=d18538ee50cf cov=67.9% paths=ARCH.md,CHANGELOG.md,README.md,bench.json(+18)
 2026-11-08T17:05:30Z s=6664d85b FINDING README.md:453 B04 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
 2026-11-08T17:05:30Z s=6664d85b FINDING README.md:86 P08 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
 2026-11-08T17:05:30Z s=6664d85b FINDING docs/MODEL.md:35 B01 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
 2026-11-08T17:05:30Z s=6664d85b FINDING scripts/docs/index-format.ts:7 B01 learn=none: Hand-written README/MODEL.md figures are re-derived from bench.json or the model audit per release; a per-sentence checker is not justified for one release (YAG
-2026-11-08T19:51:45Z s=6664d85b DONE fp=ab69b5a8a814 cov=68.1% paths=ARCH.md,CHANGELOG.md,README.md,bench.json(+35)
-2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.live.browser.test.ts:89 learn=memory: Added a .vae/MEMORY.md line: example outcomes of plain fusion depend on both pinned models; tests assert fusion contracts.
 2026-11-08T19:51:45Z s=6664d85b FINDING CHANGELOG.md:11 B09 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T19:51:45Z s=6664d85b FINDING src/colbert-reranker.ts:152 B02 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
 2026-11-08T19:51:45Z s=6664d85b FINDING README.md:487 B01 learn=none: Figures and evidence scopes in hand-written docs follow each bench and probe run; no rule kind checks that prose cites the current run, and the docs test alread
@@ -105,3 +86,22 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-08T23:45:39Z s=8e62adc6 FINDING public/models/ (gitignored test mirror) learn=none: make setup already runs models:download and the pinned-asset check names the cause; a stale local mirror after a pin change is environment state, not a code def
 2026-11-08T23:45:39Z s=8e62adc6 FINDING .gitignore:36 model-scratch/ learn=none: Human decision for a local workspace; the .gitignore line is the mechanism.
 2026-11-08T23:45:39Z s=8e62adc6 FINDING scripts/generate-colbert-tokenizer-reference.py:18 learn=none: The docs gate already enforces the prefix.
+2026-11-09T14:35:46Z s=8e62adc6 DONE fp=e179695d89ad cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+65)
+2026-11-09T14:35:46Z s=8e62adc6 FINDING src/pinned-asset.ts:downloadBrotli learn=test: src/colbert-reranker.test.ts serves labelled.json.br with Content-Encoding: br and expects the decoded payload.
+2026-11-09T14:35:46Z s=8e62adc6 FINDING vite.config.ts:optimizeDeps learn=test: scripts/test-demo.ts (make e2e) drives the dev server path.
+2026-11-09T14:35:46Z s=8e62adc6 FINDING scripts/docs/build-worker.ts:base learn=test: scripts/test-docs.ts loads the models through the decoder in Chromium and fails on any 404.
+2026-11-09T14:35:46Z s=8e62adc6 FINDING src/core.ts:prefetchModel learn=test: src/winzling.live.test.ts prefetches from a .br-only mirror, asserts the requests and returned files, then embeds offline from that cache.
+2026-11-09T14:35:46Z s=8e62adc6 FINDING scripts/bench/browser.ts:loadFrom learn=none: make bench takes about 36 minutes and is not part of the gate; the probe covered the changed loading path.
+2026-11-09T14:54:35Z s=8e62adc6 DONE fp=8152526c0ba3 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+65)
+2026-11-09T14:54:35Z s=8e62adc6 FINDING docs/index.html:129,133,170,419,856 learn=test: scripts/test-docs.ts checks the hero, intro, flip line and agent prompt against docs/data/manifest.json.
+2026-11-09T15:31:08Z s=8e62adc6 FAIL tests.e2e.1
+2026-11-09T15:36:53Z s=8e62adc6 DONE fp=3fe35a000b15 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+65)
+2026-11-09T15:36:53Z s=8e62adc6 FINDING examples/search-worker.ts:unbrotli learn=test: scripts/test-docs.ts asserts the worker fetches /assets/decompressor.wasm; the file:// case itself needs a browser that allows fetch on file: URLs (Chromium ref
+2026-11-09T15:36:53Z s=8e62adc6 FINDING scripts/docs/write-index.ts learn=test: scripts/test-docs.ts reads the .br files and compares the progress, hint, stat and flip figures with the manifest.
+2026-11-09T15:36:53Z s=8e62adc6 FINDING examples/search-worker.ts:1 learn=none: tsc --noEmit in make e2e already catches it.
+2026-11-09T15:36:53Z s=8e62adc6 FINDING docs/index.html:section eyebrows learn=test: scripts/test-docs.ts fails on a plain-text section eyebrow and checks the three badge labels.
+2026-11-09T18:34:28Z s=8e62adc6 FAIL prose
+2026-11-09T19:17:48Z s=8e62adc6 DONE fp=d2a9ed671f84 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+70)
+2026-11-09T19:17:48Z s=8e62adc6 FINDING docs/assets/demo.css:.vs-mode-text a learn=none: A computed-colour assertion would pin a theme value; the cause was one missing selector, now fixed.
+2026-11-09T19:17:48Z s=8e62adc6 FINDING docs/index.html:486 [data-bench=recall-r1] learn=test: scripts/test-docs.ts equals the label text.
+2026-11-09T19:17:48Z s=8e62adc6 FINDING scripts/test-docs.ts:target-languages switch step learn=none: Test-only defect; the passing run proves the corrected step.

@@ -24,6 +24,17 @@
   .vs-intro a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
   .vs-ext { width: .75em; height: .75em; margin-inline-start: .15em; vertical-align: -.05em; opacity: .75; }
   .vs-flip { margin: 0; font-size: clamp(1.5rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  /* The hero's neural shader (defuss-shadcn 0.9.13 neuro-noise): dark blue over a transparent background, bottom left,
+     its edge faded so it reads as light behind the copy rather than a box. */
+  .mk-hero:has(> .vs-hero-shader) { position: relative; }
+  .vs-hero-shader {
+    position: absolute; inset-inline-start: 0; inset-block-end: 0; z-index: -1; width: min(38rem, 75%); --shader-aspect: 1 / 1;
+    translate: -20% 20%; mask-image: radial-gradient(closest-side, #000 35%, transparent); pointer-events: none;
+    /* No poster: the effect's dark CSS gradient would show through its transparent parts as grey patches. */
+    --shader-poster: none;
+  }
+  /* Brighter than the muted default: in dark mode these read close to white (human request, 2026-11-09). */
+  .mk-hero-desc, .vs-consult .mk-cta-desc { color: color-mix(in oklch, var(--foreground) 85%, var(--muted-foreground)); }
   .vs-accent { background: linear-gradient(90deg, var(--chart-1), var(--chart-3)); -webkit-background-clip: text; background-clip: text; color: transparent; }
 
   /* the demo window */
@@ -38,6 +49,21 @@
   .vs-phases .progress-label { display: inline-flex; align-items: center; gap: .4rem; }
   .vs-boot-actions { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
   .vs-boot-actions .select { width: auto; }
+  .vs-modes { grid-column: 1 / -1; min-width: 0; }
+  .vs-modes .tab-list { max-width: 100%; }
+  .vs-mode-text { margin: 1rem 0; font-size: .875rem; line-height: 1.6; color: var(--muted-foreground); }
+  .vs-mode-text a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
+  .vs-recall-download { margin: 0 0 .75rem; font-size: .875rem; color: var(--muted-foreground); }
+  .vs-recall-download strong { color: var(--foreground); }
+  .vs-modes .vs-tab-text { flex: 1; min-width: 0; }
+  .vs-mode-quality { display: flex; align-items: center; gap: .4rem; margin-block-start: .3rem; font-size: .75rem; font-weight: 500; color: var(--muted-foreground); }
+  .vs-mode-quality .progress { flex: 1; min-width: 4rem; }
+  .vs-mode-quality-value { font-variant-numeric: tabular-nums; color: var(--foreground); }
+  @media (max-width: 40rem) {
+    .vs-modes .tab-list { flex-direction: column; align-items: stretch; width: 100%; height: auto; }
+    .vs-modes .vs-tab { width: 100%; }
+  }
+  .vs-mode-text[hidden] { display: none; }
   .vs-stats { grid-column: 1 / -1; display: grid; gap: .75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
   .vs-stats .statistic { padding: .75rem 1rem; border: 1px solid var(--border); border-radius: var(--radius-lg); background: color-mix(in oklch, var(--muted) 45%, transparent); }
   .vs-stats .statistic-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
@@ -103,7 +129,17 @@
   .vs-recall { margin: 0; align-self: start; aspect-ratio: auto; overflow: visible; background: var(--card); }
   .vs-recall-list { display: grid; gap: .5rem 1.25rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 11rem), 1fr)); }
   .vs-recall-list[hidden] { display: none; }
-  .vs-recall-tabs .tab-list { margin-block-end: .75rem; }
+  /* The badge lays its text out as flex items, which drops the space before the bold duration. */
+  .mk-search-summary-time .badge { gap: .3em; }
+  .vs-empty-divider { width: 20%; margin: .25rem auto; }
+  .vs-recall-average, .vs-recall-divider { grid-column: 1 / -1; }
+  .vs-recall-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; }
+  .vs-recall-filter { display: flex; align-items: center; gap: .5rem; font-size: .875rem; white-space: nowrap; }
+  .vs-recall-tabs:has(.vs-recall-filter .switch:checked) [data-recall]:not([data-target]) { display: none; }
+  .vs-recall-average .progress-label { font-weight: 600; }
+  .vs-recall-divider { margin: .25rem 0; }
+  .vs-recall-tabs .tab-list, .vs-recall-modes > .tab-list { margin-block-end: .75rem; }
+  .vs-recall-tabs[hidden] { display: none; }
   .vs-recall-list .progress-label { display: inline-flex; align-items: center; gap: .375rem; }
   /* two ways in: side by side with a vertical separator, stacked with a horizontal one */
   .vs-ways { display: flex; gap: 2.5rem; margin-block-start: 2.5rem; }
@@ -148,7 +184,7 @@
   .vs-note .textarea::placeholder { color: color-mix(in oklch, var(--vs-note-ink) 50%, transparent); }
   .vs-note-status { display: flex; flex-wrap: wrap; align-items: center; gap: .25rem .5rem; min-height: 1.5rem; margin: 0; font-size: .75rem; }
   .vs-note-status .spinner { width: 1rem; height: 1rem; }
-  .vs-note-time { font-family: var(--font-mono); opacity: .8; white-space: nowrap; }
+  .vs-note-time { font-family: var(--font-mono); font-size: .6875rem; opacity: .8; overflow-wrap: anywhere; min-width: 0; }
   .vs-note::after {
     content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s ease;
     background: linear-gradient(105deg, transparent 35%, oklch(1 0 0 / .65) 50%, transparent 65%); background-size: 250% 100%;

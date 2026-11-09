@@ -11,7 +11,7 @@
 import { Tokenizer } from "@huggingface/tokenizers";
 import type { InferenceSession, Tensor } from "onnxruntime-web";
 import { MOEDERNCOLBERT_MODELS } from "./model-profiles.js";
-import { describeOrt, loadOrtNode, loadOrtWeb, type Ort } from "./ort-runtime.js";
+import { loadOrtNode, loadOrtWeb, type Ort } from "./ort-runtime.js";
 import { readPinnedAsset, type PinnedAssetCache, type PinnedAssetOptions } from "./pinned-asset.js";
 import type { SearchHit } from "./types.js";
 
@@ -29,14 +29,15 @@ export function tokenIds(tokenizer: Tokenizer, prefix: string, text: string): nu
 }
 
 export type ColbertModel = keyof typeof MOEDERNCOLBERT_MODELS;
-export type ColbertPrecision = "fp32" | "fp16" | "q8" | "int8" | "q4";
+/** The pinned reranker ships one graph: INT8 weights with FP32 math. */
+export type ColbertPrecision = "q8";
 
 /** One text's token vectors, row-major. Padding (and, for documents, punctuation) is already removed. */
 export interface TokenMatrix {
   readonly data: Float32Array;
   readonly tokenCount: number;
   readonly dimensions: number;
-  /** Graph and, for runtime-dependent precisions, runtime; MaxSim refuses to mix fingerprints. */
+  /** Pinned release and graph; MaxSim refuses to mix fingerprints. */
   readonly fingerprint: string;
   readonly truncated: boolean;
 }
@@ -50,7 +51,7 @@ export interface ColbertEncodeOptions {
 
 export interface ColbertRerankerOptions extends PinnedAssetOptions {
   model: ColbertModel;
-  /** Default q8: INT8 weights with FP32 math, identical vectors in every runtime. */
+  /** q8 (the default and only graph): INT8 weights with FP32 math, identical vectors in every runtime. */
   precision?: ColbertPrecision | undefined;
   /** Default: wasm (CPU), in both Node and browsers. cpu requires onnxruntime-node. */
   device?: "wasm" | "cpu" | undefined;
@@ -273,16 +274,14 @@ export class ColbertRerankerCore {
       await session.release();
       throw new Error("Unexpected MoEdernColBERT ONNX input/output contract");
     }
-    const parity = (this.profile.precisions as Record<string, string>)[this.precision];
-    const fingerprint = `${this.profile.id}@${this.profile.revision}:${this.profile.files[this.graph as keyof typeof this.profile.files]}` +
-      (parity === "quality" ? `:${describeOrt(ort, this.device)}` : "");
+    const fingerprint = `${this.profile.id}@${this.profile.revision}:${this.profile.files[this.graph as keyof typeof this.profile.files]}`;
     return { ort, session, tokenizer, config, skip: new Set(config.skip_token_ids), fingerprint };
   }
 
   /** Eagerly load and validate assets and create the ONNX session. */
   async load(): Promise<void> { return this.enqueue(async () => { await this.initialize(); }); }
 
-  /** Cache key component for document vectors: pinned graph, plus the runtime for fp16 and int8. */
+  /** Cache key component for document vectors: the pinned release and graph. */
   fingerprint(): Promise<string> { return this.enqueue(async () => (await this.initialize()).fingerprint); }
 
   private prepare(loaded: Loaded, texts: readonly string[], kind: Kind, options: ColbertEncodeOptions) {

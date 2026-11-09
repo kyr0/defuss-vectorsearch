@@ -1,5 +1,5 @@
 {
-  "model_revision": "8f37defd53558efb7f2cc7febf5a9c19a8033bea",
+  "model_revision": "dc961ecc2773117fb67114aa7e40adc83730653d",
   "onnxruntime": "1.30.0",
   "tokenizers": "0.23.2",
   "sha256": {

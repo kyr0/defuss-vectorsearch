@@ -1,6 +1,6 @@
 import { loadCachedModelFile, resolveModelCacheDir, storeCachedModelFile } from "./model-cache.js";
 import type { EmbedOptions, FeatureExtractorLike } from "./types.js";
-import { WinzlingEmbedderCore, type WinzlingAssetCache, type WinzlingOptions } from "./winzling-embedder.js";
+import { prefetchWinzlingAssets, WinzlingEmbedderCore, type WinzlingAssetCache, type WinzlingOptions } from "./winzling-embedder.js";
 import { ColbertRerankerCore, type ColbertRerankerOptions } from "./colbert-reranker.js";
 
 export {
@@ -61,6 +61,13 @@ export class ColbertReranker extends ColbertRerankerCore {
  * src/colbert-reranker.live.test.ts reloads it from a filesystem cache with remote loading disabled.
  */
 export const createColbertReranker = (options: ColbertRerankerOptions): ColbertReranker => new ColbertReranker(options);
+
+/**
+ * Bridge for the client/server `prefetchModel`: Winzling's files take the embedder's path (`.br` download, SHA-256
+ * check, the cache keys inference reads), not the generic prefetcher, which fetches raw files without a hash check.
+ * VERIFIED: src/winzling.live.test.ts prefetches from a `.br` mirror, then embeds offline from the same cache.
+ */
+export const prefetchWinzling = (options: WinzlingOptions): Promise<void> => prefetchWinzlingAssets(options, isomorphicCache);
 
 /** Bridge to the existing client/server API without changing the Harrier pipeline. */
 export const createWinzlingExtractor = async (options: WinzlingOptions): Promise<FeatureExtractorLike> => {

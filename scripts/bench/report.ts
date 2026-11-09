@@ -2,9 +2,10 @@
 import { TARGET_LANGUAGES } from "./dataset.ts";
 import { KS, round, type RecallAtK, type RecallMatrix, type Reproduction, type Summary } from "./metrics.ts";
 import type { ModelKey } from "./models.ts";
-import type { ModelResult } from "./runner.ts";
+import type { ModelResult, RerankerResult, StrategyResult } from "./runner.ts";
 
-export const BENCH_SCHEMA = "defuss-vectorsearch-bench.v2";
+/** v3 adds `environments.<env>.reranker`: the reranker alone over all passages. */
+export const BENCH_SCHEMA = "defuss-vectorsearch-bench.v3";
 export const README_START = "<!-- bench:start -->";
 export const README_END = "<!-- bench:end -->";
 
@@ -23,11 +24,11 @@ export interface BenchReport {
     readonly queries: number;
   };
   readonly ks: readonly number[];
-  /** The fused strategy's reranker: `createColbertReranker({ model })` and the release it pins. */
+  /** The fused strategy's and the reranker-only run's reranker: `createColbertReranker({ model })` and the release it pins. */
   readonly reranker: { readonly model: string; readonly id: string; readonly revision: string };
   readonly environments: Record<
     EnvironmentKey,
-    { readonly runtime: string; readonly models: Record<ModelKey, PublishedModelResult> }
+    { readonly runtime: string; readonly models: Record<ModelKey, PublishedModelResult>; readonly reranker: RerankerResult }
   >;
   /** Cosine between Node and Chromium vectors of the same passages. */
   readonly crossEnvironment: Record<ModelKey, { readonly samples: number; readonly minCosine: number; readonly meanCosine: number }>;
@@ -37,6 +38,9 @@ const ENV_LABEL: Record<EnvironmentKey, string> = { node: "Node.js", chromium: "
 const MODEL_LABEL: Record<ModelKey, string> = { winzling: "Winzling", harrier: "Harrier" };
 const STRATEGY_LABEL = { bruteforce: "bruteforce", turboquant: "TurboQuant", fused: "TurboQuant + MoEdernColBERT" } as const;
 const STRATEGIES = ["bruteforce", "turboquant", "fused"] as const;
+/** The reranker-only run's row labels: no dense model, MaxSim over every passage's token vectors. */
+const RERANKER_LABEL = "MoEdernColBERT";
+const MAXSIM_LABEL = "MaxSim, all passages";
 
 const ms = (summary: Summary) => `${summary.mean.toFixed(1)} (p95 ${summary.p95.toFixed(1)})`;
 const row = (cells: readonly (string | number)[]) => `| ${cells.join(" | ")} |`;
@@ -92,21 +96,30 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
   for (const { env, model, result } of results) {
     lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], result.device, result.loadMs, ms(result.embedMs.passage), ms(result.embedMs.query), result.modelRuntimeMiB]));
   }
-  const perStrategy = results.flatMap((entry) => STRATEGIES.map((strategy) => ({ ...entry, strategy, s: entry.result.strategies[strategy] })));
+  for (const [env, { reranker }] of envs) {
+    lines.push(row([ENV_LABEL[env], RERANKER_LABEL, reranker.device, reranker.loadMs, ms(reranker.embedMs.passage), ms(reranker.embedMs.query), reranker.modelRuntimeMiB]));
+  }
+  // Every strategy row: each dense model's three, then the reranker alone per environment.
+  const perStrategy: { env: EnvironmentKey; model: string; strategy: string; s: StrategyResult; reproduced: string }[] = [
+    ...results.flatMap(({ env, model, result }) => STRATEGIES.map((strategy) => ({
+      env, model: MODEL_LABEL[model], strategy: STRATEGY_LABEL[strategy], s: result.strategies[strategy] as StrategyResult,
+      reproduced: strategy === "turboquant" ? `${targetReproduction(result.strategies.turboquant.rankReproduced10pct, targets)}%` : "n/a",
+    }))),
+    ...envs.map(([env, { reranker }]) => ({ env, model: RERANKER_LABEL, strategy: MAXSIM_LABEL, s: reranker.maxsim, reproduced: "n/a" })),
+  ];
   lines.push(
     "",
     "### Retrieval Quality",
     "",
     `The ${targets.length} target languages: ${targets.map((code) => `\`${code}\``).join(", ")}; their ${report.dataset.queries / report.dataset.languages.length * targets.length} queries against all ${report.dataset.haystack} passages in ${report.dataset.languages.length} languages; R@k = % of queries whose gold passage ranks in the top k:`,
     "",
-    `TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the \`"${report.reranker.model}"\` reranker (\`${report.reranker.id}\`, q8, \`rerankHits\`), so its R@25 and R@100 equal TurboQuant's.`,
+    `TurboQuant + MoEdernColBERT reorders TurboQuant's top 25 by reciprocal rank fusion with the \`"${report.reranker.model}"\` reranker (\`${report.reranker.id}\`, q8, \`rerankHits\`), so its R@25 and R@100 equal TurboQuant's. ${RERANKER_LABEL} ${MAXSIM_LABEL} uses that reranker alone: every passage encoded once into token vectors, each query ranked by MaxSim against all of them (\`rankEncoded\`).`,
     "",
     header(["Environment", "Model", "Strategy", ...KS.map((k) => `R@${k}`), "Rank ±10%"], KS.length + 1),
   );
-  for (const { env, model, strategy, s, result } of perStrategy) {
-    const reproduced = strategy === "turboquant" ? `${targetReproduction(result.strategies.turboquant.rankReproduced10pct, targets)}%` : "n/a";
+  for (const { env, model, strategy, s, reproduced } of perStrategy) {
     const recall = targetRecall(s.recall, targets);
-    lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], STRATEGY_LABEL[strategy], ...KS.map((k) => recall[`@${k}`]), reproduced]));
+    lines.push(row([ENV_LABEL[env], model, strategy, ...KS.map((k) => recall[`@${k}`]), reproduced]));
   }
   lines.push(
     "",
@@ -118,37 +131,37 @@ export const renderReadmeSection = (report: BenchReport, targets: readonly strin
   );
   for (const { env, model, strategy, s } of perStrategy) {
     const recall = targetRecall(s.anyLanguageRecall, targets);
-    lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], STRATEGY_LABEL[strategy], ...KS.map((k) => recall[`@${k}`])]));
+    lines.push(row([ENV_LABEL[env], model, strategy, ...KS.map((k) => recall[`@${k}`])]));
   }
   lines.push(
     "",
     "### Cost per Method",
     "",
-    "Passage = embed + share of the index build; query = embed + top-100 search, plus reranking 25 candidates for TurboQuant + MoEdernColBERT; runtime = model runtime + index, plus the reranker's memory growth:",
+    `Passage = embed + share of the index build; query = embed + top-100 search, plus reranking 25 candidates for TurboQuant + MoEdernColBERT; runtime = model runtime + index, plus the reranker's memory growth. For ${RERANKER_LABEL} ${MAXSIM_LABEL}, passage = encoding its token vectors (the index), search = MaxSim against all of them:`,
     "",
     header(["Environment", "Model", "Strategy", "Passage ms", "Query ms", "Search ms mean", "Index build ms", "Runtime MiB", "Index MiB"], 6),
   );
   for (const { env, model, strategy, s } of perStrategy) {
-    lines.push(row([ENV_LABEL[env], MODEL_LABEL[model], STRATEGY_LABEL[strategy], ms(s.passageMs), ms(s.queryMs), s.searchMs.mean.toFixed(3), s.indexMs.toFixed(1), s.runtimeMiB, s.indexMiB]));
+    lines.push(row([ENV_LABEL[env], model, strategy, ms(s.passageMs), ms(s.queryMs), s.searchMs.mean.toFixed(3), s.indexMs.toFixed(1), s.runtimeMiB, s.indexMiB]));
   }
   const node = report.environments.node.models;
-  const combos = (Object.keys(node) as ModelKey[]).flatMap((model) =>
-    STRATEGIES.map((strategy) => ({ model, strategy })),
-  );
+  const combos = [
+    ...(Object.keys(node) as ModelKey[]).flatMap((model) => STRATEGIES.map((strategy) => ({
+      label: `${MODEL_LABEL[model]} ${STRATEGY_LABEL[strategy]}`, recall: node[model].strategies[strategy].recall,
+    }))),
+    { label: `${RERANKER_LABEL} ${MAXSIM_LABEL}`, recall: report.environments.node.reranker.maxsim.recall },
+  ];
   lines.push(
     "",
     "### Per Language, Node.js",
     "",
-    `Target languages, best first by ${MODEL_LABEL[combos[0]!.model]} ${STRATEGY_LABEL[combos[0]!.strategy]}; cells: R@${KS.join(" / R@")}; Chromium and all ${report.dataset.languages.length} languages are in \`bench.json\`:`,
+    `Target languages, best first by ${combos[0]!.label}; cells: R@${KS.join(" / R@")}; Chromium and all ${report.dataset.languages.length} languages are in \`bench.json\`:`,
     "",
-    header(["Language", ...combos.map(({ model, strategy }) => `${MODEL_LABEL[model]} ${STRATEGY_LABEL[strategy]}`)], 0),
+    header(["Language", ...combos.map(({ label }) => label)], 0),
   );
-  const ranked = [...targets].sort(byRecallDescending(node[combos[0]!.model].strategies[combos[0]!.strategy].recall));
+  const ranked = [...targets].sort(byRecallDescending(combos[0]!.recall));
   for (const language of ranked) {
-    lines.push(row([`\`${language}\``, ...combos.map(({ model, strategy }) => {
-      const recall = node[model].strategies[strategy].recall.byLanguage[language]!;
-      return KS.map((k) => recall[`@${k}`]).join(" / ");
-    })]));
+    lines.push(row([`\`${language}\``, ...combos.map(({ recall }) => KS.map((k) => recall.byLanguage[language]![`@${k}`]).join(" / "))]));
   }
   lines.push(
     "",

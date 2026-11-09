@@ -139,9 +139,11 @@ try {
   assert.deepEqual(second.top, first.top);
   assert.deepEqual(first.reranked.slice().sort(), first.top.slice().sort(), "the reranker reorders the dense hits");
   assert.deepEqual(second.reranked, first.reranked);
-  assert.equal(firstLoadRequests, 3, "first load fetches tokenizer.json, tokenizer_config.json and the ONNX graph");
+  // A plain static server: Chromium hands the `.br` bytes to defuss-brotli's decoder in the Vite bundle.
+  assert.deepEqual([...modelRequests, ...colbertRequests].filter((url) => !url.endsWith(".br")), [], "every model file is fetched as .br");
+  assert.equal(firstLoadRequests, 3, "first load fetches the .br of tokenizer.json, tokenizer_config.json and the ONNX graph");
   assert.equal(secondLoadRequests, 0, "second load must come from the Cache API / IndexedDB");
-  assert.equal(firstColbertRequests, 4, "first load fetches tokenizer.json, tokenizer_config.json, runtime.json and model_q8.onnx");
+  assert.equal(firstColbertRequests, 4, "first load fetches the .br of tokenizer.json, tokenizer_config.json, runtime.json and model_q8.onnx");
   assert.equal(secondColbertRequests, 0, "second reranker load must come from the Cache API / IndexedDB");
   assert.equal(isoResult.dims, 384);
   console.log(`${new Date().toISOString()} INFO browser bundles passed js_bytes=${jsBytes} model_requests=${firstLoadRequests}/${secondLoadRequests} reranker_requests=${firstColbertRequests}/${secondColbertRequests} isomorphic_tla=ok`);

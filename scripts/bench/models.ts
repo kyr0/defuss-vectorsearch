@@ -16,6 +16,8 @@ export const MODEL_KEYS = Object.keys(MODELS) as ModelKey[];
  * in the probe (R@1 up 0.7 points, R@3 down 0.9) at 18 times the latency.
  */
 export const RERANKER_MODEL = "1.5m";
+/** The bench run of that reranker alone, MaxSim over every passage (runner.ts runRerankerBench). */
+export const RERANKER_KEY = "reranker";
 
 /** VERIFIED: Node downloads into this cache, hash-checking Winzling; Chromium then loads the same bytes over HTTP. (make bench) */
 export const BENCH_CACHE_DIR = "bench/cache";
