@@ -173,6 +173,8 @@ try {
   assert.equal(await page.textContent("#p-model-name"), "Model · kyr0/Winzling-reranker q8");
   assert.ok(await page.locator("#p-tokens-field").isVisible(), "the reranker alone shows its token-vector bar");
   assert.equal(await page.getAttribute('output[for="p-model"]', "data-template"), `{percent} of ${label(downloads.reranker)}`, "the model bar counts the model alone");
+  // The empty state names each model's size, and the token vectors' apart.
+  assert.ok((await visibleText(page, "#panel-bench .mk-empty-state-text")).includes(`kyr0/Winzling-reranker (${label(downloads.reranker)}, the default) with the passages' token vectors (${label(manifest.tokens.bytes)}), kyr0/Winzling-embed (${label(downloads.embedder)}) or both (${label(downloads.both)})`));
   // Messages about the whole load name both downloads.
   assert.ok((await page.textContent("#log") ?? "").includes(`not cached yet · it downloads (${label(downloads.reranker)} + ${label(manifest.tokens.bytes)} token vectors)`), "the log names the model and the token vectors");
   assert.ok(await page.locator("#backend").isDisabled(), "the reranker always runs on WASM");
@@ -233,11 +235,20 @@ try {
   });
   assert.ok(cta.title.left > cta.portrait.right && cta.title.top < cta.portrait.bottom, "portrait beside the heading");
   assert.ok(cta.desc.left >= cta.title.right - 1, "text in its own column right of the heading");
-  // The zoom (human request, 2026-11-10): 1.25x the browser's 16px from 500px up, 1x on phones up to 400px.
+  // The zoom (human requests, 2026-11-10): 125% of the browser's 16px on desktops; tablets and phones (< 1024px) get 75%
+  // of that, 15px.
+  // On a phone the three mode tabs stack, one per row, and nothing is wider than the screen.
   const rootPx = () => page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
   assert.equal(await rootPx(), "20px");
-  await page.setViewportSize({ width: 390, height: 844 });
-  assert.equal(await rootPx(), "16px");
+  await page.setViewportSize({ width: 768, height: 1024 });
+  assert.equal(await rootPx(), "15px");
+  await page.setViewportSize({ width: 360, height: 780 });
+  assert.equal(await rootPx(), "15px");
+  const modeTops = await page.$$eval("#mode-tabs [role=tab]", (tabs) => tabs.map((tab) => tab.getBoundingClientRect().top));
+  assert.ok(modeTops[0]! < modeTops[1]! && modeTops[1]! < modeTops[2]!, `mode tabs stacked on a phone: ${modeTops}`);
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth), 360, "no horizontal scroll on a phone");
+  const wide = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".vs-page *")].filter((el) => !el.closest(".vs-hero-shader, .vs-flythrough, .diagram, svg") && el.getBoundingClientRect().right > innerWidth + 1).map((el) => el.className));
+  assert.deepEqual(wide, [], "nothing wider than a 360px phone");
   await page.setViewportSize({ width: 1280, height: 900 });
   assert.equal(await rootPx(), "20px");
   for (const photo of [".vs-ad img", "#consulting img"]) {

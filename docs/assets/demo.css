@@ -2,14 +2,14 @@
 @layer components {
   /* the base reset the defuss-shadcn docs site applies (docs-theme.css), which its Landing Page template assumes */
   *, *::before, *::after { box-sizing: border-box; }
-  /* Human request (2026-11-10): the whole page 1.25x by default (1.5x first, then 125% as better), in one place.
-     defuss-shadcn and this file size text and spacing in rem, so the root size zooms the page; percentages keep the
-     reader's browser font setting as the base. 4vw ramps it from 1x at 400px to 1.25x at 500px, so phones up to 400px
-     stay at 1x and wider screens keep at least 25rem of layout, what a 400px phone has at 1x: a flat 150% left a 390px
-     phone 260px and pushed the header, hero and demo off screen (VERIFIED: Playwright probe, 2026-11-10). The
-     breakpoints below are container queries on .vs-page because their rem follows the root while a media query's rem
-     stays 16px, so they move with the zoom as they would under browser zoom. */
-  html { font-size: clamp(100%, 4vw, 125%); }
+  /* Page zoom (human requests, 2026-11-10): 125% (20px) on desktops; below 1024px, tablets and phones get 75% of that,
+     15px (93.75%), after a flat 75% (12px) read too small. defuss-shadcn
+     and this file size text and spacing in rem, so the root size zooms the whole page in one place; percentages keep the
+     reader's browser font setting as the base. A media query's rem is the browser's 16px, so 64rem is a 1024px viewport.
+     The breakpoints below are container queries on .vs-page instead, because their rem follows the root: they move
+     with the zoom as they would under browser zoom, so a 768px tablet at 75% gets the 1024px layout. */
+  html { font-size: 125%; }
+  @media (width < 64rem) { html { font-size: 93.75%; } }
   body { margin: 0; line-height: 1.6; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   /* component rules set display, which would otherwise beat the hidden attribute */
   [hidden] { display: none !important; }
@@ -38,7 +38,8 @@
   .vs-intro code { font-family: var(--font-mono); font-size: .9em; }
   .vs-intro a { color: var(--foreground); text-decoration: underline; text-underline-offset: 2px; }
   .vs-ext { width: .75em; height: .75em; margin-inline-start: .15em; vertical-align: -.05em; opacity: .75; }
-  .vs-flip { margin: 0; font-size: clamp(1.5rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
+  /* 1rem floor: the longest phrase is about 20em wide and must fit a 360px phone at the 15px root (probe, 2026-11-10). */
+  .vs-flip { margin: 0; font-size: clamp(1rem, 4.5vw, 2.5rem); font-weight: 700; letter-spacing: -.03em; line-height: 1.15; }
   /* The hero's neural shader (defuss-shadcn 0.9.13 neuro-noise): dark blue over a transparent background, bottom left,
      its edge faded so it reads as light behind the copy rather than a box. */
   .mk-hero:has(> .vs-hero-shader) { position: relative; }
@@ -75,7 +76,9 @@
   .vs-mode-quality .progress { flex: 1; min-width: 4rem; }
   .vs-mode-quality-value { font-variant-numeric: tabular-nums; color: var(--foreground); }
   @container vs-page (max-width: 40rem) {
-    .vs-modes .tab-list { flex-direction: column; align-items: stretch; width: 100%; height: auto; }
+    /* defuss-shadcn's tab list is a grid that flows into columns, so stacking means flowing into rows (VERIFIED: the
+       flex-direction rule here left the three tabs squeezed into one 240px row on a 390px phone, probe 2026-11-10). */
+    .vs-modes .tab-list { grid-auto-flow: row; grid-template-columns: minmax(0, 1fr); align-items: stretch; width: 100%; height: auto; }
     .vs-modes .vs-tab { width: 100%; }
   }
   .vs-mode-text[hidden] { display: none; }
