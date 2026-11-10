@@ -60,9 +60,12 @@ lint:     ; bunx oxlint --deny-warnings
 # package exports map (ESM+CJS) in Node and Bun, installs the packed tarball into a clean Bun 1.4 app and runs it, then
 # drives the Worker demo in Chromium and builds it.
 # Then rebuilds docs/assets/search-worker.js from source, so a commit after e2e never ships a stale bundle, and drives docs/ in Chromium.
+# VERIFIED: the docs/ drive's index-retry step (test-docs.ts:716) timed out on GitHub's runners twice (2026-11-09/10)
+# and passes locally. Per the maintainer (2026-11-10), CI skips the drive (GitHub sets CI=true); the local gate runs it.
 e2e:      ; bun run build && bunx tsc --noEmit && node scripts/test-package.ts && bun scripts/test-package.ts && node scripts/test-bun-consumer.ts \
 	&& node scripts/test-browser-bundle.ts && node scripts/test-demo.ts && bun run demo:build \
-	&& node scripts/docs/build-worker.ts && node scripts/test-docs.ts
+	&& node scripts/docs/build-worker.ts \
+	&& if [ -n "$$CI" ]; then echo "$$(date -u +%FT%TZ) INFO skipped scripts/test-docs.ts reason=CI"; else node scripts/test-docs.ts; fi
 
 # What CI runs; the gate runs the same verbs one by one and fails while verify skips any. Fail-fast order: cheapest first.
 verify: lint test coverage e2e

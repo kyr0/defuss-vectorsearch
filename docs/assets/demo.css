@@ -2,11 +2,26 @@
 @layer components {
   /* the base reset the defuss-shadcn docs site applies (docs-theme.css), which its Landing Page template assumes */
   *, *::before, *::after { box-sizing: border-box; }
+  /* Human request (2026-11-10): the whole page 1.25x by default (1.5x first, then 125% as better), in one place.
+     defuss-shadcn and this file size text and spacing in rem, so the root size zooms the page; percentages keep the
+     reader's browser font setting as the base. 4vw ramps it from 1x at 400px to 1.25x at 500px, so phones up to 400px
+     stay at 1x and wider screens keep at least 25rem of layout, what a 400px phone has at 1x: a flat 150% left a 390px
+     phone 260px and pushed the header, hero and demo off screen (VERIFIED: Playwright probe, 2026-11-10). The
+     breakpoints below are container queries on .vs-page because their rem follows the root while a media query's rem
+     stays 16px, so they move with the zoom as they would under browser zoom. */
+  html { font-size: clamp(100%, 4vw, 125%); }
   body { margin: 0; line-height: 1.6; background: var(--background); color: var(--foreground); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
   /* component rules set display, which would otherwise beat the hidden attribute */
   [hidden] { display: none !important; }
   /* the header is a direct child of the page, so it stays sticky over every section, not only the hero */
-  .vs-page { overflow-x: clip; }
+  .vs-page { overflow-x: clip; container: vs-page / inline-size; }
+  /* defuss-shadcn shows the header nav from 40rem, but this header's brand, four links and actions need 52.7rem
+     (VERIFIED: probe, 2026-11-10; at 1x it overflowed a 768px viewport): below 54rem they stay in the menu sheet. */
+  @container mk-header (width < 54rem) {
+    .mk-header-nav { display: none; }
+    .mk-header-menu { display: inline-flex; }
+    .mk-header-actions .mk-header-wide { display: none; }
+  }
   .vs-main { display: flex; flex-direction: column; gap: clamp(5rem, 11vw, 9rem); padding-block-end: clamp(5rem, 11vw, 9rem); }
   .vs-section { width: 100%; max-width: 76rem; padding-inline: 1rem; scroll-margin-top: 5rem; }
   .vs-icon { width: 1em; height: 1em; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
@@ -59,7 +74,7 @@
   .vs-mode-quality { display: flex; align-items: center; gap: .4rem; margin-block-start: .3rem; font-size: .75rem; font-weight: 500; color: var(--muted-foreground); }
   .vs-mode-quality .progress { flex: 1; min-width: 4rem; }
   .vs-mode-quality-value { font-variant-numeric: tabular-nums; color: var(--foreground); }
-  @media (max-width: 40rem) {
+  @container vs-page (max-width: 40rem) {
     .vs-modes .tab-list { flex-direction: column; align-items: stretch; width: 100%; height: auto; }
     .vs-modes .vs-tab { width: 100%; }
   }
@@ -156,7 +171,7 @@
   /* a half-width column: wrap instead of cutting, with continuation lines hanging past the 2rem + 1rem number column */
   .vs-way .mk-code-block code > span { white-space: pre-wrap; overflow-wrap: anywhere; padding-inline-start: 3rem; text-indent: -3rem; }
   .vs-sep-horizontal { display: none; }
-  @media (max-width: 56rem) {
+  @container vs-page (max-width: 56rem) {
     .vs-ways { flex-direction: column; }
     .vs-sep-vertical { display: none; }
     .vs-sep-horizontal { display: block; width: 100%; margin: 0; }
@@ -173,7 +188,7 @@
   .vs-notes-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: .5rem .25rem 1rem; }
   .vs-notes { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr)); }
   .vs-notes-search { display: flex; flex-direction: column; gap: 1rem; overflow-y: auto; min-width: 0; }
-  @media (max-width: 40rem) { .vs-notes-layout { height: 56rem; } }
+  @container vs-page (max-width: 40rem) { .vs-notes-layout { height: 56rem; } }
 
   /* a yellow sticky note: paper colours have no token, so they are literals here (the tokens stay for the UI) */
   .vs-note {
@@ -206,7 +221,7 @@
   .vs-ad-head { display: flex; align-items: center; gap: .875rem; }
   .vs-ad-portrait { width: 5.5rem; flex: none; }
   /* the ad is the footer's widest column on large screens */
-  @media (min-width: 64rem) { .vs-footer-nav.mk-footer-nav { grid-template-columns: 1fr 1fr 1fr 1.8fr; } }
+  @container vs-page (min-width: 64rem) { .vs-footer-nav.mk-footer-nav { grid-template-columns: 1fr 1fr 1fr 1.8fr; } }
   .vs-ad-portrait img { display: block; width: 100%; height: auto; }
   .vs-ad-name { margin: 0; font-size: 1.25rem; font-weight: 600; color: var(--foreground); }
   .vs-ad-role { margin: 0; font-size: .8125rem; line-height: 1.5; color: var(--muted-foreground); }
@@ -236,7 +251,7 @@
   .vs-consult .mk-cta[data-variant] .mk-cta-title { margin: 0; font-size: clamp(1.25rem, 2.2vw, 1.625rem); }
   .vs-consult .mk-cta[data-variant] .mk-cta-desc { grid-column: 2; margin: 0; font-size: .875rem; }
   .vs-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: 3; justify-content: flex-end; }
-  @media (max-width: 56rem) {
+  @container vs-page (max-width: 56rem) {
     .vs-consult .mk-cta[data-variant] .mk-cta-inner { grid-template-columns: minmax(0, 1fr); }
     .vs-consult .vs-cta-head, .vs-consult .mk-cta[data-variant] .mk-cta-desc, .vs-consult .mk-cta[data-variant] .mk-cta-actions { grid-column: auto; justify-content: flex-start; }
   }

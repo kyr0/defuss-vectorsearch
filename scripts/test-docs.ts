@@ -229,9 +229,17 @@ try {
   });
   assert.ok(cta.title.left > cta.portrait.right && cta.title.top < cta.portrait.bottom, "portrait beside the heading");
   assert.ok(cta.desc.left >= cta.title.right - 1, "text in its own column right of the heading");
+  // The zoom (human request, 2026-11-10): 1.25x the browser's 16px from 500px up, 1x on phones up to 400px.
+  const rootPx = () => page.evaluate(() => getComputedStyle(document.documentElement).fontSize);
+  assert.equal(await rootPx(), "20px");
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await rootPx(), "16px");
+  await page.setViewportSize({ width: 1280, height: 900 });
+  assert.equal(await rootPx(), "20px");
   for (const photo of [".vs-ad img", "#consulting img"]) {
     await page.locator(photo).scrollIntoViewIfNeeded();
-    await page.waitForFunction((selector) => document.querySelector<HTMLImageElement>(selector)!.naturalWidth === 400, photo);
+    // Loaded, not a pinned size: the portrait file is the author's to replace (400 px, then 800 px on 2026-11-10).
+    await page.waitForFunction((selector) => { const img = document.querySelector<HTMLImageElement>(selector)!; return img.complete && img.naturalWidth > 0; }, photo);
   }
   assert.equal(await page.locator(".vs-ad p").count(), 2, "the ad keeps name and role, without the extra line");
 
@@ -257,8 +265,8 @@ try {
   // Download figures: the `.br` bytes the worker fetches (manifest `bytes`), unpacked sizes only where the page says so.
   const sum = (files: object, key: "bytes" | "rawBytes") => (Object.values(files) as Record<typeof key, number>[]).reduce((a, b) => a + b[key], 0) / 1e6;
   const [downloadMb, rerankerMb] = [sum(manifest.modelFiles, "bytes"), sum(manifest.rerankerFiles, "bytes")];
-  // The hero's title and text are the author's (human request, 2026-11-09); the figures sit in the flip line.
-  assert.equal(await page.textContent(".mk-hero-title"), "Semantic search is now tiny, fast, and open source");
+  // The hero's title and text are the author's (human requests, 2026-11-09 and 2026-11-10); the figures sit in the flip line.
+  assert.equal(await page.textContent(".mk-hero-title"), "Semantic search is now tiny, fast, and local");
   // Bun is a tested runtime (scripts/test-bun-consumer.ts in make e2e), so the hero names it (human request, 2026-11-09).
   assert.ok(flips.includes("in your browser, Node.js and Bun"), flips.join(" | "));
   assert.ok((await page.textContent(".mk-hero-desc") ?? "").startsWith("The Winzling embedding model family"));
@@ -483,9 +491,21 @@ try {
 
   // Tab 2: your own vector database. Notes are embedded 500 ms after typing stops or on blur, then searchable.
   // The "My data (custom)" link in the intro opens the tab. It sits just below the floating header, so a default
-  // scroll-into-view can leave it under the header (make e2e, 2026-11-09): centre it first.
+  // scroll-into-view can leave it under the header (make e2e, 2026-11-09): centre it first. One centring was not enough:
+  // the page still moved after it ("element is not stable", then the header on top; make e2e, 2026-11-10), so it is
+  // re-centred until the link itself is the element at its centre point, the point the click lands on.
   const myData = page.locator('#demo .mk-section-header [data-tab="1"]');
-  await myData.evaluate((node) => node.scrollIntoView({ block: "center", behavior: "instant" }));
+  await myData.evaluate((node) => new Promise<void>((resolve) => {
+    const settle = () => {
+      node.scrollIntoView({ block: "center", behavior: "instant" });
+      requestAnimationFrame(() => {
+        const box = node.getBoundingClientRect();
+        const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        if (hit && node.contains(hit)) resolve(); else setTimeout(settle, 100);
+      });
+    };
+    settle();
+  }));
   await myData.click();
   assert.ok(await page.locator("#panel-notes").isVisible());
   assert.ok(await page.locator("#notes-empty").isVisible());
