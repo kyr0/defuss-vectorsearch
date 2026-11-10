@@ -69,7 +69,9 @@ export type DemoEvent =
   | { type: "log"; tone: Tone; text: string }
   | { type: "indexed"; vectors: Manifest["vectors"]; documents: Manifest["documents"]; passages: number; languages: readonly string[];
       queries: { text: string; language: number; gold: number; goldGroup: number }[];
-      /** Each mode's model download, the `.br` bytes from the manifest. */ downloads: Record<Mode, number> }
+      /** Each mode's model download, the `.br` bytes from the manifest: models only, so a size beside a model name is
+       *  that model's (human request, 2026-11-10). */ downloads: Record<Mode, number>;
+      /** The prebuilt token vectors' `.br` bytes, which the reranker alone also downloads, on their own bar. */ tokenBytes: number }
   | { type: "ready"; mode: Mode; device: Device; fallback: string | null; ms: number; cached: boolean; downloadedBytes: number }
   | { type: "results"; index: SearchIndex; id: number; query: string; hits: (DemoHit | NoteHit)[]; embedMs: number; scanMs: number; size: number; strategy: string;
       /** Reranking time, on the fused results only. */ rerankMs?: number; /** false: the fused order follows. */ final: boolean }
@@ -259,8 +261,8 @@ const ensureIndex = async (manifestUrl: string): Promise<DemoIndex> => {
     type: "indexed", vectors: files.vectors, documents: files.documents,
     passages: passages.length, languages,
     queries: queries.map((query) => ({ ...query, goldGroup: passages[query.gold]!.group })),
-    // The reranker alone also downloads the passages' token vectors.
-    downloads: { reranker: downloadBytes(files, RELEASES.reranker) + files.tokens.bytes, embedder: downloadBytes(files, RELEASES.embedder), both: downloadBytes(files, RELEASES.both) },
+    downloads: { reranker: downloadBytes(files, RELEASES.reranker), embedder: downloadBytes(files, RELEASES.embedder), both: downloadBytes(files, RELEASES.both) },
+    tokenBytes: files.tokens.bytes,
   });
   return demo;
 };

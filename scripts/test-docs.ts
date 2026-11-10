@@ -147,8 +147,9 @@ try {
   assert.match(await page.textContent("#p-runtime-hint") ?? "", new RegExp(`^~${ram.reranker} MB RAM reserved for the model`));
   // The default mode is the reranker alone (human decision, 2026-11-09): one 2.28 MB model that encodes the passages itself.
   const sizes = (files: object) => (Object.values(files) as { bytes: number }[]).reduce((a, b) => a + b.bytes, 0);
-  // The reranker alone also downloads the passages' prebuilt token vectors (docs/data/tokens.bin.br).
-  const downloads = { reranker: sizes(manifest.rerankerFiles) + manifest.tokens.bytes, embedder: sizes(manifest.modelFiles), both: sizes(manifest.rerankerFiles) + sizes(manifest.modelFiles) };
+  // Model sizes only (human request, 2026-11-10: the size beside a model name is that model's); the reranker alone also
+  // downloads the passages' prebuilt token vectors (docs/data/tokens.bin.br), shown on their own bar.
+  const downloads = { reranker: sizes(manifest.rerankerFiles), embedder: sizes(manifest.modelFiles), both: sizes(manifest.rerankerFiles) + sizes(manifest.modelFiles) };
   const label = (bytes: number) => `${(bytes / 1e6).toFixed(bytes >= 1e7 ? 1 : 2)} MB`;
   // The modes are icon tabs (human decision, 2026-11-09), each naming its models and download.
   const modeTabs = () => page.$$eval("#mode-tabs [role=tab]", (tabs) => tabs.map((tab) => [tab.textContent, tab.getAttribute("aria-selected"), !!tab.querySelector(".vs-tab-icon")]));
@@ -171,6 +172,9 @@ try {
   assert.ok(await page.locator("#boot-status").isHidden());
   assert.equal(await page.textContent("#p-model-name"), "Model · kyr0/Winzling-reranker q8");
   assert.ok(await page.locator("#p-tokens-field").isVisible(), "the reranker alone shows its token-vector bar");
+  assert.equal(await page.getAttribute('output[for="p-model"]', "data-template"), `{percent} of ${label(downloads.reranker)}`, "the model bar counts the model alone");
+  // Messages about the whole load name both downloads.
+  assert.ok((await page.textContent("#log") ?? "").includes(`not cached yet · it downloads (${label(downloads.reranker)} + ${label(manifest.tokens.bytes)} token vectors)`), "the log names the model and the token vectors");
   assert.ok(await page.locator("#backend").isDisabled(), "the reranker always runs on WASM");
   // No stray figure: no 40 MB rounding and no MiB anywhere visible; the download figures are checked below.
   const bodyText = (await page.evaluate(() => document.body.innerText)).replace(/\u00a0/g, " ");

@@ -58,16 +58,21 @@ const state = {
   loads: 0,
   /** The backend the visitor chose; the reranker alone shows WASM without forgetting it. */
   device: el.backend.value,
-  /** Each mode's download in `.br` bytes, from the worker's `indexed` (the manifest); null until then. */
+  /** Each mode's model download in `.br` bytes, from the worker's `indexed` (the manifest); null until then. */
   downloads: null,
+  /** The prebuilt token vectors' `.br` bytes, which the reranker alone also downloads; null until `indexed`. */
+  tokenBytes: null,
   progress: { model: [0, 1], index: [0, 1], tokens: [0, 1], runtime: 0, warmup: 0 },
 };
 const isReady = () => state.phase === "ready";
 /** One unit style for every size on the page: kB for the index files that cross the network as Brotli, MB with two decimals otherwise. */
 const kb = (bytes) => `${Math.round(bytes / 1e3)} kB`;
 const mb = (bytes) => `${(bytes / 1e6).toFixed(bytes >= 1e7 ? 1 : 2)} MB`;
-/** A mode's download; before the manifest arrives, the size its tab names. */
+/** A mode's model download, models only (human request, 2026-11-10: a size beside a model name is that model's); before
+ *  the manifest arrives, the size its tab names. The reranker's token vectors have their own bar and size. */
 const downloadOf = (mode = chosenMode()) => (state.downloads ? mb(state.downloads[mode]) : $(`mode-tab-${mode}`).querySelector(".vs-mode-size").textContent);
+/** What a load transfers, for messages about the whole load: the models, plus the token vectors for the reranker alone. */
+const transferOf = (mode = chosenMode()) => (mode === "reranker" && state.tokenBytes ? `${downloadOf(mode)} + ${mb(state.tokenBytes)} token vectors` : downloadOf(mode));
 /** The mode tabs stay put while a load runs; defuss-shadcn's "active" state enables them again on the chosen tab. */
 const lockModes = (locked) => (locked ? el.modes.api.setState("disabled") : el.modes.api.setState("active", { id: modeTab().id }));
 
@@ -230,7 +235,7 @@ const handlers = {
   probe: ({ cached }) => {
     if (state.phase === "loading" || state.phase === "ready") return; // the user started a load meanwhile
     if (cached) { log("success", `${MODES[chosenMode()].name} found in the browser cache · loading it`); boot(); }
-    else log("info", `${MODES[chosenMode()].name} not cached yet · it downloads (${downloadOf()}) with the first search`);
+    else log("info", `${MODES[chosenMode()].name} not cached yet · it downloads (${transferOf()}) with the first search`);
   },
   progress: ({ phase, loaded, total, cached }) => {
     state.progress[phase] = [loaded, total];
@@ -261,7 +266,7 @@ const handlers = {
   },
   log: ({ tone, text }) => log(tone, text),
   indexed: (data) => {
-    Object.assign(state, { queries: data.queries, languages: data.languages, passages: data.passages, downloads: data.downloads });
+    Object.assign(state, { queries: data.queries, languages: data.languages, passages: data.passages, downloads: data.downloads, tokenBytes: data.tokenBytes });
     showMode();
     const total = data.vectors.bytes + data.documents.bytes;
     state.progress.index = [total, total];
@@ -324,8 +329,8 @@ const handlers = {
     log("destructive", message);
   },
   cleared: () => {
-    log("success", `model cache cleared · the next load downloads ${downloadOf()}`);
-    toast("success", "AI model cache cleared", `The next load downloads ${downloadOf()}.`);
+    log("success", `model cache cleared · the next load downloads ${transferOf()}`);
+    toast("success", "AI model cache cleared", `The next load downloads ${transferOf()}.`);
   },
   reembedded: (data) => {
     const seconds = (data.ms / 1000).toFixed(1);

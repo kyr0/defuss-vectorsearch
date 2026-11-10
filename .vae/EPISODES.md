@@ -87,8 +87,6 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-09T19:46:45Z s=8e62adc6 FINDING scripts/test-docs.ts:My data (custom) click learn=none: Test-only flake from the floating header; the fix is in the test itself.
 2026-11-10T01:28:50Z s=8e62adc6 FINDING scripts/test-docs.ts:234 learn=none: test-only defect: it pinned an asset's size the author may change; the fix is in the test itself
 2026-11-10T01:28:50Z s=8e62adc6 FINDING Makefile:e2e learn=none: human decision; the Makefile comment records it with the CI evidence (index-retry step timed out twice on runners)
-2026-11-10T02:17:47Z s=8e62adc6 FINDING src/pinned-asset.ts:downloadBrotli learn=test: src/colbert-reranker.test.ts serves labelled.json.br with Content-Encoding: br and expects the decoded payload.
-2026-11-10T02:17:47Z s=8e62adc6 FINDING vite.config.ts:optimizeDeps learn=test: scripts/test-demo.ts (make e2e) drives the dev server path.
 2026-11-10T02:17:47Z s=8e62adc6 FINDING scripts/docs/build-worker.ts:base learn=test: scripts/test-docs.ts loads the models through the decoder in Chromium and fails on any 404.
 2026-11-10T02:17:47Z s=8e62adc6 FINDING src/core.ts:prefetchModel learn=test: src/winzling.live.test.ts prefetches from a .br-only mirror, asserts the requests and returned files, then embeds offline from that cache.
 2026-11-10T02:17:47Z s=8e62adc6 FINDING docs/assets/demo.css:html learn=test: scripts/test-docs.ts asserts the root size at 1920, 390 and 1280px
@@ -105,3 +103,5 @@ A lesson recurring ≥2 → test | .agents/VERIFY.py rule | MEMORY line, then de
 2026-11-10T02:36:57Z s=8e62adc6 FINDING docs/index.html:486 [data-bench=recall-r1] learn=test: scripts/test-docs.ts equals the label text.
 2026-11-10T02:36:57Z s=8e62adc6 FINDING README.md, docs/llms.txt, docs/index.html, CHANGELOG.md: eight-language figures learn=test: scripts/test-docs.ts recomputes the page's and llms.txt's figures from bench.json; the README prose has no such check.
 2026-11-10T02:36:57Z s=8e62adc6 FINDING docs/index.html:h1 learn=test: the e2e pins the author's title
+2026-11-10T02:45:39Z s=8e62adc6 DONE fp=afaeae171f84 cov=67.8% paths=.github/workflows/verify.yml,AGENTS.md,ARCH.md,CHANGELOG.md(+67)
+2026-11-10T02:45:39Z s=8e62adc6 FINDING examples/search-worker.ts:indexed downloads learn=test: scripts/test-docs.ts pins model-only sizes and the two-part log
